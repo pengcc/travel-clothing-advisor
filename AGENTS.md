@@ -28,15 +28,35 @@ For repository-aware work:
 
 Load only the context needed for the current task. Do not create lifecycle ceremony, persisted task state, or tooling merely because another repository has it.
 
+## Installed discovery capabilities
+
+This repository currently owns a deliberately small, discovery-only agent capability set:
+
+- **Task Alignment** — `.codex/project-collaboration/task-alignment.md`
+  - use for complex or cross-stage work that needs a stable solution-independent Task Baseline or accepted Task Decisions;
+  - do not manufacture a baseline for small direct work.
+- **Product Framing** — `.codex/skills/meta/product-framing-review/SKILL.md`
+  - use when the meaning of an end-user problem, decision, workflow, answer state, or acceptance boundary needs focused clarification.
+- **Grilling** — `.codex/skills/meta/grilling/SKILL.md`
+  - use only for broad, branching, or blocking ambiguity;
+  - test ambiguity against the smallest representative real traveler scenario.
+- **Docs-First Research** — `.codex/skills/meta/docs-first-research/SKILL.md`
+  - use when a material conclusion depends on externally variable or authoritative facts;
+  - apply `.codex/rules/docs-first-policy.md` for source precedence and claim boundaries.
+
+These capabilities are target-owned adaptations. No Project Memory system, role router, implementation planner, execution workflow, review workflow, publication workflow, hooks, or repository tooling is installed. Do not infer those capabilities from donor repositories or from terminology retained inside historical evidence.
+
 ## Donor repository boundary
 
 `pengcc/badminton-club-app`, `pengcc/large-file-upload`, and other projects may be inspected as evidence for reusable working methods or tooling patterns.
 
 They are **not** authorities for this project's product requirements, runtime, architecture, deployment, repository workflow, Project Memory, or implementation choices. Any adopted capability must become target-owned and must justify its own current consumer here.
 
+The initial discovery capability set was adapted from `pengcc/badminton-club-app` revision `56d6251bda1d9a63799267f2300f24e9ac192c50`, with dependencies not installed in this repository intentionally removed.
+
 ## Research boundary
 
-When conclusions depend on external facts that can change or require authority—such as weather-data behavior, forecast horizons, climatology, licensing, provider capabilities, thermal-comfort science, or platform constraints—verify them against current authoritative sources.
+When conclusions depend on external facts that can change or require authority—such as weather-data behavior, forecast horizons, climatology, licensing, provider capabilities, thermal-comfort science, or platform constraints—verify them against current authoritative sources through the installed docs-first boundary.
 
 Community posts and user discussions are evidence of user questions, language, anxieties, and workflows; they are not authoritative evidence for meteorological or technical facts.
 
@@ -57,8 +77,8 @@ These are current product hypotheses, not an implementation contract.
 
 ## Change and delivery boundary
 
-This initial bootstrap may establish the repository directly on `main`. After bootstrap, ordinary Git-visible product, research, tooling, or implementation changes should use a dedicated branch unless the user explicitly authorizes another path.
+The initial root bootstrap was allowed directly on `main`. After bootstrap, ordinary Git-visible product, research, tooling, or implementation changes should use a dedicated branch unless the user explicitly authorizes another path.
 
-Do not create application code, dependencies, CI, deployment, release machinery, repository publication tooling, worktree automation, hooks, or a full agent skill tree without a demonstrated target-owned need.
+Do not create application code, dependencies, CI, deployment, release machinery, repository publication tooling, worktree automation, hooks, Project Memory, or a broader agent skill tree without a demonstrated target-owned need.
 
-Repository settings, visibility changes, deployment, publication, retained external data mutation, and other material external effects require explicit authority.
+Repository settings, visibility changes, deployment, publication, retained external data mutation, merge to `main`, and other material external effects require explicit authority.
