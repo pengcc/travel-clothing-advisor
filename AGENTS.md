@@ -28,6 +28,16 @@ For repository-aware work:
 
 Load only the context needed for the current task. Do not create lifecycle ceremony, persisted task state, or tooling merely because another repository has it.
 
+## Current-turn outcome
+
+Interpret each request by what the current turn should help the user newly understand, decide, validate, or move closer to resolving.
+
+Use an installed discovery capability only when material new alignment, product framing, research, or clarification is actually required. Adequate completed research and prior discovery are reusable evidence. If the current request can be answered directly from that evidence and no material formal discovery work remains, answer it directly rather than manufacturing another workflow, stage, handoff, or investigation.
+
+Evidence boundaries, uncertainty, process state, validation, and next workflow are supporting information rather than default report structure. Surface them when they materially affect the current answer, trust, risk, decision, or requested action. Internal checks do not become user-visible merely because they ran.
+
+A narrow follow-up during unfinished required discovery does not cancel that still-required work. Preserve consequential uncertainty, user decisions, safety or external-effect boundaries, and exact-target constraints where they remain material.
+
 ## Installed discovery capabilities
 
 This repository currently owns a deliberately small, discovery-only agent capability set:
@@ -52,7 +62,7 @@ These capabilities are target-owned adaptations. No Project Memory system, role 
 
 They are **not** authorities for this project's product requirements, runtime, architecture, deployment, repository workflow, Project Memory, or implementation choices. Any adopted capability must become target-owned and must justify its own current consumer here.
 
-The initial discovery capability set was adapted from `pengcc/badminton-club-app` revision `56d6251bda1d9a63799267f2300f24e9ac192c50`, with dependencies not installed in this repository intentionally removed.
+The initial discovery capability set was adapted from `pengcc/badminton-club-app` revision `56d6251bda1d9a63799267f2300f24e9ac192c50`, with dependencies not installed in this repository intentionally removed. The Task Alignment real-outcome check and the current-turn outcome principle were subsequently refreshed from donor revision `a7e4743e471209c294214ff6617bb7980606f263` without adopting its role router or operating-contract system.
 
 ## Research boundary
 
