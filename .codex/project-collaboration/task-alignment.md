@@ -41,6 +41,8 @@ Add `Open Blocker` only while an unresolved issue prevents safe continuation.
 
 The Task Baseline is not a plan. Do not place solution design, work items, files, commands, tests, sequencing, or delivery mechanics in it.
 
+When establishing or refreshing the baseline, judge its Success Boundary in a representative real traveler or product scenario. If every stated success condition could pass while the real need and scope the task claims to own remain materially unresolved, shaping is not ready. Internal consistency or proof of one mechanism is insufficient. A deliberately bounded subtask remains valid when it fully satisfies its own bounded end state and leaves broader residual work explicitly outside its completion claim with a real owner; it need not solve that separately owned parent problem.
+
 ## Task Decisions
 
 When functional or product choices must persist across stages, record them as Task Decisions. Accepted Task Decisions are subordinate to the Task Baseline and authoritative only for the choices they settle. Candidate ideas, reviewer preferences, current hypotheses, and existing implementation behavior do not become Task Decisions without acceptance.
@@ -53,11 +55,13 @@ Before relying on a baseline:
 2. compare it with verified current facts that could affect its fields; and
 3. check the current stage artifact or action for conformance.
 
-Distinguish user intent, accepted decisions, current evidence, historical material, candidate solutions, and unresolved claims. State only what the evidence proves.
+Distinguish user intent, accepted decisions, current evidence, historical material, candidate solutions, and unresolved claims. State only what the evidence proves. Historical implementation, compatibility behavior, tests, scenario fixtures, stronger proof strategies, and other mechanisms remain evidence unless accepted authority, a current consumer, or a demonstrated loss boundary makes them requirements. Their presence in an artifact does not by itself justify preserving them as requirements.
 
 ## Baseline amendment
 
 Amend a baseline only when explicit user correction or verified contradictory evidence invalidates or materially completes it. A preferred solution, broader optimization, wording improvement, or implementation convenience is not amendment evidence.
+
+This includes verified evidence or explicit user correction showing that a historical mechanism or proof proxy was mistaken for the requirement and thereby invalidates the baseline's meaning. Downstream consumers should stop affected work and return to Task Alignment rather than silently preserving an invalidated proxy.
 
 A discovering stage should stop affected downstream work and report:
 
@@ -79,4 +83,4 @@ Plans, prompts, implementation artifacts, reviews, and status records are consum
 
 ## Adoption provenance
 
-Adapted for this repository from `pengcc/badminton-club-app` at revision `56d6251bda1d9a63799267f2300f24e9ac192c50`. This target-owned version intentionally omits dependencies that are not installed here.
+Adapted for this repository from `pengcc/badminton-club-app` Task Alignment semantics, initially from revision `56d6251bda1d9a63799267f2300f24e9ac192c50` and refreshed for real-outcome convergence from revision `a7e4743e471209c294214ff6617bb7980606f263`. This target-owned version intentionally omits dependencies that are not installed here.
