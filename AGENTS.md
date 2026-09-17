@@ -89,6 +89,12 @@ These are current product hypotheses, not an implementation contract.
 
 The initial root bootstrap was allowed directly on `main`. After bootstrap, ordinary Git-visible product, research, tooling, or implementation changes should use a dedicated branch unless the user explicitly authorizes another path.
 
-Do not create application code, dependencies, CI, deployment, release machinery, repository publication tooling, worktree automation, hooks, Project Memory, or a broader agent skill tree without a demonstrated target-owned need.
+For an ordinary requested repository change, completing the bounded change normally includes publishing or updating **one review-ready pull request** from that dedicated branch once the requested change is coherently represented. Do not insert a separate permission checkpoint merely to ask whether to open the PR. An explicit `keep local`, `no push`, `no PR`, or equivalent constraint opts out.
 
-Repository settings, visibility changes, deployment, publication, retained external data mutation, merge to `main`, and other material external effects require explicit authority.
+Review should evaluate the published PR state. If review finds an actionable issue, remediate the same delivery branch/PR and re-review rather than creating parallel delivery artifacts. Creating or updating the PR does not authorize merge.
+
+**Merge remains a separate explicit user action.** Deployment, release, repository visibility/settings changes, retained external-data mutation, and other material external effects also remain separately authorized.
+
+This delivery convention is semantic only. No dedicated PR publication skill, hooks, `.repo-tools`, or other publication machinery is installed yet; use the available GitHub capability directly while preserving the same branch, exact-target, review, and merge-authority boundaries.
+
+Do not create application code, dependencies, CI, deployment, release machinery, repository publication tooling, worktree automation, hooks, Project Memory, or a broader agent skill tree without a demonstrated target-owned need.
