@@ -79,7 +79,7 @@ Product validation is complete enough to justify a later prototype or recommenda
 
 1. The underlying question recurs across meaningful real traveler situations rather than appearing only as an isolated social-media pattern.
 2. The important user need can be stated as a concrete packing or layer-management decision, not merely a desire for more weather information.
-3. A concise risk-oriented answer can plausibly change a packing decision or materially increase confidence compared with a normal forecast or generic packing list.
+3. Evidence demonstrates that a concise risk-oriented answer changes a packing decision or materially increases confidence compared with a normal forecast or generic packing list.
 4. Representative scenarios expose both useful answers and cases where the system should narrow, qualify, or withhold a recommendation.
 5. The evidence identifies credible underpacking and overpacking failure modes and can distinguish advice that would materially worsen either one.
 6. The proposed value remains sufficiently distinct from current weather and weather-aware packing products to justify further validation.
