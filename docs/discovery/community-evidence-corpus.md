@@ -41,6 +41,12 @@ Do **not** use these sources as authority for temperatures, climate norms, forec
 | E13 | [Reddit / Germany — Apr 2026](https://www.reddit.com/r/germany/comments/1syr5hx/weekend_trip_carry_everything_in_one_packing_cube/) | About one week in Germany in June; light packer | Traveler says they are paranoid about forgetting something and asks whether the compact clothing set is enough, while also asking about wind / rain. | Explicit **forgetting-risk anxiety** remains even for an experienced light-packing posture. |
 | E14 | [Reddit / AskAGerman — Jul 2021](https://www.reddit.com/r/AskAGerman/comments/oe1tir) | First-ever winter exposure; possible Leipzig / Bremen / Mainz | Traveler does not know what properties to look for in winter footwear and asks about winter jackets as well. | Unfamiliar climate can make the problem about **clothing capability**, not garment names alone. |
 
+## Chinese community supplement
+
+The bounded 2026-10-13 Xiaohongshu collection review is recorded in [Xiaohongshu Evidence](xiaohongshu-evidence.md). That document is the sole detailed record for XHS-001–008; do not duplicate those records or count its comments as independent traveler samples here.
+
+The eight unique notes comprise four Germany-related traveler questions (including the previously researched XHS-001), one post-trip packing report with an **unconfirmed destination**, and three general clothing guides. Two question threads contain author-reported arrival / in-trip outcomes; these remain parts of the same sources, not additional independent records. General guides are content references, not traveler problem evidence. The supplement adds Chinese-language examples and candidate validation questions; it does not establish product effectiveness, universal clothing thresholds, or representative demand.
+
 ## Cross-source patterns
 
 ### P1 — The question recurs across seasons
