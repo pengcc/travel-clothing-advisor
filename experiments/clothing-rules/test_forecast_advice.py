@@ -158,6 +158,11 @@ class ForecastTest(unittest.TestCase):
         self.assertNotIn('今日白天已过', text)
         self.assertNotIn('2026-10-15:', text)
 
+    def test_clothing_advice_does_not_assume_season_from_temperature(self):
+        text = format_user_advice(process(fixture(), NOW))
+        self.assertIn('保暖程度适中的外套', text)
+        self.assertNotIn('秋季外套', text)
+
     def test_hot_weather_user_copy(self):
         text = format_user_advice(process(fixture([32] * 14), NOW))
         self.assertIn('短袖', text)
