@@ -168,9 +168,85 @@ def process(payload, now=None, preference='normal'):
     if main <= 2 and not colddays:
         advice.append('整体偏暖，不需要仅因某天比最热一天略凉就带厚羽绒服。')
     return {'dates': dates, 'days': rows, 'main_level': main,
+            'preference': preference,
+            'cold_dates': [r['date'] for r in colddays],
+            'rain_dates': [r['date'] for r in rain_days],
+            'wind_dates': [r['date'] for r in wind_days],
+            'snow_dates': [r['date'] for r in snow_days],
+            'edge_cool': bool(edge_low),
             'typical_daytime': common, 'advice': advice,
             'source': SOURCE, 'source_kind': 'weather forecast',
             'generated_at': now.isoformat()}
+
+
+USER_CLOTHING = {
+    1: '以短袖、透气的轻薄衣物为主。',
+    2: '短袖或薄长袖为主，可根据早晚温差备用轻薄外层。',
+    3: '薄长袖或短袖，备一件方便穿脱的薄外套。',
+    4: '建议准备长袖、抓绒或毛衣，以及一件适合秋季的外套。',
+    5: '建议准备长袖、保暖中间层，以及保暖外套或轻羽绒。',
+    6: '建议准备保暖内搭、毛衣或抓绒，以及适合冬季的较厚外套。',
+}
+
+
+def format_user_advice(result):
+    """Short traveler-facing copy; internal levels and full day table stay in --details."""
+    active = [row for row in result['days'] if row['daytemp'] is not None]
+    if not active:
+        raise ValueError('No remaining daytime forecast')
+    year = dt.date.fromisoformat(active[0]['date']).year
+    first = dt.date.fromisoformat(active[0]['date'])
+    last = dt.date.fromisoformat(active[-1]['date'])
+    if first.year == last.year:
+        period = f'{year}年{format_date_groups(active)}'
+    else:
+        period = f'{first.year}年{first.month}月{first.day}日至{last.year}年{last.month}月{last.day}日'
+    lines = [f'柏林 · {period}穿衣建议',
+             '',
+             USER_CLOTHING[result['main_level']],
+             f'多数白天约 {result["typical_daytime"]:g}°C，衣服建议采用可增减的搭配。']
+    by_date = {row['date']: row for row in result['days']}
+    cold = set(result['cold_dates'])
+    for start, end, long_range in ((0, 7, False), (7, 14, True)):
+        subset = [row for i, row in enumerate(result['days'])
+                  if start <= i < end and row['date'] in cold]
+        if not subset:
+            continue
+        lo, hi = min(r['daytemp'] for r in subset), max(r['daytemp'] for r in subset)
+        degrees = f'{lo:g}°C' if lo == hi else f'{lo:g}～{hi:g}°C'
+        when = format_date_groups(subset)
+        if long_range:
+            lines.append(f'后期留意：{when}白天可能约 {degrees}，建议临近日期再确认是否需要更厚的外套。')
+        else:
+            lines.append(f'降温提醒：{when}白天约 {degrees}，建议额外备一层保暖衣物。')
+    if result['edge_cool']:
+        lines.append('早晚可能更凉，分层穿着方便随时穿脱。')
+    rainy = [by_date[day] for day in result['rain_dates']]
+    if rainy:
+        far_only = all(result['days'].index(row) >= 7 for row in rainy)
+        note = '；日期较远，临近再确认' if far_only else ''
+        lines.append(f'降雨提醒：{format_date_groups(rainy)}可能下雨，备雨具或防雨外套{note}。')
+    windy = [by_date[day] for day in result['wind_dates']]
+    if windy:
+        lines.append(f'大风提醒：{format_date_groups(windy)}可能风较大，外套注意挡风。')
+    snowy = [by_date[day] for day in result['snow_dates']]
+    if snowy:
+        lines.append(f'降雪提醒：{format_date_groups(snowy)}可能下雪，注意保暖和鞋底防滑。')
+    if result['preference'] == 'cold' and result['main_level'] >= 3:
+        lines.append('比较怕冷：在偏凉时段可以再多备一件轻便保暖层。')
+    elif result['preference'] == 'hot' and result['main_level'] <= 5:
+        lines.append('比较怕热：中间层可以少穿一件，仍要留意风雨。')
+    if (result['main_level'] in (3, 4)
+            and min(row['daytemp'] for row in active) >= 9
+            and not snowy
+            and min((r['evening_morning_min'] for r in result['days']
+                     if r['evening_morning_min'] is not None), default=9) >= 0):
+        lines.append('按当前预报，一般不必优先准备厚冬季羽绒服，但只带薄衣服也不合适。')
+    updated = dt.datetime.fromisoformat(result['generated_at']).astimezone(ZoneInfo(TIMEZONE))
+    lines.extend(['', f'预报查询：{updated.month}月{updated.day}日 {updated:%H:%M}（柏林时间）'
+                     f' · 来源：Open-Meteo',
+                  '较远日期的天气可能变化；个人冷热感受不同，临近出发再查看。'])
+    return '\n'.join(lines)
 
 
 def format_advice(result):
@@ -194,12 +270,14 @@ def main():
     parser.add_argument('--fixture', type=Path, help='Run with a saved API JSON instead of making an HTTP request')
     parser.add_argument('--now', help='Reference ISO datetime with offset, only for offline fixture replay')
     parser.add_argument('--preference', choices=['normal', 'cold', 'hot'], default='normal')
+    parser.add_argument('--details', action='store_true', help='Show technical daily levels and forecast trace instead of the short traveler summary')
     args = parser.parse_args()
     if args.now and not args.fixture:
         parser.error('--now is only allowed with --fixture')
     data = json.loads(args.fixture.read_text(encoding='utf-8')) if args.fixture else fetch_forecast()
     now = dt.datetime.fromisoformat(args.now) if args.now else None
-    print(format_advice(process(data, now=now, preference=args.preference)))
+    result = process(data, now=now, preference=args.preference)
+    print(format_advice(result) if args.details else format_user_advice(result))
 
 
 if __name__ == '__main__':
