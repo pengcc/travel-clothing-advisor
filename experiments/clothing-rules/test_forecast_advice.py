@@ -119,6 +119,15 @@ class ForecastTest(unittest.TestCase):
         out = process(f, NOW)
         self.assertTrue(any('10月17～18日' in x and '共2天' in x for x in out['advice']))
 
+    def test_one_rainy_day_avoids_redundant_count(self):
+        f = fixture()
+        f['daily']['precipitation_probability_max'][13] = 80
+        out = process(f, NOW)
+        note = next(x for x in out['advice'] if '降水信号' in x)
+        self.assertIn('10月27日', note)
+        self.assertNotIn('共1天', note)
+        self.assertNotIn('2026-10-14', note)
+
     def test_past_day_daily_rain_not_in_future_advice(self):
         f = fixture()
         f['daily']['precipitation_sum'][0] = 25  # no longer relevant after 20:00
