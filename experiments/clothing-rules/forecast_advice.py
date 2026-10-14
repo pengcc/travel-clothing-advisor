@@ -258,7 +258,8 @@ def format_user_advice(result):
     if rainy:
         far_only = all(result['days'].index(row) >= 7 for row in rainy)
         note = '；日期较远，临近再确认' if far_only else ''
-        lines.append(f'降雨提醒：{format_date_groups(rainy)}可能下雨，备雨具或防雨外套{note}。')
+        # Precipitation totals/probability include both rain and snow; do not infer liquid rain.
+        lines.append(f'降水提醒：{format_date_groups(rainy)}有降水可能，准备雨具或防水外层{note}。')
     windy = [by_date[day] for day in result['wind_dates']]
     if windy:
         lines.append(f'大风提醒：{format_date_groups(windy)}可能风较大，外套注意挡风。')
