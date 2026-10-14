@@ -22,10 +22,10 @@ HOURLY_FIELDS = ('temperature_2m', 'precipitation_probability', 'precipitation')
 MIN_MEANINGFUL_COLD_DELTA_C = 1.5  # candidate UI tolerance, not a thermal comfort threshold
 
 
-def forecast_url():
+def forecast_url(latitude=52.52, longitude=13.41):
     params = {
-        'latitude': 52.52,
-        'longitude': 13.41,
+        'latitude': latitude,
+        'longitude': longitude,
         'timezone': TIMEZONE,
         'forecast_days': 14,
         'temperature_unit': 'celsius',
@@ -37,8 +37,8 @@ def forecast_url():
     return API_URL + '?' + urlencode(params)
 
 
-def fetch_forecast():
-    with urlopen(forecast_url(), timeout=20) as response:
+def fetch_forecast(latitude=52.52, longitude=13.41):
+    with urlopen(forecast_url(latitude, longitude), timeout=20) as response:
         return json.load(response)
 
 
@@ -69,7 +69,7 @@ def format_date_groups(rows):
     return '、'.join(show(a, b) for a, b in groups)
 
 
-def process(payload, now=None, preference='normal'):
+def process(payload, now=None, preference='normal', *, trip_start=None, trip_end=None, city='柏林'):
     if payload.get('timezone') != TIMEZONE:
         raise ValueError('Forecast timezone must be Europe/Berlin')
     tz = ZoneInfo(TIMEZONE)
@@ -128,6 +128,18 @@ def process(payload, now=None, preference='normal'):
             'snow_cm': daily['snowfall_sum'][i],  # actual unit snowfall_sum: centimeters
             'gust_kmh': daily['wind_gusts_10m_max'][i],
         })
+    # Only the selected travel dates affect packing decisions, not other
+    # forecast days. Keep original horizon offsets for week-one/week-two notes.
+    if (trip_start is None) != (trip_end is None):
+        raise ValueError('Both trip_start and trip_end are required')
+    if trip_start is not None:
+        start = dt.date.fromisoformat(str(trip_start))
+        end = dt.date.fromisoformat(str(trip_end))
+        if start > end or start < now.date() or end > dt.date.fromisoformat(dates[-1]):
+            raise ValueError('Trip must be within the available 14-day forecast window')
+        rows = [row for row in rows if start <= dt.date.fromisoformat(row['date']) <= end]
+    if not rows:
+        raise ValueError('No forecast dates selected for the trip')
     # Skip current partial day if daytime has already passed. Do not treat previous
     # hours of today as the future traveler's exposure.
     candidates = [r for r in rows if r['level'] is not None]
@@ -162,7 +174,7 @@ def process(payload, now=None, preference='normal'):
             (range(7), '近期（第1～7天）', '适当备一层可加的保暖衣物；不必每天都穿最厚。'),
             (range(7, 14), '后期（第8～14天）', '后期预报有较大不确定性，先留意，临近再确认。'),
         ):
-            group = [r for i, r in enumerate(rows) if i in indices and r in colddays]
+            group = [r for r in colddays if (dt.date.fromisoformat(r['date']) - now.date()).days in indices]
             if not group:
                 continue
             coldest = min(r['daytemp'] for r in group)
@@ -193,7 +205,9 @@ def process(payload, now=None, preference='normal'):
         advice.append('比较怕热：可减少一件中间层，但风雨防护仍需考虑。')
     if main <= 2 and not colddays:
         advice.append('整体偏暖，不需要仅因某天比最热一天略凉就带厚羽绒服。')
-    return {'dates': dates, 'days': rows, 'main_level': main,
+    return {'dates': [r['date'] for r in rows] if trip_start is not None else dates,
+            'selected_trip': trip_start is not None, 'days': rows, 'city': city,
+            'as_of_date': now.date().isoformat(), 'main_level': main,
             'preference': preference,
             'cold_dates': [r['date'] for r in colddays],
             'rain_dates': [r['date'] for r in rain_days],
@@ -227,15 +241,17 @@ def format_user_advice(result):
         period = f'{year}年{format_date_groups(active)}'
     else:
         period = f'{first.year}年{first.month}月{first.day}日至{last.year}年{last.month}月{last.day}日'
-    lines = [f'柏林 · {period}穿衣建议',
+    lines = [f"{result.get('city', '柏林')} · {period}穿衣建议",
              '',
              USER_CLOTHING[result['main_level']],
              f'多数白天约 {result["typical_daytime"]:g}°C，衣服建议采用可增减的搭配。']
     by_date = {row['date']: row for row in result['days']}
     cold = set(result['cold_dates'])
+    as_of = dt.date.fromisoformat(result['as_of_date'])
     for start, end, long_range in ((0, 7, False), (7, 14, True)):
-        subset = [row for i, row in enumerate(result['days'])
-                  if start <= i < end and row['date'] in cold]
+        subset = [row for row in result['days']
+                  if start <= (dt.date.fromisoformat(row['date']) - as_of).days < end
+                  and row['date'] in cold]
         if not subset:
             continue
         lo, hi = min(r['daytemp'] for r in subset), max(r['daytemp'] for r in subset)
@@ -256,7 +272,7 @@ def format_user_advice(result):
         lines.append('早晚可能更凉，分层穿着方便随时穿脱。')
     rainy = [by_date[day] for day in result['rain_dates']]
     if rainy:
-        far_only = all(result['days'].index(row) >= 7 for row in rainy)
+        far_only = all((dt.date.fromisoformat(row['date']) - as_of).days >= 7 for row in rainy)
         note = '；日期较远，临近再确认' if far_only else ''
         # Precipitation totals/probability include both rain and snow; do not infer liquid rain.
         lines.append(f'降水提醒：{format_date_groups(rainy)}有降水可能，准备雨具或防水外层{note}。')
@@ -284,7 +300,9 @@ def format_user_advice(result):
 
 
 def format_advice(result):
-    lines = [f"柏林未来14个日历日穿衣建议｜{result['dates'][0]}—{result['dates'][-1]}",
+    title = (f"{result.get('city', '柏林')}所选日期穿衣建议"
+             if result.get('selected_trip') else '柏林未来14个日历日穿衣建议')
+    lines = [f"{title}｜{result['dates'][0]}—{result['dates'][-1]}",
              f"典型白天约 {result['typical_daytime']:g}°C → L{result['main_level']}（推荐厚度，不是必须穿齐的衣物清单）",
              '建议：']
     lines.extend('• ' + line for line in result['advice'])
@@ -292,7 +310,8 @@ def format_advice(result):
     for i, row in enumerate(result['days']):
         temp = '今日白天已过' if row['daytemp'] is None else f"{row['daytemp']:g}°C"
         mark = '' if row['level'] is None else f"L{row['level']}"
-        flag = ' · 后期预报需复查' if i >= 7 else ''
+        offset = (dt.date.fromisoformat(row['date']) - dt.date.fromisoformat(result['as_of_date'])).days
+        flag = ' · 后期预报需复查' if offset >= 7 else ''
         lines.append(f"{row['date']}: {temp} {mark}{flag}")
     lines.append('第8～14天的不确定性较高，请在接近出发时复查；每个人对冷热的感受也不同。')
     lines.append(f"数据：Open-Meteo（{result['source']}），读取/计算时间 {result['generated_at']}；建议由规则推算，并非天气服务商的穿衣建议。")
