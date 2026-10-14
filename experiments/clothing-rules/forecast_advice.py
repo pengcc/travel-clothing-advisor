@@ -18,6 +18,8 @@ TIMEZONE = 'Europe/Berlin'
 API_URL = 'https://api.open-meteo.com/v1/forecast'
 SOURCE = 'https://open-meteo.com/'
 DAILY_FIELDS = ('precipitation_probability_max', 'precipitation_sum', 'snowfall_sum', 'wind_gusts_10m_max')
+HOURLY_FIELDS = ('temperature_2m', 'precipitation_probability', 'precipitation')
+MIN_MEANINGFUL_COLD_DELTA_C = 1.5  # candidate UI tolerance, not a thermal comfort threshold
 
 
 def forecast_url():
@@ -29,7 +31,7 @@ def forecast_url():
         'temperature_unit': 'celsius',
         'wind_speed_unit': 'kmh',
         'precipitation_unit': 'mm',
-        'hourly': 'temperature_2m',
+        'hourly': ','.join(HOURLY_FIELDS),
         'daily': ','.join(DAILY_FIELDS),
     }
     return API_URL + '?' + urlencode(params)
@@ -80,15 +82,21 @@ def process(payload, now=None, preference='normal'):
     dates = daily.get('time') or []
     timestamps = hourly.get('time') or []
     hourly_temps = hourly.get('temperature_2m') or []
-    if not (len(dates) == 14 and len(timestamps) == len(hourly_temps)):
-        raise ValueError('Expected 14 daily dates and matching hourly temperatures')
+    if len(dates) != 14 or not timestamps:
+        raise ValueError('Expected 14 daily dates and hourly timestamps')
+    for field in HOURLY_FIELDS:
+        if len(hourly.get(field, [])) != len(timestamps):
+            raise ValueError('Missing/incomplete hourly field: ' + field)
     if not all(dates[i] == (now.date() + dt.timedelta(days=i)).isoformat() for i in range(14)):
         raise ValueError('Forecast dates are not 14 consecutive days starting today')
     for field in DAILY_FIELDS:
         if len(daily.get(field, [])) != 14:
             raise ValueError('Missing/incomplete daily field: ' + field)
     obs = {}
-    for stamp, val in zip(timestamps, hourly_temps):
+    upcoming_rain = {}
+    for stamp, val, prob, precip in zip(
+            timestamps, hourly_temps,
+            hourly['precipitation_probability'], hourly['precipitation']):
         at = dt.datetime.fromisoformat(stamp)
         if at.tzinfo is None:
             # API returns local wall-clock timestamps without offset
@@ -97,6 +105,11 @@ def process(payload, now=None, preference='normal'):
             at = at.astimezone(tz)
         if numeric(val) and at >= now:
             obs.setdefault(at.date().isoformat(), []).append((at.hour, float(val)))
+        # Precipitation and probability describe the *preceding* hour,
+        # unlike instantaneous temperature. At 17:00 the sample stamped
+        # 17:00 has already elapsed; 18:00 covers the upcoming 17-18 hour.
+        if at > now and at.date() == now.date():
+            upcoming_rain.setdefault(at.date().isoformat(), []).append((prob, precip))
     rows = []
     for i, day in enumerate(dates):
         hours = obs.get(day, [])
@@ -122,13 +135,22 @@ def process(payload, now=None, preference='normal'):
         raise ValueError('No usable future daytime forecast')
     common = round(median([r['daytemp'] for r in candidates]), 1)
     main = level(common)
-    colddays = [r for r in candidates if r['level'] > main and r['level'] >= 4]
+    colddays = [r for r in candidates if r['level'] > main and r['level'] >= 4
+                and common - r['daytemp'] >= MIN_MEANINGFUL_COLD_DELTA_C]
     warmdays = [r for r in candidates if r['level'] < main]
     # A past partial day cannot be treated as a forecast of the remaining day:
     # Open-Meteo daily totals/probabilities are whole-day values.
     future_day_rows = [r for r in rows if r['daytemp'] is not None]
-    rain_days = [r for r in future_day_rows if (numeric(r['rain_probability']) and r['rain_probability'] >= 60) or
-                 (numeric(r['precip_mm']) and r['precip_mm'] >= 2)]
+    def rain_expected(row):
+        if row['date'] == now.date().isoformat():
+            # Daily aggregates include weather already in the past.
+            remaining = upcoming_rain.get(row['date'], [])
+            return (any(numeric(prob) and prob >= 60 for prob, _ in remaining)
+                    or sum(p for _, p in remaining if numeric(p) and p > 0) >= 2)
+        return ((numeric(row['rain_probability']) and row['rain_probability'] >= 60)
+                or (numeric(row['precip_mm']) and row['precip_mm'] >= 2))
+
+    rain_days = [r for r in future_day_rows if rain_expected(r)]
     wind_days = [r for r in future_day_rows if numeric(r['gust_kmh']) and r['gust_kmh'] >= 45]
     snow_days = [r for r in future_day_rows if numeric(r['snow_cm']) and r['snow_cm'] > 0]
     edge_low = [r for r in rows if numeric(r['evening_morning_min']) and r['evening_morning_min'] < common - 6]
@@ -150,6 +172,10 @@ def process(payload, now=None, preference='normal'):
             count = f'（共{len(group)}天）' if len(group) > 1 else ''
             advice.append(f'{prefix} {format_date_groups(group)}{count}偏冷，'
                           f'白天约 {range_text}（L{max(r["level"] for r in group)}），{suffix}')
+    winter_days = [r for r in colddays if r['level'] == 6]
+    if winter_days:
+        advice.append(f'冬季低温提醒：{format_date_groups(winter_days)}白天可能需保暖内搭、'
+                      '抓绒或毛衣以及较厚冬季外套；其他日期不必按冬季最厚组合穿。')
     if warmdays:
         advice.append('部分日子白天更暖，备可脱的外层或轻薄上衣。')
     if edge_low:
@@ -219,6 +245,13 @@ def format_user_advice(result):
             lines.append(f'后期留意：{when}白天可能约 {degrees}，建议临近日期再确认是否需要更厚的外套。')
         else:
             lines.append(f'降温提醒：{when}白天约 {degrees}，建议额外备一层保暖衣物。')
+        winter_subset = [r for r in subset if r['level'] == 6]
+        if winter_subset:
+            winter_when = format_date_groups(winter_subset)
+            prefix = '远期预报提示' if long_range else '特别注意'
+            ending = '；较远期预报仍需复查。' if long_range else '；其他日子不必都穿最厚。'
+            lines.append(f'{prefix}：{winter_when}可能需要冬季保暖内搭、抓绒或毛衣，'
+                         f'以及较厚的冬季外套{ending}')
     if result['edge_cool']:
         lines.append('早晚可能更凉，分层穿着方便随时穿脱。')
     rainy = [by_date[day] for day in result['rain_dates']]
