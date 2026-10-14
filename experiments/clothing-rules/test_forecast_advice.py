@@ -16,7 +16,9 @@ def fixture(highs=None):
             times.append(f'{date}T{hour:02d}:00')
             temps.append(t if 9 <= hour <= 18 else t - 7)
     return {'timezone': 'Europe/Berlin',
-            'hourly': {'time': times, 'temperature_2m': temps},
+            'hourly': {'time': times, 'temperature_2m': temps,
+                       'precipitation_probability': [10] * len(times),
+                       'precipitation': [0] * len(times)},
             'daily': {'time': dates,
                       'precipitation_probability_max': [10] * 14,
                       'precipitation_sum': [0] * 14,
@@ -33,7 +35,7 @@ class ForecastTest(unittest.TestCase):
         self.assertEqual(p['forecast_days'], ['14'])
         self.assertEqual(p['timezone'], ['Europe/Berlin'])
         self.assertEqual(p['latitude'], ['52.52'])
-        self.assertEqual(p['hourly'], ['temperature_2m'])
+        self.assertEqual(p['hourly'], ['temperature_2m,precipitation_probability,precipitation'])
 
     def test_moderate_autumn_advice(self):
         out = process(fixture(), NOW)
@@ -202,6 +204,78 @@ class ForecastTest(unittest.TestCase):
         now = dt.datetime(2026, 12, 26, 7, tzinfo=ZoneInfo('Europe/Berlin'))
         text = format_user_advice(process(f, now))
         self.assertIn('2026年12月26日至2027年1月8日', text)
+
+    def test_boundary_crossing_only_point_two_degrees_does_not_add_warm_layer(self):
+        highs = [13.1] * 14
+        highs[3] = 12.9
+        out = process(fixture(highs), NOW)
+        self.assertEqual(out['main_level'], 4)
+        self.assertEqual(out['cold_dates'], [])
+        self.assertNotIn('降温提醒', format_user_advice(out))
+
+    def test_meaningful_near_boundary_cold_spell_still_reported(self):
+        highs = [14.1] * 14
+        highs[3:6] = [12.4, 12.3, 11.5]
+        text = format_user_advice(process(fixture(highs), NOW))
+        self.assertIn('10月17～19日', text)
+        self.assertIn('降温提醒', text)
+
+    def test_single_winter_cold_outlier_gets_explicit_winter_clothing(self):
+        highs = [21] * 14
+        highs[4] = -2
+        out = process(fixture(highs), NOW)
+        self.assertEqual(out['main_level'], 3)
+        text = format_user_advice(out)
+        self.assertIn('10月18日', text)
+        self.assertIn('冬季保暖内搭', text)
+        self.assertIn('较厚的冬季外套', text)
+        self.assertIn('冬季低温提醒', format_advice(out))
+
+    def test_winter_outlier_in_second_week_clearly_qualified(self):
+        highs = [21] * 14
+        highs[12] = -2
+        text = format_user_advice(process(fixture(highs), NOW))
+        self.assertIn('10月26日', text)
+        self.assertIn('较厚的冬季外套', text)
+        self.assertIn('较远期预报仍需复查', text)
+
+    def test_partial_day_past_rain_does_not_trigger_remaining_day(self):
+        f = fixture()
+        f['daily']['precipitation_sum'][0] = 16
+        f['daily']['precipitation_probability_max'][0] = 90
+        for i, stamp in enumerate(f['hourly']['time']):
+            if stamp.startswith('2026-10-14T') and stamp[11:13] in ('09', '10', '11'):
+                f['hourly']['precipitation'][i] = 5
+                f['hourly']['precipitation_probability'][i] = 95
+        at = dt.datetime(2026, 10, 14, 17, tzinfo=ZoneInfo('Europe/Berlin'))
+        out = process(f, at)
+        self.assertIsNotNone(out['days'][0]['daytemp'])
+        self.assertNotIn('2026-10-14', out['rain_dates'])
+        self.assertNotIn('降雨提醒', format_user_advice(out))
+
+    def test_hourly_future_rain_today_still_detected(self):
+        f = fixture()
+        for i, stamp in enumerate(f['hourly']['time']):
+            if stamp == '2026-10-14T18:00':
+                f['hourly']['precipitation_probability'][i] = 90
+        at = dt.datetime(2026, 10, 14, 17, tzinfo=ZoneInfo('Europe/Berlin'))
+        out = process(f, at)
+        self.assertIn('2026-10-14', out['rain_dates'])
+        self.assertIn('10月14日可能下雨', format_user_advice(out))
+
+    def test_precip_at_current_hour_is_preceding_hour(self):
+        f = fixture()
+        for i, stamp in enumerate(f['hourly']['time']):
+            if stamp == '2026-10-14T17:00':
+                f['hourly']['precipitation_probability'][i] = 100
+        at = dt.datetime(2026, 10, 14, 17, tzinfo=ZoneInfo('Europe/Berlin'))
+        self.assertNotIn('2026-10-14', process(f, at)['rain_dates'])
+
+    def test_missing_hourly_precip_fields_fail_loudly(self):
+        f = fixture()
+        del f['hourly']['precipitation_probability']
+        with self.assertRaisesRegex(ValueError, 'Missing/incomplete hourly field'):
+            process(f, NOW)
 
     def test_horizon_not_turned_into_climate_claim(self):
         out = process(fixture(), NOW)
