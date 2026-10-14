@@ -178,7 +178,7 @@ def format_advice(result):
              f"典型白天约 {result['typical_daytime']:g}°C → L{result['main_level']}（推荐厚度，不是必须穿齐的衣物清单）",
              '建议：']
     lines.extend('• ' + line for line in result['advice'])
-    lines.append('每日预报（白天 09–18 点中位气温；— 表示今日白天已过去）：')
+    lines.append('每日预报（白天 09–18 点中位气温）：')
     for i, row in enumerate(result['days']):
         temp = '今日白天已过' if row['daytemp'] is None else f"{row['daytemp']:g}°C"
         mark = '' if row['level'] is None else f"L{row['level']}"
