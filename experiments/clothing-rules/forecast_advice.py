@@ -78,7 +78,7 @@ def process(payload, now=None, preference='normal'):
     for i, day in enumerate(dates):
         hours = obs.get(day, [])
         daytemps = [t for hour, t in hours if 9 <= hour <= 18]
-        edge = [t for hour, t in hours if hour < 9 or hour >= 19]
+        edge = [t for hour, t in hours if 6 <= hour <= 8 or 19 <= hour <= 22]
         if i > 0 and not daytemps:
             raise ValueError('Missing daytime forecast for ' + day)
         daytemp = round(median(daytemps), 1) if daytemps else None
