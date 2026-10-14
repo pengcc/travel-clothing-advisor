@@ -44,6 +44,29 @@ def numeric(value):
     return isinstance(value, (int, float)) and not isinstance(value, bool) and -10000 < float(value) < 10000
 
 
+def format_date_groups(rows):
+    """Readable groups of consecutive travel dates (never hides multiple cold days)."""
+    days = sorted({dt.date.fromisoformat(row['date']) for row in rows})
+    if not days:
+        return ''
+    groups = []
+    first = last = days[0]
+    for day in days[1:]:
+        if day == last + dt.timedelta(days=1):
+            last = day
+        else:
+            groups.append((first, last))
+            first = last = day
+    groups.append((first, last))
+    def show(start, end):
+        if start == end:
+            return f'{start.month}月{start.day}日'
+        if start.year == end.year and start.month == end.month:
+            return f'{start.month}月{start.day}～{end.day}日'
+        return f'{start.month}月{start.day}日至{end.month}月{end.day}日'
+    return '、'.join(show(a, b) for a, b in groups)
+
+
 def process(payload, now=None, preference='normal'):
     if payload.get('timezone') != TIMEZONE:
         raise ValueError('Forecast timezone must be Europe/Berlin')
@@ -101,23 +124,39 @@ def process(payload, now=None, preference='normal'):
     main = level(common)
     colddays = [r for r in candidates if r['level'] > main and r['level'] >= 4]
     warmdays = [r for r in candidates if r['level'] < main]
-    rain_days = [r for r in rows if (numeric(r['rain_probability']) and r['rain_probability'] >= 60) or
+    # A past partial day cannot be treated as a forecast of the remaining day:
+    # Open-Meteo daily totals/probabilities are whole-day values.
+    future_day_rows = [r for r in rows if r['daytemp'] is not None]
+    rain_days = [r for r in future_day_rows if (numeric(r['rain_probability']) and r['rain_probability'] >= 60) or
                  (numeric(r['precip_mm']) and r['precip_mm'] >= 2)]
-    wind_days = [r for r in rows if numeric(r['gust_kmh']) and r['gust_kmh'] >= 45]
-    snow_days = [r for r in rows if numeric(r['snow_cm']) and r['snow_cm'] > 0]
+    wind_days = [r for r in future_day_rows if numeric(r['gust_kmh']) and r['gust_kmh'] >= 45]
+    snow_days = [r for r in future_day_rows if numeric(r['snow_cm']) and r['snow_cm'] > 0]
     edge_low = [r for r in rows if numeric(r['evening_morning_min']) and r['evening_morning_min'] < common - 6]
     advice = [LEVEL_NAMES[main]]
     if colddays:
-        coldest = min(colddays, key=lambda r: r['daytemp'])
-        advice.append(f"偏冷日 {coldest['date']} 白天约 {coldest['daytemp']:g}°C，建议备可加的保暖层（L{coldest['level']}）；不必每天都穿最厚。")
+        # Do not single out the coldest day in week two while hiding a
+        # multi-day cooler spell in week one.
+        for indices, prefix, suffix in (
+            (range(7), '近期（第1～7天）', '适当备一层可加的保暖衣物；不必每天都穿最厚。'),
+            (range(7, 14), '后期（第8～14天）', '后期预报有较大不确定性，先留意，临近再确认。'),
+        ):
+            group = [r for i, r in enumerate(rows) if i in indices and r in colddays]
+            if not group:
+                continue
+            coldest = min(r['daytemp'] for r in group)
+            warmest = max(r['daytemp'] for r in group)
+            range_text = (f'{coldest:g}°C' if coldest == warmest
+                          else f'{coldest:g}～{warmest:g}°C')
+            advice.append(f'{prefix} {format_date_groups(group)}共{len(group)}天偏冷，'
+                          f'白天约 {range_text}（L{max(r["level"] for r in group)}），{suffix}')
     if warmdays:
         advice.append('部分日子白天更暖，备可脱的外层或轻薄上衣。')
     if edge_low:
         advice.append('部分早晚明显更凉，注意可穿脱的分层；公交、商场和室内便于脱下。')
     if rain_days:
-        advice.append(f'预计 {len(rain_days)} 天有较明显降水信号，考虑雨具或防雨外层。')
+        advice.append(f'预计 {format_date_groups(rain_days)} 共{len(rain_days)}天有较明显降水信号，考虑雨具或防雨外层；较远日期请临近复查。')
     if wind_days:
-        advice.append(f'预计 {len(wind_days)} 天有较强阵风，注意外层挡风。')
+        advice.append(f'预计 {format_date_groups(wind_days)} 有较强阵风信号，注意外层挡风。')
     if snow_days:
         advice.append('部分日期可能降雪，注意适当的鞋和外套。')
     if preference == 'cold' and main >= 3:
@@ -133,13 +172,13 @@ def process(payload, now=None, preference='normal'):
 
 
 def format_advice(result):
-    lines = [f"柏林未来14天穿衣建议｜{result['dates'][0]}—{result['dates'][-1]}",
+    lines = [f"柏林未来14个日历日穿衣建议｜{result['dates'][0]}—{result['dates'][-1]}",
              f"典型白天约 {result['typical_daytime']:g}°C → L{result['main_level']}（推荐厚度，不是必须穿齐的衣物清单）",
              '建议：']
     lines.extend('• ' + line for line in result['advice'])
     lines.append('每日预报（白天 09–18 点中位气温；— 表示今日白天已过去）：')
     for i, row in enumerate(result['days']):
-        temp = '—' if row['daytemp'] is None else f"{row['daytemp']:g}°C"
+        temp = '今日白天已过' if row['daytemp'] is None else f"{row['daytemp']:g}°C"
         mark = '' if row['level'] is None else f"L{row['level']}"
         flag = ' · 后期预报需复查' if i >= 7 else ''
         lines.append(f"{row['date']}: {temp} {mark}{flag}")
