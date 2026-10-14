@@ -147,7 +147,8 @@ def process(payload, now=None, preference='normal'):
             warmest = max(r['daytemp'] for r in group)
             range_text = (f'{coldest:g}°C' if coldest == warmest
                           else f'{coldest:g}～{warmest:g}°C')
-            advice.append(f'{prefix} {format_date_groups(group)}共{len(group)}天偏冷，'
+            count = f'（共{len(group)}天）' if len(group) > 1 else ''
+            advice.append(f'{prefix} {format_date_groups(group)}{count}偏冷，'
                           f'白天约 {range_text}（L{max(r["level"] for r in group)}），{suffix}')
     if warmdays:
         advice.append('部分日子白天更暖，备可脱的外层或轻薄上衣。')
