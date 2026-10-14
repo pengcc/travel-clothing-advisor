@@ -1,6 +1,6 @@
 import unittest
 from pathlib import Path
-from validate_clothing_rules import load, recommend
+from validate_clothing_rules import load, recommend, select_rows
 
 DATA = load(Path(__file__).with_name('berlin_tempelhof_2025_sample.csv'))
 
@@ -40,6 +40,10 @@ class RulesTest(unittest.TestCase):
                    'precip_mm': 0, 'snow_cm': 0, 'wind_gust_kmh': 0}
             rec = recommend([row])
             self.assertTrue(any('L4 / L5' in note for note in rec['notices']))
+
+    def test_rejects_missing_dates(self):
+        with self.assertRaisesRegex(ValueError, 'not complete'):
+            select_rows(DATA, '2025-04-15', '2025-07-07')
 
     def test_personalization_does_not_force_hard_shift(self):
         hot = [{'date': '2025-07-02', 'tmax_c': 37.6, 'tmin_c': 17.9,
