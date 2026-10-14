@@ -152,7 +152,7 @@ class ForecastTest(unittest.TestCase):
         self.assertIn('2026年10月15～27日穿衣建议', text)
         self.assertIn('长袖、抓绒或毛衣', text)
         self.assertIn('10月17～19日', text)
-        self.assertIn('10月27日可能下雨', text)
+        self.assertIn('10月27日有降水可能', text)
         self.assertIn('预报查询：10月14日 20:09', text)
         self.assertIn('Open-Meteo', text)
         self.assertNotIn('依据你提供', text)
@@ -251,7 +251,7 @@ class ForecastTest(unittest.TestCase):
         out = process(f, at)
         self.assertIsNotNone(out['days'][0]['daytemp'])
         self.assertNotIn('2026-10-14', out['rain_dates'])
-        self.assertNotIn('降雨提醒', format_user_advice(out))
+        self.assertNotIn('降水提醒', format_user_advice(out))
 
     def test_hourly_future_rain_today_still_detected(self):
         f = fixture()
@@ -261,7 +261,26 @@ class ForecastTest(unittest.TestCase):
         at = dt.datetime(2026, 10, 14, 17, tzinfo=ZoneInfo('Europe/Berlin'))
         out = process(f, at)
         self.assertIn('2026-10-14', out['rain_dates'])
-        self.assertIn('10月14日可能下雨', format_user_advice(out))
+        self.assertIn('10月14日有降水可能', format_user_advice(out))
+
+    def test_snow_only_day_not_misrepresented_as_rain(self):
+        f = fixture()
+        f['daily']['precipitation_sum'][3] = 8  # Includes snow water equivalent
+        f['daily']['snowfall_sum'][3] = 7      # Snow; no liquid rain is established
+        out = process(f, NOW)
+        display = format_user_advice(out)
+        self.assertIn('降水提醒：10月17日有降水可能', display)
+        self.assertIn('降雪提醒：10月17日可能下雪', display)
+        self.assertNotIn('降雨提醒', display)
+        self.assertNotIn('可能下雨', display)
+
+    def test_rain_possible_without_snow_uses_precipitation_neutral_copy(self):
+        f = fixture()
+        f['daily']['precipitation_sum'][2] = 3
+        out = process(f, NOW)
+        display = format_user_advice(out)
+        self.assertIn('降水提醒：10月16日有降水可能', display)
+        self.assertNotIn('降雪提醒', display)
 
     def test_precip_at_current_hour_is_preceding_hour(self):
         f = fixture()
