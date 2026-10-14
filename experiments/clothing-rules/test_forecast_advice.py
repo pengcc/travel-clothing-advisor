@@ -2,7 +2,7 @@ import datetime as dt
 import unittest
 from zoneinfo import ZoneInfo
 from urllib.parse import parse_qs, urlparse
-from forecast_advice import process, format_advice, forecast_url
+from forecast_advice import process, format_advice, format_user_advice, forecast_url
 
 
 def fixture(highs=None):
@@ -139,6 +139,64 @@ class ForecastTest(unittest.TestCase):
         text = format_advice(process(fixture(), now))
         self.assertIn('14个日历日', text)
         self.assertIn('2026-10-14: 今日白天已过', text)
+
+    def test_user_facing_report_matches_actual_cold_spell(self):
+        highs = [14.6, 14.6, 16.5, 12.4, 12.3, 11.5, 13.2,
+                 15.4, 14.2, 14.9, 14.6, 13.1, 14.1, 10.4]
+        f = fixture(highs)
+        f['daily']['precipitation_probability_max'][13] = 75
+        now = dt.datetime(2026, 10, 14, 20, 9, tzinfo=ZoneInfo('Europe/Berlin'))
+        text = format_user_advice(process(f, now))
+        self.assertIn('2026年10月15～27日穿衣建议', text)
+        self.assertIn('长袖、抓绒或毛衣', text)
+        self.assertIn('10月17～19日', text)
+        self.assertIn('10月27日可能下雨', text)
+        self.assertIn('预报查询：10月14日 20:09', text)
+        self.assertIn('Open-Meteo', text)
+        self.assertNotIn('依据你提供', text)
+        self.assertNotIn('L4', text)
+        self.assertNotIn('今日白天已过', text)
+        self.assertNotIn('2026-10-15:', text)
+
+    def test_hot_weather_user_copy(self):
+        text = format_user_advice(process(fixture([32] * 14), NOW))
+        self.assertIn('短袖', text)
+        self.assertNotIn('建议准备长袖、抓绒或毛衣', text)
+        self.assertNotIn('厚冬季羽绒服，但', text)
+
+    def test_cold_weather_user_copy(self):
+        text = format_user_advice(process(fixture([0] * 14), NOW))
+        self.assertIn('冬季', text)
+        self.assertIn('较厚外套', text)
+        self.assertNotIn('一般不必优先准备厚冬季羽绒服', text)
+
+    def test_user_preference_affects_only_relevant_text(self):
+        ordinary = format_user_advice(process(fixture(), NOW))
+        colder = format_user_advice(process(fixture(), NOW, 'cold'))
+        hotter = format_user_advice(process(fixture(), NOW, 'hot'))
+        self.assertNotIn('比较怕冷', ordinary)
+        self.assertIn('比较怕冷', colder)
+        self.assertIn('比较怕热', hotter)
+        self.assertIn('长袖、抓绒或毛衣', hotter)
+
+    def test_technical_details_remain_available(self):
+        out = process(fixture(), NOW)
+        self.assertIn('2026-10-15: 16°C L4', format_advice(out))
+        self.assertNotIn('2026-10-15: 16°C L4', format_user_advice(out))
+
+    def test_cross_year_date_header(self):
+        f = fixture()
+        initial = dt.date(2026, 10, 14)
+        target = dt.date(2026, 12, 26)
+        for i, day in enumerate(f['daily']['time']):
+            f['daily']['time'][i] = (target + dt.timedelta(days=i)).isoformat()
+        for i, value in enumerate(f['hourly']['time']):
+            d, hour = value.split('T')
+            offset = (dt.date.fromisoformat(d) - initial).days
+            f['hourly']['time'][i] = (target + dt.timedelta(days=offset)).isoformat() + 'T' + hour
+        now = dt.datetime(2026, 12, 26, 7, tzinfo=ZoneInfo('Europe/Berlin'))
+        text = format_user_advice(process(f, now))
+        self.assertIn('2026年12月26日至2027年1月8日', text)
 
     def test_horizon_not_turned_into_climate_claim(self):
         out = process(fixture(), NOW)
