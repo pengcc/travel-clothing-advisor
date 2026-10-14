@@ -91,6 +91,16 @@ class ForecastTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'daytime forecast'):
             process(f, NOW)
 
+    def test_overnight_low_does_not_count_as_morning_evening(self):
+        f = fixture()
+        for i, stamp in enumerate(f['hourly']['time']):
+            if stamp.endswith('T03:00'):
+                f['hourly']['temperature_2m'][i] = -20
+            elif stamp.endswith(('T06:00', 'T07:00', 'T08:00', 'T19:00', 'T20:00', 'T21:00', 'T22:00')):
+                f['hourly']['temperature_2m'][i] = 16
+        out = process(f, NOW)
+        self.assertFalse(any('部分早晚明显更凉' in x for x in out['advice']))
+
     def test_horizon_not_turned_into_climate_claim(self):
         out = process(fixture(), NOW)
         text = format_advice(out)
