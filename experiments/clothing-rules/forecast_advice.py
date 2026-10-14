@@ -155,7 +155,8 @@ def process(payload, now=None, preference='normal'):
     if edge_low:
         advice.append('部分早晚明显更凉，注意可穿脱的分层；公交、商场和室内便于脱下。')
     if rain_days:
-        advice.append(f'预计 {format_date_groups(rain_days)} 共{len(rain_days)}天有较明显降水信号，考虑雨具或防雨外层；较远日期请临近复查。')
+        count = f'（共{len(rain_days)}天）' if len(rain_days) > 1 else ''
+        advice.append(f'预计 {format_date_groups(rain_days)}{count}有较明显降水信号，考虑雨具或防雨外层；较远日期请临近复查。')
     if wind_days:
         advice.append(f'预计 {format_date_groups(wind_days)} 有较强阵风信号，注意外层挡风。')
     if snow_days:
