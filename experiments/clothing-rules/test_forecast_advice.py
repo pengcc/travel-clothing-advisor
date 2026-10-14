@@ -45,7 +45,7 @@ class ForecastTest(unittest.TestCase):
         highs = [23] * 14
         highs[4] = 7
         out = process(fixture(highs), NOW)
-        self.assertTrue(any('保暖层' in x and '2026-10-18' in x for x in out['advice']))
+        self.assertTrue(any('保暖' in x and '10月18日' in x for x in out['advice']))
 
     def test_hot_to_warm_does_not_require_insulation(self):
         out = process(fixture([30] * 7 + [25] * 7), NOW)
@@ -100,6 +100,36 @@ class ForecastTest(unittest.TestCase):
                 f['hourly']['temperature_2m'][i] = 16
         out = process(f, NOW)
         self.assertFalse(any('部分早晚明显更凉' in x for x in out['advice']))
+
+    def test_user_report_cold_spell_is_not_hidden_by_farther_coldest_day(self):
+        # Daytime values reproduced from the user's successful 2026-10-14 CLI
+        # result; synthetic per-hour details, no claim to be the original JSON.
+        highs = [14.6, 14.6, 16.5, 12.4, 12.3, 11.5, 13.2,
+                 15.4, 14.2, 14.9, 14.6, 13.1, 14.1, 10.4]
+        out = process(fixture(highs), dt.datetime(2026, 10, 14, 20, 0, tzinfo=ZoneInfo('Europe/Berlin')))
+        self.assertEqual(out['main_level'], 4)
+        self.assertTrue(any('10月17～19日' in x and '共3天' in x for x in out['advice']))
+        self.assertTrue(any('10月27日' in x and '第8～14天' in x for x in out['advice']))
+        self.assertFalse(any('偏冷日 2026-10-27' in x for x in out['advice']))
+
+    def test_rain_shows_dates_not_only_counts(self):
+        f = fixture()
+        f['daily']['precipitation_probability_max'][3] = 75
+        f['daily']['precipitation_probability_max'][4] = 65
+        out = process(f, NOW)
+        self.assertTrue(any('10月17～18日' in x and '共2天' in x for x in out['advice']))
+
+    def test_past_day_daily_rain_not_in_future_advice(self):
+        f = fixture()
+        f['daily']['precipitation_sum'][0] = 25  # no longer relevant after 20:00
+        out = process(f, dt.datetime(2026, 10, 14, 20, 0, tzinfo=ZoneInfo('Europe/Berlin')))
+        self.assertFalse(any('降水信号' in x for x in out['advice']))
+
+    def test_today_after_daylight_is_labeled(self):
+        now = dt.datetime(2026, 10, 14, 20, 0, tzinfo=ZoneInfo('Europe/Berlin'))
+        text = format_advice(process(fixture(), now))
+        self.assertIn('14个日历日', text)
+        self.assertIn('2026-10-14: 今日白天已过', text)
 
     def test_horizon_not_turned_into_climate_claim(self):
         out = process(fixture(), NOW)
