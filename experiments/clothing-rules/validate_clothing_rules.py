@@ -43,6 +43,17 @@ def load(path: Path) -> list[dict]:
     return sorted(items, key=lambda row: row['date'])
 
 
+def select_rows(rows: list[dict], start: str, end: str) -> list[dict]:
+    start_day, end_day = dt.date.fromisoformat(start), dt.date.fromisoformat(end)
+    if start_day > end_day:
+        raise ValueError('Start date must be on or before end date')
+    selected = [row for row in rows if start <= row['date'] <= end]
+    wanted = (end_day - start_day).days + 1
+    if len(selected) != wanted or len({row['date'] for row in selected}) != wanted:
+        raise ValueError(f'Data is not complete for {start} to {end}: expected {wanted} daily records, found {len(selected)}')
+    return selected
+
+
 def recommend(rows: list[dict], preference='normal') -> dict:
     if not rows:
         raise ValueError('No matching weather data')
@@ -131,5 +142,5 @@ if __name__ == '__main__':
     parser.add_argument('--end', required=True)
     parser.add_argument('--preference', choices=['normal', 'cold', 'hot'], default='normal')
     args = parser.parse_args()
-    days = [row for row in load(args.data) if args.start <= row['date'] <= args.end]
+    days = select_rows(load(args.data), args.start, args.end)
     print(pretty(recommend(days, args.preference)))
