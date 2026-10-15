@@ -135,18 +135,37 @@ def historical_summary(payload, start, end):
     if len(hours) != len(temps):
         raise ValueError('Historical hourly temperatures are incomplete')
     by_day = {d: [] for d in expected}
+    # Use explicit local-hour sample windows, not a daily all-hours minimum.
+    # These are historical ERA5 temperature samples, never a room-temperature
+    # estimate or a prediction for the upcoming trip.
+    edges = {d: {'morning': [], 'evening': []} for d in expected}
     for stamp, temp in zip(hours, temps):
         date, _, clock = stamp.partition('T')
-        if date in by_day and 9 <= int(clock[:2]) <= 18 and isinstance(temp, (int, float)):
+        if date not in by_day or not isinstance(temp, (int, float)) or isinstance(temp, bool):
+            continue
+        hour = int(clock[:2])
+        if 9 <= hour <= 18:
             by_day[date].append(temp)
+        elif 6 <= hour <= 8:
+            edges[date]['morning'].append(temp)
+        elif 19 <= hour <= 22:
+            edges[date]['evening'].append(temp)
     if any(not by_day[day] for day in expected):
         raise ValueError('Historical daytime temperatures are incomplete')
+    # A year lacking an entire morning or evening window is not a valid
+    # baseline for a claim about morning/evening temperatures.
+    if any(not edges[day]['morning'] or not edges[day]['evening'] for day in expected):
+        raise ValueError('Historical morning/evening temperatures are incomplete')
     daytemps = [round(median(by_day[day]), 1) for day in expected]
+    edgetemps = [value for day in expected for group in ('morning', 'evening')
+                 for value in edges[day][group]]
     return {
         'start': start.isoformat(), 'end': end.isoformat(),
         'typical_daytime': round(median(daytemps), 1),
         'coldest_daytime': min(daytemps),
         'warmest_daytime': max(daytemps),
+        'typical_edge': round(median(edgetemps), 1),
+        'coldest_edge': round(min(edgetemps), 1),
         'precipitation_days': sum(isinstance(v, (int, float)) and v >= 2
                                   for v in daily['precipitation_sum']),
         'snow_days': sum(isinstance(v, (int, float)) and v > 0
@@ -212,53 +231,69 @@ def build(city_name, start, end, preference='normal', *, now=None, fetch=get_jso
 
 
 def format_month_outlook(outlook, histories, *, details=False):
-    """Packing envelope from past years; never dates or probabilities for this year's weather."""
+    """Packing guidance from 8 past years; no future daily weather or calibrated odds."""
     if len(histories) != 8:
         raise ValueError('需要八个完整历史年份才能生成提前准备参考')
     typical = outlook['typical_daytime']
     lower = min(h['typical_daytime'] for h in histories)
     upper = max(h['typical_daytime'] for h in histories)
-    colder = min(h['coldest_daytime'] for h in histories)
+    coldest_day = min(h['coldest_daytime'] for h in histories)
+    edge_typical = round(median(h['typical_edge'] for h in histories), 1)
+    edge_lower = min(h['typical_edge'] for h in histories)
+    edge_upper = max(h['typical_edge'] for h in histories)
+    edge_coldest = min(h['coldest_edge'] for h in histories)
     level_no = outlook['main_level']
     near_thirteen = level_no in (4, 5) and abs(typical - 13) <= NEAR_THIRTEEN_TOLERANCE_C
     clothing = (
         '长袖＋毛衣或抓绒＋一件保暖程度适中的外套；'
         '怕冷或早晚长时间在室外，可考虑用轻羽绒替代外套。'
-        if near_thirteen else USER_CLOTHING[level_no]
+        if near_thirteen else USER_CLOTHING[level_no].removeprefix('建议准备')
     )
     result = [
-        f"{outlook['city']} · {outlook['start']}～{outlook['end']} 行李穿衣参考",
-        '提前准备｜历史天气范围（不是逐日预报）',
+        f"{outlook['city']} · {outlook['start']}～{outlook['end']} 穿衣建议",
+        '提前准备行李｜历史天气参考',
         '',
-        f'建议的基本衣物：{clothing}',
-        f'过去8年同期各次行程的白天典型温度约 {lower:g}～{upper:g}°C，'
-        f'中位参考值约 {typical:g}°C。不是今年的预测温度。',
+        f'建议带：{clothing}',
     ]
-    if colder <= typical - 5:
-        result.append(f'温差提醒：有些历史年份的个别白天低至约 {colder:g}°C；'
-                      '可准备方便增加的保暖层，不必仅凭一次偏冷记录带齐全部厚衣服。')
+    if edge_typical <= typical - 3:
+        result.append('早晚提示：历史同期早晚（06–08时、19–22时）通常比白天更凉；'
+                      '外出时保留方便加减的中间层，进入室内或车上可以脱下。')
+    else:
+        result.append('早晚提示：建议用方便穿脱的中间层应对日内变化，'
+                      '不要仅凭白天代表气温决定是否带外套。')
+    result.append(f'历史依据：过去8年同期各年白天代表温度约 {lower:g}～{upper:g}°C'
+                  f'（中位参考 {typical:g}°C）；'
+                  f'早晚时段代表值约 {edge_lower:g}～{edge_upper:g}°C'
+                  f'（中位参考 {edge_typical:g}°C）。')
+    if coldest_day <= typical - 5 or edge_coldest <= edge_typical - 5:
+        result.append(f'偏冷可能性：历史个别白天的代表温度曾低至约 {coldest_day:g}°C，'
+                      f'早晚时段个别采样低至约 {edge_coldest:g}°C。'
+                      '这些是历史较冷情况，不是今年将出现的最低温预报；'
+                      '需要时可加一层保暖衣物。')
     if outlook['preference'] == 'cold':
-        result.append('比较怕冷：基础组合之外，适当保留一件可脱的保暖中间层。')
+        result.append('比较怕冷：可多备一件易脱的毛衣或抓绒，不必每天都穿最厚。')
     elif outlook['preference'] == 'hot':
-        result.append('比较怕热：优先选择方便脱掉的中间层，不要忽略防风和防雨。')
+        result.append('比较怕热：优先可脱的中间层，风雨防护仍需考虑。')
     precip_years = sum(h['precipitation_days'] > 0 for h in histories)
     if precip_years:
-        result.append(f'防雨参考：过去8年里有 {precip_years} 年在同期行程出现较明显降水；'
-                      '折叠伞或轻便防雨外层是可考虑的备选，不代表今年必然下雨。')
+        result.append(f'防雨参考：过去8年有 {precip_years} 年在这段行程出现较明显降水；'
+                      '可带折叠伞或轻便防雨外层，不代表今年的降雨概率。')
     else:
-        result.append('防雨参考：所取历史年份没有明显降水记录也不能排除今年降雨。')
+        result.append('防雨参考：所取历史年份没有明显降水记录，也不能排除今年降雨；'
+                      '可考虑一把折叠伞。')
     if any(h['snow_days'] > 0 for h in histories):
-        result.append('历史同期有降雪记录；是否需要冬季装备请临近出行时再看预报。')
-    result.append('行程有日期超出14天预报范围，因此整趟行程统一采用历史参考，'
-                  '不拼接少量预报制造确定性；当整趟行程进入未来14天时重新查询。')
-    result.append('来源：Open-Meteo Historical Weather（ERA5历史再分析），城市：GeoNames；'
-                  '8年样本不是气候常年值，也不能推算今年每天的天气概率。')
+        result.append('历史同期有降雪记录；是否需要冬季装备请临近出发时结合预报确认。')
+    result.append('出发前更新：目前没有覆盖整趟行程的14天预报；'
+                  '当整趟行程进入预报范围后，再按实际预报调整衣物厚度。')
+    result.append('说明：以上为Open-Meteo ERA5历史再分析参考，并非今年的天气预报；'
+                  '8年样本不能推算今年某日气温或降雨概率。城市位置来自GeoNames。')
     if details:
         result.append('')
-        result.append('逐年历史参考（仅为过去年份）：')
+        result.append('逐年历史参考（白天09–18时，早晚06–08时及19–22时）：')
         for h in histories:
-            result.append(f"• {h['start']}～{h['end']}：典型 {h['typical_daytime']:g}°C，"
-                          f"最凉白天 {h['coldest_daytime']:g}°C，"
+            result.append(f"• {h['start']}～{h['end']}："
+                          f"白天代表 {h['typical_daytime']:g}°C、最凉白天 {h['coldest_daytime']:g}°C；"
+                          f"早晚代表 {h['typical_edge']:g}°C、早晚最低样本 {h['coldest_edge']:g}°C；"
                           f"明显降水 {h['precipitation_days']} 天，降雪 {h['snow_days']} 天。")
     return '\n'.join(result)
 
