@@ -125,6 +125,22 @@ class TravelDatesTest(unittest.TestCase):
         self.assertEqual(result['dates'][0], '2026-10-14')
         self.assertIn('未来14个日历日', format_advice(result))
 
+    def test_missing_hourly_temperature_outside_trip_is_irrelevant(self):
+        f = fixture()
+        for i, stamp in enumerate(f['hourly']['time']):
+            if stamp.startswith('2026-10-25T'):
+                f['hourly']['temperature_2m'][i] = None
+        result = process(f, NOW, start_date='2026-10-17', end_date='2026-10-19')
+        self.assertEqual(len(result['days']), 3)
+
+    def test_missing_hourly_temperature_during_trip_is_rejected(self):
+        f = fixture()
+        for i, stamp in enumerate(f['hourly']['time']):
+            if stamp.startswith('2026-10-18T'):
+                f['hourly']['temperature_2m'][i] = None
+        with self.assertRaisesRegex(ValueError, 'Missing daytime forecast'):
+            process(f, NOW, start_date='2026-10-17', end_date='2026-10-19')
+
     def test_cli_date_arguments_work_with_offline_fixture(self):
         with tempfile.TemporaryDirectory() as td:
             saved = Path(td) / 'forecast.json'
