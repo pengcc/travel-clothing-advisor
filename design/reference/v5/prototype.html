@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#FFF9F4">
+  <title>旅途穿衣 · 手机交互原型 V5</title>
+  <style>
+    :root{color-scheme:light;--page:#FFF9F4;--surface:#fff;--ink:#3D302A;--muted:#74665E;--brand:#C96849;--action:#A64E35;--selected:#F4DBCF;--sand:#E8D6B9;--line:#EADFD5;--shadow:0 16px 48px rgba(94,52,31,.055);--radius:18px}
+    *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:var(--page);font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Noto Sans CJK SC",sans-serif;font-size:16px;line-height:1.55;color:var(--ink)}
+    button,input{font:inherit}button{cursor:pointer}button:disabled{cursor:wait;opacity:.72}button:focus-visible,input:focus-visible,a:focus-visible{outline:3px solid var(--action);outline-offset:3px}a{color:var(--action)}.hidden{display:none!important}.container{max-width:1090px;margin:auto;padding:0 24px}.topbar{padding:17px 0;border-bottom:1px solid var(--line);background:rgba(255,249,244,.93)}.topbar .container{display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .identity{display:flex;align-items:center;gap:10px;font-weight:750;letter-spacing:-.03em}.identity svg{width:31px;height:31px;color:var(--action)}.tiny-pill{color:var(--action);background:#F7E8DE;border:1px solid #F0D4C6;border-radius:40px;padding:5px 11px;font-size:12px;font-weight:700;letter-spacing:.02em}
+    main{padding-bottom:52px}.hero{display:grid;grid-template-columns:minmax(0,1fr) minmax(360px,440px);gap:min(7vw,92px);align-items:center;padding:64px 0 44px}.hero-words{padding:8px 0}.eyebrow{display:inline-flex;align-items:center;gap:7px;letter-spacing:.07em;font-size:12px;font-weight:750;color:var(--action);margin-bottom:16px}.eyebrow:before{content:"";height:6px;width:6px;border-radius:100%;background:var(--brand)}h1{font-size:clamp(38px,5vw,64px);letter-spacing:-.075em;line-height:1.19;font-weight:790;margin:0}.hero-words h1 span{color:var(--action)}.hero-words p{font-size:17px;color:var(--muted);line-height:1.85;max-width:420px;margin:20px 0 0}.subnote{margin-top:34px;font-size:13px;color:var(--muted);display:flex;gap:10px;align-items:center}.subnote svg{width:18px;color:var(--brand)}
+    .form-card{background:var(--surface);border:1px solid var(--line);border-radius:22px;padding:24px;box-shadow:var(--shadow)}.form-caption{font-weight:750;margin:0 0 22px;font-size:19px;letter-spacing:-.03em}.field{margin-bottom:20px;position:relative}.field label,.section-label{display:block;font-size:14px;font-weight:690;margin-bottom:7px}.input-wrap{position:relative}.input-wrap .field-icon{position:absolute;left:13px;top:50%;transform:translateY(-50%);width:18px;height:18px;color:var(--brand);pointer-events:none}
+    input[type="text"],input[type="date"]{background:white;border:1px solid #DCD2CA;border-radius:12px;height:50px;width:100%;min-width:0;padding:0 13px;color:var(--ink);font-size:16px;outline:none}input[type="text"]{padding-left:42px}input::placeholder{color:#94877E}input:focus{border-color:var(--action);box-shadow:0 0 0 3px #A64E3518}
+    .dates{display:grid;grid-template-columns:1fr 1fr;gap:12px}.dates input{padding:0 9px;font-size:14px}.date-desc{font-size:12px;color:var(--muted);margin-top:8px}
+    .choices{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}.choice{height:45px;border:1px solid #E1D6CC;background:white;border-radius:11px;color:var(--ink);font-size:14px;font-weight:570}.choice[aria-pressed="true"]{background:var(--selected);border:1.5px solid var(--action);font-weight:750}.choice:hover,.city-card:hover{border-color:var(--brand)}.action{width:100%;min-height:52px;border:0;border-radius:12px;background:var(--action);color:#fff;font-weight:750;font-size:16px;display:flex;align-items:center;justify-content:center;gap:9px}.action:hover{background:#90402D}.action svg{width:17px;height:17px}.form-error{color:#A32323;font-size:13px;margin:10px 0;display:none}.form-error:not(:empty){display:block}
+    .suggestions{position:absolute;left:0;right:0;top:calc(100% + 5px);max-height:225px;overflow-y:auto;z-index:10;background:#fff;box-shadow:0 16px 36px rgba(57,38,25,.15);border-radius:13px;border:1px solid var(--line);padding:5px}.suggestions button{display:flex;width:100%;border:0;background:transparent;align-items:center;justify-content:space-between;text-align:left;gap:8px;padding:10px 12px;border-radius:8px;min-height:43px;font-size:15px;color:var(--ink)}.suggestions button:hover,.suggestions button:focus{background:#FFF3EC}.suggestions small{color:var(--muted);font-size:12px}.suggestions .empty{padding:13px;font-size:14px;color:var(--muted)}
+    .featured{padding:38px 0 20px;border-top:1px solid var(--line);margin-top:8px}.section-top{display:flex;justify-content:space-between;gap:16px;align-items:center;margin-bottom:6px}.section-top h2{font-size:23px;letter-spacing:-.045em;margin:0}.muted{color:var(--muted)}.featured-summary{font-size:13px;color:var(--muted);margin-bottom:20px}.featured-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px}.city-card{text-align:left;min-height:168px;background:var(--surface);border:1px solid var(--line);border-radius:15px;padding:18px 16px;display:flex;flex-direction:column;transition:border-color .15s,transform .15s}.city-card:hover{transform:translateY(-2px)}.city-card .eng{font-size:11px;font-weight:700;color:#B0826E;letter-spacing:.13em;text-transform:uppercase}.city-card .city-name{font-size:21px;font-weight:750;letter-spacing:-.04em;margin-top:5px}.city-card .coat{font-size:14px;font-weight:700;color:var(--action);margin-top:auto;padding-top:15px}.city-card .remark{font-size:12px;color:var(--muted);margin-top:4px}.city-card .go{font-size:12px;color:var(--action);margin-top:13px;font-weight:700}.featured-summary span{margin-left:6px}
+    .pages{display:flex;align-items:center;gap:16px;justify-content:center;margin:20px 0 0}.page-button{background:#fff;border:1px solid var(--line);border-radius:10px;padding:9px 14px;min-height:42px;color:var(--ink);font-size:14px}.page-button:disabled{opacity:.35;cursor:default}.page-display{font-size:13px;color:var(--muted)}.footnote{font-size:12px;color:var(--muted);margin:12px 0 0}.foot{border-top:1px solid var(--line);padding:24px 0;color:var(--muted);font-size:12px}
+    .result{padding:42px 0 50px;max-width:660px;margin:auto}.back{display:flex;gap:8px;align-items:center;background:transparent;border:0;color:var(--action);padding:8px 0;font-size:14px;font-weight:700;margin-bottom:25px}.result-header h1{font-size:clamp(30px,4vw,42px);margin:0 0 5px;letter-spacing:-.045em}.result-meta{font-size:15px;color:var(--muted);margin:0 0 15px}.mode-tag{display:inline-block;border-radius:100px;background:var(--selected);color:#87402F;font-size:12px;font-weight:760;padding:5px 12px}
+    .answer{margin-top:22px;background:#fff;border:1px solid var(--line);border-radius:21px;overflow:hidden;box-shadow:var(--shadow)}.answer-top{background:linear-gradient(120deg,#FBE7DA,#FFF5EC);padding:28px 28px 26px}.answer-label{font-size:13px;color:#8A4E3C;font-weight:720;letter-spacing:.015em;display:flex;align-items:center;gap:9px}.coat-icon{width:27px;height:27px}.answer h2{font-size:clamp(24px,4vw,32px);letter-spacing:-.055em;line-height:1.37;margin:16px 0 9px}.answer-top p{font-size:16px;color:#5B4C44;line-height:1.65;margin:0}.answer-details{padding:24px 28px}.remind{display:flex;gap:14px;align-items:flex-start;padding:10px 0}.remind+.remind{border-top:1px solid #F0E6DD}.remind-icon{flex:0 0 34px;width:34px;height:34px;border-radius:10px;background:#FFF1E9;display:flex;align-items:center;justify-content:center;font-size:18px}.remind strong{display:block;font-size:15px}.remind span{display:block;font-size:14px;color:var(--muted);margin-top:3px}.info{margin-top:16px;background:#FCF0E7;border-radius:13px;padding:17px 18px;color:#5A433A}.info strong{font-size:14px;display:block;margin-bottom:4px}.info p{margin:0;font-size:14px;line-height:1.65}.result-actions{display:flex;gap:10px;margin:22px 0}.result-actions .action{flex:1}.secondary-action{flex:0 0 auto;background:#fff;color:var(--action);border:1px solid #E1CABD;border-radius:12px;padding:0 20px;font-size:14px;font-weight:700;min-height:52px}.source{margin:12px 0;font-size:12px;line-height:1.7;color:var(--muted)}.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);max-width:calc(100vw - 24px);z-index:20;pointer-events:none;background:#49362D;color:#fff;padding:11px 18px;border-radius:12px;font-size:14px;box-shadow:0 8px 28px #0003;opacity:0;transition:opacity .2s}.toast.show{opacity:1}
+
+    /* Prototype-only visual placement. In production, only server notice data controls visibility. */
+    .variation-banner{display:flex;gap:11px;align-items:flex-start;margin:13px 0 16px;padding:13px 14px;border:1px solid #DB9F74;background:#FFF9F2;border-radius:12px;color:#6D3928}
+    .variation-icon{display:grid;place-items:center;width:30px;height:30px;flex:none;background:#F3DDC9;border-radius:9px;font-size:20px;font-weight:bold;line-height:1}
+    .variation-banner strong{display:block;font-size:14px;margin-bottom:3px}
+    .variation-banner span:not(.variation-icon){font-size:13px;line-height:1.55;display:block;color:#60483E}
+    .city-card .card-variation{color:#91512F;font-size:12px;font-weight:690;margin:5px 0 0;line-height:1.4}
+    /* Temporary warmth indicator; designed to be swapped for a future mascot component. */
+    .warmth-mark{--mark-ink:#27677B;--mark-bg:#E6F0F4;display:inline-flex;align-items:center;justify-content:flex-start;gap:7px;width:max-content;max-width:100%;min-height:31px;border-radius:999px;padding:5px 10px 5px 8px;background:var(--mark-bg);color:var(--mark-ink);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--mark-ink) 15%,transparent);font-size:12px;font-weight:760;line-height:1.2;white-space:nowrap;letter-spacing:.01em}
+    .warmth-mark svg{width:30px;height:17px;display:block;flex:none;overflow:visible}
+    .warmth-mark .warmth-name{white-space:nowrap}
+    .city-card .warmth-host{display:flex;margin-top:12px;margin-bottom:1px}
+    .city-card .warmth-mark{font-size:11.5px;padding:5px 9px 5px 7px;gap:5px}
+    .city-card .warmth-mark svg{width:25px;height:15px}
+    .answer-label{justify-content:space-between;flex-wrap:wrap;gap:10px}
+    .answer-label .answer-label-identity{display:inline-flex;align-items:center;gap:9px}
+    @media(max-width:420px){.city-card{min-height:183px}.city-card .warmth-mark{font-size:11px}}
+    @media(max-width:800px){.container{padding:0 20px}.hero{grid-template-columns:1fr;gap:28px;padding:34px 0 28px}.hero-words h1{font-size:40px}.hero-words p{margin-top:12px;font-size:15px}.subnote{display:none}.form-card{max-width:540px}.featured-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.featured{padding-top:24px}.result{padding-top:22px}}
+    @media(max-width:420px){.container{padding:0 16px}.topbar{padding:13px 0}.identity{font-size:15px}.tiny-pill{font-size:11px;padding:4px 8px}.hero-words h1{font-size:35px}.hero{gap:24px}.form-card{padding:18px;border-radius:19px}.form-caption{margin-bottom:16px}.field{margin-bottom:16px}.dates{gap:9px}.dates input{font-size:13px;padding:0 5px}.city-card{padding:14px 12px;min-height:158px}.city-card .city-name{font-size:19px}.city-card .coat{font-size:13px}.city-card .remark{font-size:12px}.answer-top{padding:23px 20px}.answer-details{padding:16px 20px}.result-actions{flex-direction:column}.secondary-action{min-height:48px}.section-top h2{font-size:21px}}
+    @media(max-width:350px){.dates{grid-template-columns:1fr}.dates input{font-size:16px}.featured-grid{grid-template-columns:1fr}.city-card{min-height:130px}.city-card .coat{margin-top:10px}.hero-words h1{font-size:33px}}
+    @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important}}
+  </style>
+</head>
+<body>
+  <header class="topbar"><div class="container"><div class="identity"><svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><rect x="3" y="9" width="26" height="20" rx="6" stroke="currentColor" stroke-width="2.2"/><path d="M11 9V7a5 5 0 0 1 10 0v2M4 18h24M16 14v8" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>旅途穿衣</div><span class="tiny-pill">交互演示 · 模拟数据</span></div></header>
+  <main class="container">
+    <div id="home">
+      <section class="hero">
+        <div class="hero-words"><div class="eyebrow">德国旅行穿衣参考</div><h1>去德国，<br><span>衣服带多厚？</span></h1><p>选好目的地和日期，看看外套、内搭怎么准备。</p><div class="subnote"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M12 3l9 4v6c0 5-4 8-9 9-5-1-9-4-9-9V7l9-4zM8 12l3 3 5-6"/></svg><span>14天内气温预报 · 更远行程参考往年同期</span></div></div>
+        <form class="form-card" id="tripForm" novalidate><h2 class="form-caption">按行程查询</h2>
+          <div class="field"><label for="city">目的地</label><div class="input-wrap"><svg class="field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0z"/><circle cx="12" cy="10" r="2.5"/></svg><input type="text" id="city" name="city" placeholder="例如：柏林 Berlin" autocomplete="off" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="cityOptions" required><div id="cityOptions" class="suggestions hidden" role="listbox"></div></div><div id="cityError" class="form-error" role="alert"></div></div>
+          <div class="field"><div class="dates"><div><label for="start">到达日期</label><input type="date" id="start" required></div><div><label for="end">离开日期</label><input type="date" id="end" required></div></div><div class="date-desc" id="dateHint"></div><div id="dateError" class="form-error" role="alert"></div></div>
+          <div class="field"><span class="section-label" id="feeling-label">你平时更怕冷还是怕热？</span><div class="choices" role="group" aria-labelledby="feeling-label"><button type="button" class="choice" data-feeling="cold" aria-pressed="false">怕冷</button><button type="button" class="choice" data-feeling="normal" aria-pressed="true">一般</button><button type="button" class="choice" data-feeling="hot" aria-pressed="false">怕热</button></div></div>
+          <button class="action" type="submit">查看行程建议 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M5 12h14m-7-7 7 7-7 7"/></svg></button><div id="formError" class="form-error" role="alert"></div>
+        </form>
+      </section>
+      <section class="featured" aria-labelledby="featuredTitle"><div class="section-top"><h2 id="featuredTitle">精选城市</h2><span class="tiny-pill">10 座城市</span></div><div class="featured-summary">点开城市，直接看今起14天的穿衣参考。<span id="featuredDates"></span><br>演示数据，非真实天气；保暖标记为临时设计。</div><div id="featuredGrid" class="featured-grid"></div><div class="pages"><button id="prevPage" class="page-button" type="button">上一页</button><span id="pageDisplay" class="page-display"></span><button id="nextPage" class="page-button" type="button">下一页</button></div><p class="footnote">精选城市不读取、不修改上方的行程查询。所有衣物和气温为演示数据。</p></section>
+    </div>
+    <section id="result" class="result hidden" aria-live="polite"><button id="back" class="back" type="button">← 修改行程</button><div class="result-header"><div class="eyebrow" id="resultKind">行程穿衣建议 · 设计示例</div><h1 id="resultCity">柏林</h1><p class="result-meta" id="resultDates"></p><span class="mode-tag" id="resultMode">14 天内气温预报</span></div>
+      <article class="answer"><div class="answer-top"><div class="answer-label"><span class="answer-label-identity"><svg class="coat-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="m8 3-5 4-2 7 5 2v6h12v-6l5-2-2-7-5-4h-3l-1 4-1-4H8z"/></svg> 外套建议</span><span id="resultWarmthMark"></span></div><h2 id="resultHeadline"></h2><div id="spanRemind" class="variation-banner hidden" role="note"><span class="variation-icon" aria-hidden="true">↕</span><div><strong>冷热变化提醒 · 示例</strong><span id="spanText"></span></div></div><p id="resultLayers"></p></div><div class="answer-details"><div class="remind"><div class="remind-icon">☀️</div><div><strong id="tempTitle">白天代表气温</strong><span id="tempText"></span></div></div><div class="remind"><div class="remind-icon">🌙</div><div><strong>早晚注意分层</strong><span id="edgeText"></span></div></div></div></article>
+      <aside class="info"><strong id="noticeTitle">出发前再看看</strong><p id="resultNotice"></p></aside>
+      <div class="result-actions"><button class="action" id="copyAdvice" type="button">复制建议</button><button class="secondary-action" id="shareTrip" type="button">复制链接</button></div><p class="source">此页面为 <strong>交互原型</strong>，衣物与气温均为人为编写的演示数据，不是实际天气预报。正式版本将展示数据来源及真实更新时间。</p>
+    </section>
+  </main>
+  <footer class="foot"><div class="container">旅途穿衣 · UI 设计原型 · 仅供讨论布局、配色与交互，不提供真实出行建议</div></footer>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+<script>
+(() => {
+  'use strict';
+  // This standalone prototype deliberately contains NO weather API or persistence.
+  const cities = [
+    {id:'berlin',mockLevel:4,spanExample:true,zh:'柏林',name:'Berlin',state:'Berlin',term:['柏林','berlin'],coat:'薄羽绒或厚夹克',note:'部分日期更凉，需多备一层',temp:11,edge:6},
+    {id:'munich',mockLevel:5,zh:'慕尼黑',name:'München',state:'Bayern',term:['慕尼黑','munchen','münchen','munich'],coat:'薄羽绒＋抓绒',note:'早晚可能偏冷',temp:9,edge:4},
+    {id:'hamburg',mockLevel:4,zh:'汉堡',name:'Hamburg',state:'Hamburg',term:['汉堡','hamburg'],coat:'薄羽绒或厚外套',note:'最好方便穿脱',temp:10,edge:6},
+    {id:'frankfurt',mockLevel:3,zh:'法兰克福',name:'Frankfurt am Main',state:'Hessen',term:['法兰克福','frankfurt'],coat:'薄羽绒或厚夹克',note:'室内可脱外层',temp:12,edge:7},
+    {id:'cologne',mockLevel:3,zh:'科隆',name:'Köln',state:'Nordrhein-Westfalen',term:['科隆','koln','köln','cologne'],coat:'夹克＋薄毛衣',note:'早晚可加一层',temp:12,edge:7},
+    {id:'dresden',mockLevel:5,zh:'德累斯顿',name:'Dresden',state:'Sachsen',term:['德累斯顿','dresden'],coat:'薄羽绒或厚外套',note:'早晚别穿太薄',temp:9,edge:4},
+    {id:'heidelberg',mockLevel:2,zh:'海德堡',name:'Heidelberg',state:'Baden-Württemberg',term:['海德堡','heidelberg'],coat:'夹克＋长袖',note:'外套要方便脱',temp:13,edge:8},
+    {id:'nuremberg',mockLevel:4,zh:'纽伦堡',name:'Nürnberg',state:'Bayern',term:['纽伦堡','nurnberg','nürnberg','nuremberg'],coat:'薄羽绒或厚外套',note:'早晚可以加一层',temp:10,edge:5},
+    {id:'dusseldorf',mockLevel:3,zh:'杜塞尔多夫',name:'Düsseldorf',state:'Nordrhein-Westfalen',term:['杜塞尔多夫','dusseldorf','düsseldorf'],coat:'夹克＋毛衣',note:'留意早晚温差',temp:12,edge:7},
+    {id:'leipzig',mockLevel:4,zh:'莱比锡',name:'Leipzig',state:'Sachsen',term:['莱比锡','leipzig'],coat:'薄羽绒＋抓绒',note:'早晚可能偏冷',temp:10,edge:5}
+  ];
+  const $ = id => document.getElementById(id);
+  // Demonstration-only mapping: production receives clothing levels from the existing Python model.
+  const warmthMeta = {
+    1:{label:'轻薄',ink:'#9A4C39',bg:'#FBEDE3',steps:1},
+    2:{label:'薄外层',ink:'#8B5F20',bg:'#FCF0DA',steps:2},
+    3:{label:'适中保暖',ink:'#586B40',bg:'#EDF2E7',steps:3},
+    4:{label:'加强保暖',ink:'#27677B',bg:'#E6F0F4',steps:4},
+    5:{label:'冬季保暖',ink:'#36547D',bg:'#E9EFF8',steps:5}
+  };
+  function warmthMark(index){
+    const m=warmthMeta[index],chip=document.createElement('span');chip.className='warmth-mark';
+    chip.style.setProperty('--mark-ink',m.ink);chip.style.setProperty('--mark-bg',m.bg);
+    chip.setAttribute('role','img');chip.setAttribute('aria-label',`主要保暖程度：${m.label}`);
+    const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');svg.setAttribute('viewBox','0 0 30 17');svg.setAttribute('aria-hidden','true');
+    for(let i=0;i<5;i++){
+      const bar=document.createElementNS('http://www.w3.org/2000/svg','rect');const height=6+2.5*i;
+      bar.setAttribute('x',String(1+i*6));bar.setAttribute('y',String(17-height));bar.setAttribute('width','4');bar.setAttribute('height',String(height));bar.setAttribute('rx','1.8');
+      bar.setAttribute('fill',i<m.steps?m.ink:'#CABFB6');bar.setAttribute('fill-opacity',i<m.steps?'1':'.45');svg.append(bar);
+    }
+    const label=document.createElement('span');label.className='warmth-name';label.textContent=m.label;
+    chip.append(svg,label);return chip;
+  }
+  // Prototype fixture has an explicit clothing marker level, not a new real prediction.
+  const fixtureLevel=city=>city.mockLevel || 4;
+
+  // Plan form state is intentionally independent of the selected featured city.
+  const plan = {city:null,feeling:'normal',page:0};
+  let currentResult = null;
+  const berlinToday=()=>{const parts=new Intl.DateTimeFormat('en-US',{timeZone:'Europe/Berlin',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());const x=Object.fromEntries(parts.map(p=>[p.type,p.value]));return `${x.year}-${x.month}-${x.day}`};
+  const shift=(iso,days)=>{const d=new Date(iso+'T12:00:00Z');d.setUTCDate(d.getUTCDate()+days);return d.toISOString().slice(0,10)};
+  const shortDate=iso=>{const [y,m,d]=iso.split('-');return `${Number(m)}月${Number(d)}日`};
+  const range=(s,e)=>`${shortDate(s)}—${shortDate(e)}`;
+  const today=berlinToday(), max=shift(today,29);
+  $('start').min=today; $('start').max=max; $('end').min=today; $('end').max=max;
+  $('dateHint').textContent=`可选 ${shortDate(today)} 至 ${shortDate(max)}（德国当地日期）`;
+  $('featuredDates').textContent=`${range(today,shift(today,13))} · 默认一般体感`;
+  const toast=text=>{const el=$('toast');el.textContent=text;el.classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.classList.remove('show'),2700)};
+  const normalize=s=>s.trim().toLocaleLowerCase('de-DE').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/ß/g,'ss');
+  function choosePlanCity(city){plan.city=city;$('city').value=`${city.zh} · ${city.name}`;$('cityError').textContent='';$('cityOptions').classList.add('hidden');$('city').setAttribute('aria-expanded','false')}
+  function renderSuggestions(){const q=normalize($('city').value),box=$('cityOptions');box.replaceChildren();if(!q){box.classList.add('hidden');$('city').setAttribute('aria-expanded','false');return}
+    const matches=cities.filter(c=>c.term.some(n=>normalize(n).includes(q))||normalize(c.name).includes(q)).slice(0,7);
+    if(!matches.length){const d=document.createElement('div');d.className='empty';d.textContent='没找到这个城市，请试试德文名';box.append(d)}
+    else for(const city of matches){const b=document.createElement('button');b.type='button';b.setAttribute('role','option');b.textContent=`${city.zh} · ${city.name}`;const sm=document.createElement('small');sm.textContent=city.state;b.append(sm);b.addEventListener('click',()=>choosePlanCity(city));box.append(b)}
+    box.classList.remove('hidden');$('city').setAttribute('aria-expanded','true');
+  }
+  $('city').addEventListener('input',()=>{plan.city=null;renderSuggestions()});
+  $('city').addEventListener('keydown',e=>{if(e.key==='Escape'){$('cityOptions').classList.add('hidden');$('city').setAttribute('aria-expanded','false')}
+    if(e.key==='Enter'&&!plan.city){const q=normalize($('city').value),hits=cities.filter(c=>c.term.some(n=>normalize(n)===q)||normalize(c.name)===q);if(hits.length===1){e.preventDefault();choosePlanCity(hits[0])}}});
+  document.addEventListener('click',e=>{if(!e.target.closest('.input-wrap')){$('cityOptions').classList.add('hidden');$('city').setAttribute('aria-expanded','false')}});
+  document.querySelectorAll('[data-feeling]').forEach(b=>b.addEventListener('click',()=>{plan.feeling=b.dataset.feeling;document.querySelectorAll('[data-feeling]').forEach(el=>el.setAttribute('aria-pressed',String(el===b)))}));
+  const feelings={cold:'怕冷',normal:'一般',hot:'怕热'};
+  function renderFeatured(){const perPage=4,total=Math.ceil(cities.length/perPage),grid=$('featuredGrid');grid.replaceChildren();
+    for(const city of cities.slice(plan.page*perPage,plan.page*perPage+perPage)){
+      const card=document.createElement('button');card.type='button';card.className='city-card';
+      card.innerHTML='<span class="eng"></span><span class="city-name"></span><span class="warmth-host"></span><span class="coat"></span><span class="card-variation"></span><span class="remark"></span><span class="go"></span>';
+      card.querySelector('.eng').textContent=city.name;card.querySelector('.city-name').textContent=city.zh;
+      card.querySelector('.warmth-host').append(warmthMark(fixtureLevel(city)));card.querySelector('.coat').textContent=city.coat;card.querySelector('.card-variation').textContent=city.spanExample?'有一天偏冷，建议多备一层 · 演示':'';card.querySelector('.remark').textContent=city.spanExample?'':city.note;
+      card.querySelector('.go').textContent='查看14天建议 →';
+      card.setAttribute('aria-label',`直接查看${city.zh}今起14天的穿衣参考`);
+      card.addEventListener('click',()=>showResult({kind:'featured',city:city.id},true));
+      grid.append(card);
+    }
+    $('pageDisplay').textContent=`${plan.page+1} / ${total}`;
+    $('prevPage').disabled=plan.page===0;$('nextPage').disabled=plan.page===total-1;
+  }
+  $('prevPage').addEventListener('click',()=>{plan.page=Math.max(0,plan.page-1);renderFeatured()});
+  $('nextPage').addEventListener('click',()=>{plan.page=Math.min(Math.ceil(cities.length/4)-1,plan.page+1);renderFeatured()});
+  renderFeatured();
+  function resultParams(raw){const c=cities.find(x=>x.id===raw.city);if(!c)return null;
+    if(raw.kind==='featured')return {kind:'featured',city:c.id,start:berlinToday(),end:shift(berlinToday(),13),feeling:'normal'};
+    if(raw.kind!=='trip'||!['cold','normal','hot'].includes(raw.feeling))return null;
+    const t=berlinToday();if(!/^\d{4}-\d{2}-\d{2}$/.test(raw.start||'')||!/^\d{4}-\d{2}-\d{2}$/.test(raw.end||'')||raw.start<t||raw.end>shift(t,29)||raw.end<raw.start)return null;
+    return {...raw};
+  }
+  const queryParams=raw=>raw.kind==='featured'?`?view=city&city=${encodeURIComponent(raw.city)}`:`?view=trip&city=${encodeURIComponent(raw.city)}&start=${raw.start}&end=${raw.end}&preference=${raw.feeling}`;
+  function showResult(raw,push=true){const p=resultParams(raw);if(!p)return;currentResult=p;const c=cities.find(x=>x.id===p.city);
+    const historyMode=p.kind==='trip'&&p.end>shift(berlinToday(),13),temp=historyMode?c.temp-1:c.temp,edge=historyMode?c.edge-1:c.edge;
+    // Clothing sentences and degrees are intentionally artificial visual examples.
+    const coat=p.feeling==='cold'?'建议带薄羽绒，里面备一件抓绒':p.feeling==='hot'?'建议带有内衬的夹克，内搭薄一点':temp<=9?'建议带薄羽绒或保暖夹克':temp>=13?'建议带夹克，里面备一件薄毛衣':'建议带薄羽绒或有内衬的夹克';
+    const layers=p.feeling==='cold'?'里面穿长袖和毛衣或抓绒，冷时可以多加一层。':p.feeling==='hot'?'里面穿长袖或薄毛衣，热的时候可以脱下外套。':'里面搭配长袖和毛衣或抓绒，方便在室内脱下外套。';
+    $('back').textContent=p.kind==='featured'?'← 返回精选城市':'← 修改行程';
+    $('resultKind').textContent=p.kind==='featured'?'城市穿衣参考 · 设计示例':'行程穿衣建议 · 设计示例';
+    $('resultCity').textContent=`${c.zh} · ${c.name}`;
+    $('resultDates').textContent=p.kind==='featured'?`${range(p.start,p.end)} · 今起14天 · 一般体感`:`${range(p.start,p.end)} · ${feelings[p.feeling]}`;
+    $('resultMode').textContent=historyMode?'过去8年同期气温参考 · 演示':p.kind==='featured'?'今起14天气温预报 · 演示':'所选日期气温预报 · 演示';
+    $('resultHeadline').textContent=coat;$('resultLayers').textContent=layers;const badgeHost=$('resultWarmthMark');badgeHost.replaceChildren(warmthMark(fixtureLevel(c)));
+    $('tempTitle').textContent=historyMode?'往年同期白天气温参考':'白天的代表气温';
+    $('tempText').textContent=`演示数值约 ${temp}°C，不代表真实气温`;
+    $('edgeText').textContent=`演示早晚约 ${edge}°C，可准备一层容易增减的衣服。`;
+    // A single demonstration of multi-day variation, not an additional daily outfit planner.
+    const spans=c.spanExample&&!historyMode;
+    $('spanRemind').classList.toggle('hidden',!spans);
+    $('spanText').textContent=spans?'假设这段时间只有一天明显偏冷，建议为这一天额外备一件毛衣或抓绒。其余日子不必都穿上，按实际情况增减。':'';
+    $('noticeTitle').textContent=historyMode?'这是往年参考，不是这次旅行的预报':p.kind==='featured'?'今起14天，实际以当天预报为准':'出发前可以再看一次';
+    $('resultNotice').textContent=historyMode?'行程已超出14天预报范围。正式产品会使用过去8年同期气温辅助备衣，不能据此确定旅行当天温度。':p.kind==='featured'?'精选城市与上方行程查询无关，按今起14天和一般体感显示。此处衣物与气温均为演示数据。':'这是设计演示。正式产品将根据查询日期内的气温预报计算衣物建议，出发前再查看是否有变化。';
+    $('home').classList.add('hidden');$('result').classList.remove('hidden');
+    document.title=`${p.kind==='featured'?'城市穿衣参考':'行程穿衣建议'} · ${c.zh} · 演示`;
+    window.scrollTo(0,0);
+    if(push)try{history.pushState({kind:p.kind},'',queryParams(p))}catch(_){/* file:// may block URL changes */}
+    const txt=`【设计演示，不是真实天气】\n${p.kind==='featured'?'城市穿衣参考':'行程穿衣建议'} · ${c.zh}\n${range(p.start,p.end)} · ${feelings[p.feeling]} · ${historyMode?'往年同期气温参考':p.kind==='featured'?'今起14天气温预报':'所选日期气温预报'}\n${coat}。${layers}${c.spanExample&&!historyMode?'\n冷热变化提示（演示）：有几天可能更凉，可多备一件毛衣或抓绒。':''}\n示例白天 ${temp}°C、早晚 ${edge}°C。以上气温和穿衣结论仅供排版演示。`;
+    $('copyAdvice').onclick=()=>copy(txt,'已复制演示文案');
+    $('shareTrip').onclick=()=>{const url=location.protocol.startsWith('http')?location.origin+location.pathname+queryParams(p):'演示原型：'+queryParams(p);copy(url,'已复制演示链接参数；尚未发布网站')};
+  }
+  async function copy(text,msg){try{await navigator.clipboard.writeText(text);toast(msg)}catch(_){const ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.opacity='0';document.body.append(ta);ta.select();const ok=document.execCommand('copy');ta.remove();toast(ok?msg:'当前浏览器未允许复制')}}
+  $('tripForm').addEventListener('submit',e=>{e.preventDefault();$('cityError').textContent='';$('dateError').textContent='';$('formError').textContent='';
+    if(!plan.city){$('cityError').textContent='请先从列表选一个德国城市';$('city').focus();return}
+    const start=$('start').value,end=$('end').value,t=berlinToday();
+    if(!start||!end){$('dateError').textContent='请选到达和离开日期';return}
+    if(start<t||end>shift(t,29)||end<start){$('dateError').textContent='请选择今起30天内的日期，离开日期不能早于到达日期';return}
+    showResult({kind:'trip',city:plan.city.id,start,end,feeling:plan.feeling},true);
+  });
+  function goHome(push=true){const wasFeatured=currentResult?.kind==='featured';$('result').classList.add('hidden');$('home').classList.remove('hidden');currentResult=null;document.title='旅途穿衣 · 手机交互原型 V5';
+    if(push)try{history.pushState({kind:'home'},'',location.pathname)}catch(_){/* file:// may block URL changes */}
+    if(wasFeatured)requestAnimationFrame(()=>$('featuredTitle').scrollIntoView({block:'start',behavior:'instant'}));else window.scrollTo(0,0);
+  }
+  $('back').addEventListener('click',()=>goHome());
+  window.addEventListener('popstate',()=>{const q=new URLSearchParams(location.search),kind=q.get('view')==='city'?'featured':q.get('view')==='trip'?'trip':null;
+    const p=kind==='featured'?{kind,city:q.get('city')}:{kind,city:q.get('city'),start:q.get('start'),end:q.get('end'),feeling:q.get('preference')};
+    if(kind&&resultParams(p))showResult(p,false);else goHome(false);
+  });
+  window.dispatchEvent(new Event('popstate'));
+})();
+</script>
+</body>
+</html>
