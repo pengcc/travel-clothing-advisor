@@ -327,7 +327,12 @@ def format_month_outlook(outlook, histories, *, details=False):
 def format_trip(recommendation, histories, *, details=False):
     if recommendation.get('kind') == 'historical_outlook':
         return format_month_outlook(recommendation, histories, details=details)
-    parts = [format_advice(recommendation) if details else format_user_advice(recommendation),
+    # When real forecasts cover the trip, put the decision and the current
+    # date-specific alerts first. The extra two past-year rows are evidence
+    # for curious users, not the default answer to "what should I pack?".
+    if not details:
+        return format_user_advice(recommendation)
+    parts = [format_advice(recommendation),
              '', '过去两年同期参考（历史再分析数据，不是未来天气预报）：']
     for h in histories:
         parts.append(f"• {h['start']}～{h['end']}：白天典型约 {h['typical_daytime']:g}°C，"
