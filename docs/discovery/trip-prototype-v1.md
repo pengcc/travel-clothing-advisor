@@ -49,6 +49,16 @@ The corrected resolver:
 
 This is validated with deterministic synthetic geocoding fixtures, including a small namesake appearing **before** the capital and a complete city → forecast/history URL coordinate propagation check. **A real Berlin CLI invocation subsequently succeeded (see end-to-end smoke run below)**. The original geocoding error is a confirmed real-world input and a regression case.
 
+## Live München lookup regression (2026-10-15)
+
+After the Berlin geocoding fix, the user's **first real München run** failed before any forecast/history requests with `城市名称不唯一：München（Bayern, Brandenburg）`. The previous algorithm preferred only a **national** capital (`PPLC`) or required a valid `population` field for *every* exact-name result, but München (GeoNames ID `2867714`) has feature code **`PPLA`** because it is the seat of Bavaria. A smaller namesake may lack `population` entirely, which makes that fallback unusable. This is a **city resolver bug**, not a failure of the Forecast/Historical APIs.
+
+Revised algorithm: a unique **national capital (PPLC)** or **first-order administrative seat (PPLA)** takes precedence among exact German-name candidates. These are verifiable GeoNames feature classifications. If there is more than one record at either of those top levels, reject as ambiguous even if reported populations differ. For other place types, keep the conservative population-dominance fallback and request a federal-state qualifier when data are insufficient. Lower-level `PPLA2` county/district seats are **not automatically promoted** over other locations. Explicit `München, Brandenburg` or `München, Bayern` still disambiguates by requested state.
+
+This avoids a one-city hardcode and keeps the original strict safeguards on true ambiguity. Five synthetic regression tests cover a missing-population village, both ordering variants, explicit state qualifiers, duplicate state-capital classification, non-capital safety and coordinate propagation through the forecast and both archive URLs. **No claim is made that the corrected München live API request has succeeded yet**; a renewed real run and the latest complete suite are needed.
+
+Sources: [GeoNames München (2867714)](https://www.geonames.org/2867714/munich.html), [GeoNames feature codes](https://www.geonames.org/export/codes.html), [Open-Meteo Geocoding API](https://open-meteo.com/en/docs/geocoding-api).
+
 ## Real end-to-end Berlin smoke run (2026-10-15)
 
 A user ran the updated branch locally with an internet connection:
