@@ -329,5 +329,18 @@ class ForecastTest(unittest.TestCase):
 
 
 
+    def test_default_forecast_avoids_duplicate_removable_layer_and_footer_noise(self):
+        result = process(fixture([8] * 14), NOW,
+                         start_date='2026-10-17', end_date='2026-10-20')
+        report = format_user_advice(result)
+        self.assertIn('主要建议：带保暖外套或轻羽绒', report)
+        self.assertIn('早晚偏冷：', report)
+        self.assertEqual(report.count('室内可脱外层'), 1)
+        self.assertNotIn('室内或乘车时可脱外层', report)
+        self.assertIn('参考：本次预报白天代表气温约', report)
+        self.assertIn('预报查询：10月14日 08:00（Open-Meteo）；出发前再看一次天气。', report)
+        self.assertNotIn('个人冷热感受不同', report)
+
+
 if __name__ == '__main__':
     unittest.main()
