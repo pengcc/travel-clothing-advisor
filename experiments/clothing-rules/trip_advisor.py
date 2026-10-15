@@ -118,7 +118,7 @@ def historic_url(city, start, end, *, model=None):
     return HISTORY_URL + '?' + urlencode(params)
 
 
-def historical_summary(payload, start, end):
+def historical_summary(payload, start, end, *, require_edges=False):
     if payload.get('timezone') != 'Europe/Berlin':
         raise ValueError('Historical data must use Europe/Berlin timezone')
     daily = payload.get('daily') or {}
@@ -154,18 +154,19 @@ def historical_summary(payload, start, end):
         raise ValueError('Historical daytime temperatures are incomplete')
     # A year lacking an entire morning or evening window is not a valid
     # baseline for a claim about morning/evening temperatures.
-    if any(not edges[day]['morning'] or not edges[day]['evening'] for day in expected):
+    complete_edges = all(edges[day]['morning'] and edges[day]['evening'] for day in expected)
+    if require_edges and not complete_edges:
         raise ValueError('Historical morning/evening temperatures are incomplete')
     daytemps = [round(median(by_day[day]), 1) for day in expected]
-    edgetemps = [value for day in expected for group in ('morning', 'evening')
-                 for value in edges[day][group]]
+    edgetemps = ([value for day in expected for group in ('morning', 'evening')
+                  for value in edges[day][group]] if complete_edges else [])
     return {
         'start': start.isoformat(), 'end': end.isoformat(),
         'typical_daytime': round(median(daytemps), 1),
         'coldest_daytime': min(daytemps),
         'warmest_daytime': max(daytemps),
-        'typical_edge': round(median(edgetemps), 1),
-        'coldest_edge': round(min(edgetemps), 1),
+        'typical_edge': round(median(edgetemps), 1) if edgetemps else None,
+        'coldest_edge': round(min(edgetemps), 1) if edgetemps else None,
         'precipitation_days': sum(isinstance(v, (int, float)) and v >= 2
                                   for v in daily['precipitation_sum']),
         'snow_days': sum(isinstance(v, (int, float)) and v > 0
@@ -209,7 +210,7 @@ def build(city_name, start, end, preference='normal', *, now=None, fetch=get_jso
         for years in range(1, 9):
             past_start, past_end = year_earlier(start, years), year_earlier(end, years)
             payload = fetch(historic_url(place, past_start, past_end, model='era5'))
-            histories.append(historical_summary(payload, past_start, past_end))
+            histories.append(historical_summary(payload, past_start, past_end, require_edges=True))
         typical = round(median(h['typical_daytime'] for h in histories), 1)
         return {
             'kind': 'historical_outlook', 'city': place['name'],
