@@ -74,6 +74,7 @@ def validate(params, now=None):
 
 
 def advice(params, scenario='default', now=None):
+    now = now or now_berlin()
     p = validate(params, now)
     index = CITIES.index(p['city'])
     selected = DEFAULTS[index] if scenario == 'default' and index < 10 else ('stable' if scenario == 'default' else scenario)
@@ -111,6 +112,7 @@ def advice(params, scenario='default', now=None):
 
 
 def featured(scenario='default', now=None):
+    now = now or now_berlin()
     w = window(now)
     return dict(**w, fixture=True, weather_fetched_at=None, data_version='ui-fixtures-v1',
                 cities=[advice(dict(view='city', city_id=c['id']), scenario, now) for c in CITIES[:10]])

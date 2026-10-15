@@ -5,7 +5,7 @@ Verified locally on 2026-10-15 with isolated headless Google Chrome 155.0.8059.7
 ## Results
 
 - **63 browser assertions passed**, no page JavaScript errors: [machine-readable results](browser-results.json), [reproducible browser test](../../../tests/web/browser.cjs).
-- **10 Python fixture/contract tests passed**, including forecast/historical boundary, Berlin midnight and DST, invalid dates, city input isolation, variation/card consistency and missing weather timestamps.
+- **11 Python fixture/contract tests passed**, including one clock instant per snapshot, forecast/historical boundary, Berlin midnight and DST, invalid dates, city input isolation, variation/card consistency and missing weather timestamps.
 - **122 existing clothing-rule experiment tests passed**; experiments were not changed.
 - Checked homepage and stable/colder/warmer/split results at **320, 375, 390, 430 and 1280px** without horizontal overflow. Checked 200% text enlargement at 320px with complete Chinese copy; text wraps and no critical sentence is ellipsized.
 - Exercised both complete journeys; keyboard city search/selection (ArrowDown/Enter); Frankfurt disambiguation by federal state; all ten cities through pagination; form preservation through city navigation/reload; trip back/forward/reload; canonical direct links; copy suggestion/link; bad dates and duplicate parameters; loading/unavailable/stale panels; HTTP 400/503.

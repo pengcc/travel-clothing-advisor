@@ -69,6 +69,13 @@ class FixtureContractTests(unittest.TestCase):
             advice(self.params(), 'split', NOW)
         self.assertIsNone(advice(self.params(end='2026-10-15'), now=NOW)['packing_variation_notice'])
 
+    def test_one_clock_instant_per_snapshot(self):
+        from unittest.mock import patch
+        with patch('web.fixtures.now_berlin', side_effect=[NOW, NOW + timedelta(days=1)]) as clock:
+            snapshot = featured()
+            self.assertEqual(clock.call_count, 1)
+            self.assertTrue(all(c['start'] == snapshot['today'] and c['end'] == snapshot['forecast_end'] for c in snapshot['cities']))
+
     def test_failure_and_stale(self):
         with self.assertRaises(LookupError):
             advice(self.params(), 'unavailable', NOW)
