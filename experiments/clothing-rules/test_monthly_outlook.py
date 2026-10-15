@@ -7,7 +7,7 @@ from test_trip_advisor import BERLIN, MUNICH, history_fixture, fake_fetch_log, N
 from trip_advisor import build, format_trip, historical_summary
 
 
-def monthly_fetch(calls, *, city=BERLIN, missing_year=None, temperatures=None):
+def monthly_fetch(calls, *, city=BERLIN, missing_year=None, temperatures=None, edge_offset=0):
     """Deterministic history-only API stand-in: a future forecast is an error."""
     temps = temperatures or {
         2025: 12.8, 2024: 9, 2023: 13, 2022: 15,
@@ -29,6 +29,11 @@ def monthly_fetch(calls, *, city=BERLIN, missing_year=None, temperatures=None):
             start, end, temps.get(self_year, 12),
             rain_dates=[start.isoformat()] if self_year % 2 else [],
         )
+        if edge_offset:
+            for i, stamp in enumerate(answer['hourly']['time']):
+                hour = int(stamp[11:13])
+                if 6 <= hour <= 8 or 19 <= hour <= 22:
+                    answer['hourly']['temperature_2m'][i] -= edge_offset
         if self_year == missing_year:
             answer['hourly']['temperature_2m'] = [None] * len(answer['hourly']['time'])
         return answer
@@ -211,7 +216,7 @@ class MonthAheadOutlookTest(unittest.TestCase):
         self.assertIn('早晚时段代表值', summary)
         self.assertIn('早晚时段个别采样低至', summary)
         self.assertNotIn('建议带：建议准备', summary)
-        self.assertNotIn('今年将出现的最低温预报', summary)
+        self.assertIn('不是今年将出现的最低温预报', summary)
         details = format_trip(result, histories, details=True)
         self.assertIn('逐年历史参考', details)
         self.assertIn('早晚最低样本', details)
@@ -221,7 +226,8 @@ class MonthAheadOutlookTest(unittest.TestCase):
         result, histories = build('Berlin', dt.date(2026, 10, 28),
                                   dt.date(2026, 10, 31),
                                   now=NOW,
-                                  fetch=monthly_fetch(calls, temperatures={yr: 20 for yr in range(2018,2026)}))
+                                  fetch=monthly_fetch(calls, temperatures={yr: 20 for yr in range(2018,2026)},
+                                                      edge_offset=8))
         summary = format_trip(result, histories)
         self.assertIn('建议带：薄长袖或短袖', summary)
         self.assertNotIn('较厚冬季外套', summary)
