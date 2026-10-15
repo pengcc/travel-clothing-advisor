@@ -29,8 +29,11 @@ def get_json(url):
 
 
 def geocode_url(name):
+    # The optional ", Federal State" qualifier belongs to local result
+    # disambiguation; Open-Meteo's 'name' query needs only the settlement.
+    lookup_name = name.partition(',')[0].strip()
     return GEOCODE_URL + '?' + urlencode({
-        'name': name, 'count': 30, 'language': 'de', 'countryCode': 'DE'})
+        'name': lookup_name, 'count': 30, 'language': 'de', 'countryCode': 'DE'})
 
 
 def select_city(payload, requested):
