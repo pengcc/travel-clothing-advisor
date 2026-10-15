@@ -319,7 +319,7 @@ def format_user_advice(result):
     edge_typical = round(median(edge_samples), 1) if edge_samples else None
     if edge_typical is not None and edge_typical < 10:
         lines.append(f'早晚偏冷：预报早晚较低时约 {edge_typical:g}°C，'
-                     '早出晚归注意保暖，室内或乘车时可脱外层。')
+                     '早出晚归注意保暖。')
     elif result['edge_cool']:
         lines.append('早晚温差：可带方便穿脱的薄外套或中间层。')
     rainy = [by_date[day] for day in result['rain_dates']]
@@ -357,11 +357,11 @@ def format_user_advice(result):
     elif any(lead >= 7 for lead in active_leads):
         closing = ('行程后段涉及预报第8～14天，请临近出发复查天气和衣物厚度。')
     else:
-        closing = '天气预报可能变化；个人冷热感受不同，临近出发再查看。'
+        closing = '出发前再看一次天气。'
     updated = dt.datetime.fromisoformat(result['generated_at']).astimezone(ZoneInfo(TIMEZONE))
     lines.extend(['', reference,
-                  f'预报查询：{updated.month}月{updated.day}日 {updated:%H:%M}（柏林时间）'
-                  ' · Open-Meteo；' + closing])
+                  f'预报查询：{updated.month}月{updated.day}日 {updated:%H:%M}（Open-Meteo）；'
+                  + closing])
     return '\n'.join(lines)
 
 
