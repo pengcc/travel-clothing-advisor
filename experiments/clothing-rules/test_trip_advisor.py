@@ -142,6 +142,38 @@ class TripAdvisorTest(unittest.TestCase):
             self.assertEqual(params['longitude'], ['13.41053'])
         self.assertIn('Berlin · 2026年10月17～20日', format_trip(forecast, history))
 
+    def test_state_qualified_lookup_queries_only_settlement_name(self):
+        url = geocode_url('Berlin, Schleswig-Holstein')
+        params = parse_qs(urlparse(url).query)
+        self.assertEqual(params['name'], ['Berlin'])
+        self.assertEqual(params['countryCode'], ['DE'])
+        self.assertEqual(parse_qs(urlparse(geocode_url(' München, Bayern ')).query)['name'],
+                         ['München'])
+
+    def test_state_qualified_trip_uses_matching_namesake_coordinates(self):
+        capital = dict(BERLIN, id=2950159, feature_code='PPLC',
+                       population=3426354, admin1='Land Berlin')
+        smaller = dict(BERLIN, id=9999, latitude=54.04, longitude=10.45,
+                       feature_code='PPL', population=500,
+                       admin1='Schleswig-Holstein')
+        calls = []
+        fallback = fake_fetch_log(calls, city=capital)
+        def fetch(url):
+            if urlparse(url).netloc == 'geocoding-api.open-meteo.com':
+                calls.append(url)
+                return {'results': [capital, smaller]}
+            return fallback(url)
+        forecast, history = build('Berlin, Schleswig-Holstein',
+                                  dt.date(2026, 10, 17), dt.date(2026, 10, 20),
+                                  now=NOW, fetch=fetch)
+        self.assertEqual(parse_qs(urlparse(calls[0]).query)['name'], ['Berlin'])
+        self.assertEqual(len(calls), 4)
+        for url in calls[1:]:
+            params = parse_qs(urlparse(url).query)
+            self.assertEqual(params['latitude'], ['54.04'])
+            self.assertEqual(params['longitude'], ['10.45'])
+        self.assertIn('Berlin · 2026年10月17～20日', format_trip(forecast, history))
+
     def test_historical_url_has_city_and_exact_dates(self):
         url = historic_url(MUNICH, dt.date(2025, 10, 20), dt.date(2025, 10, 23))
         q = parse_qs(urlparse(url).query)
