@@ -4,7 +4,7 @@ from urllib.parse import parse_qs, urlparse
 from zoneinfo import ZoneInfo
 
 from test_trip_advisor import BERLIN, MUNICH, history_fixture, fake_fetch_log, NOW
-from trip_advisor import build, format_trip, validate_month_trip
+from trip_advisor import build, format_trip, historical_summary
 
 
 def monthly_fetch(calls, *, city=BERLIN, missing_year=None, temperatures=None):
@@ -55,8 +55,8 @@ class MonthAheadOutlookTest(unittest.TestCase):
         self.assertEqual(len(histories), 8)
         self.assertEqual(len(calls), 9)
         self.assertTrue(all(urlparse(u).netloc != 'api.open-meteo.com' for u in calls))
-        self.assertIn('整趟行程统一采用历史参考', format_trip(result, histories))
-        self.assertIn('不是逐日预报', format_trip(result, histories))
+        self.assertIn('目前没有覆盖整趟行程的14天预报', format_trip(result, histories))
+        self.assertIn('历史天气参考', format_trip(result, histories))
 
     def test_all_archive_queries_era5_exact_past_intervals_and_city_coordinates(self):
         calls = []
@@ -107,12 +107,12 @@ class MonthAheadOutlookTest(unittest.TestCase):
                                   dt.date(2026, 10, 31),
                                   now=NOW, fetch=monthly_fetch(calls))
         report = format_trip(result, histories)
-        self.assertIn('基本衣物', report)
+        self.assertIn('建议带：', report)
         self.assertIn('过去8年同期', report)
-        self.assertIn('8年样本不是气候常年值', report)
-        self.assertIn('不是今年的预测温度', report)
-        self.assertIn('不代表今年必然下雨', report)
-        self.assertIn('可准备方便增加的保暖层', report)
+        self.assertIn('8年样本不能推算', report)
+        self.assertIn('并非今年的天气预报', report)
+        self.assertIn('不代表今年的降雨概率', report)
+        self.assertIn('需要时可加一层保暖衣物', report)
         self.assertNotIn('降雨概率', report)
 
     def test_near_thirteen_clothing_copy_stays_lightweight(self):
@@ -125,7 +125,7 @@ class MonthAheadOutlookTest(unittest.TestCase):
         report = format_trip(result, histories)
         self.assertIn('保暖程度适中的外套', report)
         self.assertIn('轻羽绒替代外套', report)
-        self.assertNotIn('可准备方便增加的保暖层', report)
+        self.assertNotIn('偏冷可能性：', report)
 
     def test_preferences_and_details_are_considered(self):
         for preference, phrase in (('cold', '比较怕冷'), ('hot', '比较怕热')):
@@ -166,6 +166,66 @@ class MonthAheadOutlookTest(unittest.TestCase):
         self.assertEqual(result['kind'], 'historical_outlook')
         self.assertEqual(histories[0]['start'], '2027-02-28')
         self.assertEqual(histories[0]['end'], '2027-03-02')
+
+
+    def test_morning_evening_hourly_temperatures_are_not_daytime_minima(self):
+        # Daytime proxy and morning/evening windows are separately calculated.
+        start, end = dt.date(2025, 11, 8), dt.date(2025, 11, 9)
+        payload = history_fixture(start, end, temp=12)
+        for i, stamp in enumerate(payload['hourly']['time']):
+            hour = int(stamp[11:13])
+            if hour in (6, 7, 8, 19, 20, 21, 22):
+                payload['hourly']['temperature_2m'][i] = 3
+        # An isolated edge-hour cold snap affects the minimum but not the
+        # trip's representative morning/evening temperature.
+        j = payload['hourly']['time'].index('2025-11-09T07:00')
+        payload['hourly']['temperature_2m'][j] = -2
+        h = historical_summary(payload, start, end, require_edges=True)
+        self.assertEqual(h['typical_daytime'], 12)
+        self.assertEqual(h['coldest_daytime'], 12)
+        self.assertEqual(h['typical_edge'], 3)
+        self.assertEqual(h['coldest_edge'], -2)
+
+    def test_missing_edge_window_fails_monthly_but_not_short_historical_summary(self):
+        start, end = dt.date(2025, 11, 8), dt.date(2025, 11, 8)
+        payload = history_fixture(start, end, temp=11)
+        # Evening time samples missing; leave normal daytime data intact.
+        for i, stamp in enumerate(payload['hourly']['time']):
+            if 19 <= int(stamp[11:13]) <= 22:
+                payload['hourly']['temperature_2m'][i] = None
+        with self.assertRaisesRegex(ValueError, 'morning/evening temperatures are incomplete'):
+            historical_summary(payload, start, end, require_edges=True)
+        brief = historical_summary(payload, start, end)
+        self.assertEqual(brief['typical_daytime'], 11)
+        self.assertIsNone(brief['typical_edge'])
+
+    def test_public_outlook_prioritizes_garments_and_explains_edge_times(self):
+        calls = []
+        result, histories = build('Berlin', dt.date(2026, 10, 28),
+                                  dt.date(2026, 11, 1),
+                                  now=NOW, fetch=monthly_fetch(calls))
+        summary = format_trip(result, histories)
+        self.assertLess(summary.index('建议带：'), summary.index('历史依据：'))
+        self.assertIn('早晚', summary)
+        self.assertIn('06–08时、19–22时', summary)
+        self.assertIn('早晚时段代表值', summary)
+        self.assertIn('早晚时段个别采样低至', summary)
+        self.assertNotIn('建议带：建议准备', summary)
+        self.assertNotIn('今年将出现的最低温预报', summary)
+        details = format_trip(result, histories, details=True)
+        self.assertIn('逐年历史参考', details)
+        self.assertIn('早晚最低样本', details)
+
+    def test_offseason_warm_day_and_cool_evening_uses_layers_without_winter_claim(self):
+        calls = []
+        result, histories = build('Berlin', dt.date(2026, 10, 28),
+                                  dt.date(2026, 10, 31),
+                                  now=NOW,
+                                  fetch=monthly_fetch(calls, temperatures={yr: 20 for yr in range(2018,2026)}))
+        summary = format_trip(result, histories)
+        self.assertIn('建议带：薄长袖或短袖', summary)
+        self.assertNotIn('较厚冬季外套', summary)
+        self.assertIn('进入室内或车上可以脱下', summary)
 
 
 if __name__ == '__main__':
