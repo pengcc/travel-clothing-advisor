@@ -146,5 +146,35 @@ class TripAdvisorTest(unittest.TestCase):
         self.assertIn('比较怕热',format_trip(f,history))
 
 
+    def test_city_advisor_preserves_live_forecast_13c_boundary_copy(self):
+        calls = []
+        temperatures = [12.8] * 14
+        f, history = build('München', dt.date(2026, 10, 17), dt.date(2026, 10, 20),
+                           now=NOW, fetch=fake_fetch_log(calls, city=MUNICH,
+                                                         current=forecast_fixture(temperatures)))
+        text = format_trip(f, history)
+        self.assertEqual(f['typical_daytime'], 12.8)
+        self.assertIn('München · 2026年10月17～20日穿衣建议', text)
+        self.assertIn('接近厚度分界', text)
+        self.assertIn('保暖程度适中的外套', text)
+        self.assertIn('轻羽绒替代外套', text)
+        self.assertNotIn('建议准备长袖、保暖中间层，以及保暖外套或轻羽绒', text)
+
+    def test_city_advisor_preserves_second_week_uncertainty(self):
+        calls = []
+        f, history = build('München', dt.date(2026, 10, 24), dt.date(2026, 10, 26),
+                           now=NOW, fetch=fake_fetch_log(calls, city=MUNICH))
+        text = format_trip(f, history)
+        self.assertIn('行程全部处于预报第8～14天', text)
+        self.assertIn('后期留意：10月26日', text)
+
+    def test_other_city_detailed_report_contains_correct_name(self):
+        calls = []
+        f, history = build('München', dt.date(2026, 10, 17), dt.date(2026, 10, 20),
+                           now=NOW, fetch=fake_fetch_log(calls, city=MUNICH))
+        self.assertIn('München指定旅行日期穿衣建议', format_trip(f, history, details=True))
+        self.assertNotIn('柏林指定旅行日期穿衣建议', format_trip(f, history, details=True))
+
+
 if __name__ == '__main__':
     unittest.main()

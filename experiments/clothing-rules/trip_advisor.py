@@ -119,7 +119,8 @@ def build(city_name, start, end, preference='normal', *, now=None, fetch=get_jso
     place = select_city(fetch(geocode_url(city_name)), city_name)
     forecast = fetch(forecast_url(place['latitude'], place['longitude']))
     recommendation = process(forecast, now=now, preference=preference,
-                             trip_start=start, trip_end=end, city=place['name'])
+                             start_date=start.isoformat(), end_date=end.isoformat(),
+                             city=place['name'])
     summaries = []
     for years in (1, 2):
         past_start, past_end = year_earlier(start, years), year_earlier(end, years)

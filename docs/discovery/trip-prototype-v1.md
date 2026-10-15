@@ -35,3 +35,11 @@ Dates in examples are illustrative and must be within the upcoming 14 calendar d
 - Online integration with the new geocoding and historical requests **has not been exercised in this environment**. Offline fixtures test request parameters, date alignment, validation, and text output; API availability and example live outputs still need an actual connected run.
 - Geocoding data derives from GeoNames; display attribution. Open-Meteo free endpoints have non-commercial limits and require attribution: review licensing before any commercial release.
 - **No web UI, no automatic scheduler, no generalized climate horizon, no framework or deployment.** This PR addresses the data/logic end of the agreed user flow. A thin user-facing web form can be scoped separately after review.
+
+## Integration with merged PR #12 (2026-10-15)
+
+This prototype was originally branched before PR #12, which added trip-date scoping, a 13°C threshold copy fix, and correct forecast lead-time warnings. The current PR's reconciliation uses the latest `main` implementation of `forecast_advice.py`; the changes in that file are limited to optional coordinates, a city label argument, and location-specific headings. The `trip_advisor.py` caller now uses the canonical `start_date`/`end_date` interface rather than the superseded `trip_start`/`trip_end` parameters.
+
+Existing PR #12 regressions must keep passing. New trip-advisor regression cases check the 13°C wording, second-week uncertainty, and city headings. The original 54-test count is superseded by the integrated test suite. The new Geocoding + Historical APIs still need a real connected smoke run before their live data are trusted.
+
+Related discovery evidence: [Accommodation and transit indoor-climate findings](./indoor-temperature-transit-accommodation-2026-10.md). No automatic sleepwear recommendation has been added to the engine.
