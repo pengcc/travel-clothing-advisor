@@ -265,23 +265,30 @@ def format_user_advice(result):
         period = f'{first.year}年{first.month}月{first.day}日至{last.year}年{last.month}月{last.day}日'
     near_thirteen = (result['main_level'] in (4, 5)
                      and abs(result['typical_daytime'] - 13) <= NEAR_THIRTEEN_TOLERANCE_C)
-    # For a trip near 13°C, a 0.2°C rounding change must not suddenly
-    # turn a moderate jacket into an apparent requirement for down insulation.
-    base_clothing = (
-        '建议长袖搭配毛衣或抓绒，再配一件保暖程度适中的外套；'
-        '怕冷或早晚长时间在室外，可以用轻羽绒替代外套。'
-        if near_thirteen else USER_CLOTHING[result['main_level']]
-    )
-    temperature_note = (
-        f'旅行期间白天的代表气温约 {result["typical_daytime"]:g}°C，'
-        '接近厚度分界，按可穿脱的分层组合准备即可。'
-        if near_thirteen else
-        f'旅行期间白天的代表气温约 {result["typical_daytime"]:g}°C，衣服建议采用可增减的搭配。'
+    # Make the outerwear decision conspicuous, without repeating the
+    # identical garment in separate "pack" and "wear" paragraphs.
+    if near_thirteen:
+        main_clothing = ('带保暖程度适中的外套；怕冷可用轻羽绒替代外套。'
+                         '建议长袖搭配毛衣或抓绒，进室内可脱外层。')
+    else:
+        main_clothing = {
+            1: '短袖、轻薄透气衣物为主，不需要保暖外套。',
+            2: '短袖或薄长袖为主，早晚可加轻薄外层。',
+            3: '带薄外套，搭配薄长袖或短袖，方便加减。',
+            4: '带一件保暖程度适中的外套；内搭长袖、抓绒或毛衣，室内可脱外层。',
+            5: '带保暖外套或轻羽绒；内搭长袖、毛衣或抓绒，室内可脱外层。',
+            6: '带适合冬季的较厚外套；内搭保暖衣、毛衣或抓绒，室内可脱外层。',
+        }[result['main_level']]
+    # Preserve the near-13°C explanation for transparency about the
+    # wardrobe boundary, but don't clutter other trips with a second
+    # generic sentence that repeats "layerable clothes".
+    reference = (
+        f'参考：本次预报白天代表气温约 {result["typical_daytime"]:g}°C'
+        + ('，接近厚度分界。' if near_thirteen else '。')
     )
     lines = [f"{result.get('city', '柏林')} · {period}穿衣建议",
              '',
-             base_clothing,
-             temperature_note]
+             f'主要建议：{main_clothing}']
     by_date = {row['date']: row for row in result['days']}
     cold = set(result['cold_dates'])
     for start, end, long_range in ((0, 7, False), (7, 14, True)):
@@ -305,8 +312,16 @@ def format_user_advice(result):
             ending = '；较远期预报仍需复查。' if long_range else '；其他日子不必都穿最厚。'
             lines.append(f'{prefix}：{winter_when}可能需要冬季保暖内搭、抓绒或毛衣，'
                          f'以及较厚的冬季外套{ending}')
-    if result['edge_cool']:
-        lines.append('早晚可能更凉，分层穿着方便随时穿脱。')
+    # The absolute early/late temperature matters even without a large
+    # day-to-night delta, e.g. an 8°C daytime trip with 6°C evenings.
+    edge_samples = [row['evening_morning_min'] for row in result['days']
+                    if row['daytemp'] is not None and numeric(row['evening_morning_min'])]
+    edge_typical = round(median(edge_samples), 1) if edge_samples else None
+    if edge_typical is not None and edge_typical < 10:
+        lines.append(f'早晚偏冷：预报早晚较低时约 {edge_typical:g}°C，'
+                     '早出晚归注意保暖，室内或乘车时可脱外层。')
+    elif result['edge_cool']:
+        lines.append('早晚温差：可带方便穿脱的薄外套或中间层。')
     rainy = [by_date[day] for day in result['rain_dates']]
     if rainy:
         forecast_day = dt.date.fromisoformat(result['forecast_start'])
@@ -344,9 +359,9 @@ def format_user_advice(result):
     else:
         closing = '天气预报可能变化；个人冷热感受不同，临近出发再查看。'
     updated = dt.datetime.fromisoformat(result['generated_at']).astimezone(ZoneInfo(TIMEZONE))
-    lines.extend(['', f'预报查询：{updated.month}月{updated.day}日 {updated:%H:%M}（柏林时间）'
-                     f' · 来源：Open-Meteo',
-                  closing])
+    lines.extend(['', reference,
+                  f'预报查询：{updated.month}月{updated.day}日 {updated:%H:%M}（柏林时间）'
+                  ' · Open-Meteo；' + closing])
     return '\n'.join(lines)
 
 
