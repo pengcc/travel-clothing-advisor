@@ -60,6 +60,88 @@ class TripAdvisorTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, '不唯一'):
             select_city({'results': options}, 'Berlin')
 
+    def test_berlin_capital_wins_over_schleswig_holstein_namesake(self):
+        # Open-Meteo's documented Berlin capital record is GeoNames 2950159.
+        # The same name also exists in Schleswig-Holstein, as observed in the
+        # user's real 2026-10-15 geocoding request.
+        capital = dict(BERLIN, id=2950159, feature_code='PPLC',
+                       population=3426354, admin1='Land Berlin')
+        namesake = dict(BERLIN, id=9999, latitude=54.04, longitude=10.45,
+                        feature_code='PPL', population=500,
+                        admin1='Schleswig-Holstein')
+        for matches in ([namesake, capital], [capital, namesake]):
+            self.assertEqual(select_city({'results': matches}, 'Berlin')['id'], 2950159)
+            self.assertEqual(select_city({'results': matches}, 'Berlin, Germany')['id'], 2950159)
+
+    def test_explicit_german_state_selects_intended_berlin(self):
+        capital = dict(BERLIN, id=2950159, feature_code='PPLC',
+                       population=3426354, admin1='Land Berlin')
+        namesake = dict(BERLIN, id=9999, latitude=54.04,
+                        feature_code='PPL', population=500,
+                        admin1='Schleswig-Holstein')
+        payload = {'results': [namesake, capital]}
+        self.assertEqual(select_city(payload, 'Berlin, Schleswig-Holstein')['id'], 9999)
+        self.assertEqual(select_city(payload, 'Berlin, Berlin')['id'], 2950159)
+        self.assertEqual(select_city(payload, 'Berlin, Land Berlin')['id'], 2950159)
+        with self.assertRaisesRegex(ValueError, '找不到唯一'):
+            select_city(payload, 'Berlin, Bayern')
+
+    def test_much_larger_noncapital_can_be_selected_without_order_guess(self):
+        large = dict(MUNICH, name='Halle', population=230000, feature_code='PPLA2')
+        village = dict(MUNICH, name='Halle', population=1800, feature_code='PPL',
+                       admin1='Niedersachsen')
+        self.assertEqual(select_city({'results': [village, large]}, 'Halle'), large)
+
+    def test_same_name_rivals_or_missing_population_not_guessed(self):
+        a = dict(MUNICH, name='Halle', population=160000, feature_code='PPL',
+                 admin1='Sachsen-Anhalt')
+        b = dict(MUNICH, name='Halle', population=90000, feature_code='PPL',
+                 admin1='Niedersachsen')
+        with self.assertRaisesRegex(ValueError, '不唯一'):
+            select_city({'results': [a, b]}, 'Halle')
+        del b['population']
+        with self.assertRaisesRegex(ValueError, '不唯一'):
+            select_city({'results': [a, b]}, 'Halle')
+
+    def test_duplicate_capital_records_remain_ambiguous(self):
+        a = dict(BERLIN, feature_code='PPLC', population=3426354)
+        b = dict(BERLIN, feature_code='PPLC', population=3426354,
+                 admin1='Schleswig-Holstein')
+        with self.assertRaisesRegex(ValueError, '不唯一'):
+            select_city({'results': [a, b]}, 'Berlin')
+
+    def test_wrong_country_or_prefix_remains_rejected_with_namesakes(self):
+        capital = dict(BERLIN, feature_code='PPLC', population=3426354)
+        namesake = dict(BERLIN, feature_code='PPL', population=500,
+                        admin1='Schleswig-Holstein')
+        payload = {'results': [dict(capital, country_code='US'), namesake]}
+        self.assertEqual(select_city(payload, 'Berlin')['admin1'], 'Schleswig-Holstein')
+        with self.assertRaisesRegex(ValueError, '找不到唯一'):
+            select_city(payload, 'Berli')
+
+    def test_build_uses_capital_coordinates_for_all_three_weather_requests(self):
+        capital = dict(BERLIN, id=2950159, feature_code='PPLC',
+                       population=3426354, admin1='Land Berlin')
+        namesake = dict(BERLIN, id=9999, latitude=54.04, longitude=10.45,
+                        population=500, feature_code='PPL',
+                        admin1='Schleswig-Holstein')
+        calls = []
+        fallback = fake_fetch_log(calls, city=capital)
+        def fetch(url):
+            if urlparse(url).netloc == 'geocoding-api.open-meteo.com':
+                calls.append(url)
+                return {'results': [namesake, capital]}
+            return fallback(url)
+        forecast, history = build('Berlin', dt.date(2026, 10, 17),
+                                  dt.date(2026, 10, 20),
+                                  now=NOW, fetch=fetch)
+        self.assertEqual(len(calls), 4)
+        for url in calls[1:]:
+            params = parse_qs(urlparse(url).query)
+            self.assertEqual(params['latitude'], ['52.52437'])
+            self.assertEqual(params['longitude'], ['13.41053'])
+        self.assertIn('Berlin · 2026年10月17～20日', format_trip(forecast, history))
+
     def test_historical_url_has_city_and_exact_dates(self):
         url = historic_url(MUNICH, dt.date(2025, 10, 20), dt.date(2025, 10, 23))
         q = parse_qs(urlparse(url).query)
