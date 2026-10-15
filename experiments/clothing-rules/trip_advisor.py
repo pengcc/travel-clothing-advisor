@@ -59,7 +59,7 @@ def select_city(payload, requested):
                  and normalize_admin1(v['admin1']) == normalize_admin1(qualifier)]
     if len(exact) == 1:
         return exact[0]
-    if len(exact) > 1 and not separator:
+    if len(exact) > 1 and (not separator or qualifier.casefold() in ('de', 'deutschland', 'germany')):
         # A unique country capital is an authoritative place-type distinction,
         # not the arbitrary first geocoding hit.
         capitals = [v for v in exact if v.get('feature_code') == 'PPLC']
