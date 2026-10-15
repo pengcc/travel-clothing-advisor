@@ -53,7 +53,8 @@ class MonthAheadOutlookTest(unittest.TestCase):
         self.assertNotIn('kind', result)
         self.assertEqual(len(histories), 2)
         self.assertEqual(len(calls), 4)
-        self.assertIn('过去两年同期参考', format_trip(result, histories))
+        self.assertNotIn('过去两年同期参考', format_trip(result, histories))
+        self.assertIn('过去两年同期参考', format_trip(result, histories, details=True))
 
     def test_crossing_fourteen_day_horizon_uses_history_for_entire_trip(self):
         calls = []
@@ -117,11 +118,13 @@ class MonthAheadOutlookTest(unittest.TestCase):
                                   now=NOW, fetch=monthly_fetch(calls))
         report = format_trip(result, histories)
         self.assertIn('主要建议：', report)
+        self.assertEqual(report.count('主要建议：'), 1)
         self.assertIn('过去8年同期', report)
         self.assertIn('出发前两周内', report)
         self.assertIn('不是今年的具体预报', report)
         self.assertIn('这不是今年的降雨预报', report)
-        self.assertIn('怎么穿：', report)
+        self.assertIn('内搭', report)
+        self.assertNotIn('怎么穿：', report)
         self.assertNotRegex(report, r'降雨概率\s*[:=]\s*\d')
 
     def test_near_thirteen_clothing_copy_stays_lightweight(self):
@@ -291,6 +294,20 @@ class MonthAheadOutlookTest(unittest.TestCase):
         self.assertIn('鞋底防滑', text)
         self.assertNotIn('降水提醒：', text)
         self.assertIn('有降雪的历史年份 1/8', format_trip(result, history, details=True))
+
+
+    def test_single_garment_decision_line_without_repeated_outfit_heading(self):
+        calls = []
+        result, histories = build('Berlin', dt.date(2026, 10, 28),
+                                  dt.date(2026, 11, 1), now=NOW,
+                                  fetch=monthly_fetch(calls))
+        public = format_trip(result, histories)
+        self.assertIn('主要建议：带轻羽绒或同等保暖外套，内搭长袖', public)
+        self.assertEqual(public.count('主要建议：'), 1)
+        self.assertNotIn('怎么穿：', public)
+        self.assertNotIn('数据依据：', public)
+        self.assertIn('数据依据：', format_trip(result, histories, details=True))
+
 
 
 if __name__ == '__main__':
