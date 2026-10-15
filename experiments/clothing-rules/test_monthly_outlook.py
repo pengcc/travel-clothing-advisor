@@ -118,7 +118,7 @@ class MonthAheadOutlookTest(unittest.TestCase):
         self.assertIn('并非今年的天气预报', report)
         self.assertIn('不代表今年的降雨概率', report)
         self.assertIn('需要时可加一层保暖衣物', report)
-        self.assertNotIn('降雨概率', report)
+        self.assertNotRegex(report, r'降雨概率\\s*[:=]\\s*\\d')
 
     def test_near_thirteen_clothing_copy_stays_lightweight(self):
         calls = []
