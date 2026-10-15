@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Germany trip clothing prototype: selected dates + current forecast + two past years.
+"""Germany clothing prototype: 14-day forecast or 30-day historical outlook.
 
 Standard-library experiment. Historical data are reanalysis, not observations
 at a particular station and not a forecast of the trip.
@@ -13,7 +13,9 @@ from urllib.parse import urlencode
 from urllib.request import urlopen
 from zoneinfo import ZoneInfo
 
-from forecast_advice import forecast_url, process, format_user_advice, format_advice
+from forecast_advice import (forecast_url, process, format_user_advice, format_advice,
+                             USER_CLOTHING, NEAR_THIRTEEN_TOLERANCE_C)
+from validate_clothing_rules import level
 
 GEOCODE_URL = 'https://geocoding-api.open-meteo.com/v1/search'
 HISTORY_URL = 'https://archive-api.open-meteo.com/v1/archive'
@@ -104,13 +106,16 @@ def year_earlier(day, years):
         return day.replace(year=day.year - years, day=28)
 
 
-def historic_url(city, start, end):
-    return HISTORY_URL + '?' + urlencode({
+def historic_url(city, start, end, *, model=None):
+    params = {
         'latitude': city['latitude'], 'longitude': city['longitude'],
         'timezone': 'Europe/Berlin', 'start_date': start.isoformat(),
         'end_date': end.isoformat(), 'hourly': 'temperature_2m',
         'daily': 'precipitation_sum,snowfall_sum',
-        'temperature_unit': 'celsius', 'precipitation_unit': 'mm'})
+        'temperature_unit': 'celsius', 'precipitation_unit': 'mm'}
+    if model is not None:
+        params['models'] = model
+    return HISTORY_URL + '?' + urlencode(params)
 
 
 def historical_summary(payload, start, end):
@@ -158,10 +163,42 @@ def validate_trip(start, end, now):
         raise ValueError('本版只支持未来14个日历日内的旅行，超过该范围不能用短期预报冒充长期预测')
 
 
+def validate_month_trip(start, end, now):
+    """Allow complete trips in the next 30 calendar days, never a partial estimate."""
+    if start > end:
+        raise ValueError('旅行结束日期不能早于开始日期')
+    if start < now.date():
+        raise ValueError('请使用今天或之后的旅行日期')
+    if end > now.date() + dt.timedelta(days=29):
+        raise ValueError('本版最长支持从今天起30个日历日；不能用同期历史资料冒充更远的旅行预报')
+
+
 def build(city_name, start, end, preference='normal', *, now=None, fetch=get_json):
     now = (now or dt.datetime.now(ZONE)).astimezone(ZONE)
-    validate_trip(start, end, now)
+    forecast_covered = end <= now.date() + dt.timedelta(days=13)
+    if forecast_covered:
+        validate_trip(start, end, now)
+    else:
+        validate_month_trip(start, end, now)
+
     place = select_city(fetch(geocode_url(city_name)), city_name)
+    if not forecast_covered:
+        # Fixed ERA5 model, not the provider's mixed "best match" models.
+        # Eight individual past trip windows, with no forecast request or
+        # pseudo-precision for days beyond the live 14-day horizon.
+        histories = []
+        for years in range(1, 9):
+            past_start, past_end = year_earlier(start, years), year_earlier(end, years)
+            payload = fetch(historic_url(place, past_start, past_end, model='era5'))
+            histories.append(historical_summary(payload, past_start, past_end))
+        typical = round(median(h['typical_daytime'] for h in histories), 1)
+        return {
+            'kind': 'historical_outlook', 'city': place['name'],
+            'start': start.isoformat(), 'end': end.isoformat(),
+            'main_level': level(typical), 'typical_daytime': typical,
+            'preference': preference,
+        }, histories
+
     forecast = fetch(forecast_url(place['latitude'], place['longitude']))
     recommendation = process(forecast, now=now, preference=preference,
                              start_date=start.isoformat(), end_date=end.isoformat(),
@@ -174,7 +211,61 @@ def build(city_name, start, end, preference='normal', *, now=None, fetch=get_jso
     return recommendation, summaries
 
 
+def format_month_outlook(outlook, histories, *, details=False):
+    """Packing envelope from past years; never dates or probabilities for this year's weather."""
+    if len(histories) != 8:
+        raise ValueError('需要八个完整历史年份才能生成提前准备参考')
+    typical = outlook['typical_daytime']
+    lower = min(h['typical_daytime'] for h in histories)
+    upper = max(h['typical_daytime'] for h in histories)
+    colder = min(h['coldest_daytime'] for h in histories)
+    level_no = outlook['main_level']
+    near_thirteen = level_no in (4, 5) and abs(typical - 13) <= NEAR_THIRTEEN_TOLERANCE_C
+    clothing = (
+        '长袖＋毛衣或抓绒＋一件保暖程度适中的外套；'
+        '怕冷或早晚长时间在室外，可考虑用轻羽绒替代外套。'
+        if near_thirteen else USER_CLOTHING[level_no]
+    )
+    result = [
+        f"{outlook['city']} · {outlook['start']}～{outlook['end']} 行李穿衣参考",
+        '提前准备｜历史天气范围（不是逐日预报）',
+        '',
+        f'建议的基本衣物：{clothing}',
+        f'过去8年同期各次行程的白天典型温度约 {lower:g}～{upper:g}°C，'
+        f'中位参考值约 {typical:g}°C。不是今年的预测温度。',
+    ]
+    if colder <= typical - 5:
+        result.append(f'温差提醒：有些历史年份的个别白天低至约 {colder:g}°C；'
+                      '可准备方便增加的保暖层，不必仅凭一次偏冷记录带齐全部厚衣服。')
+    if outlook['preference'] == 'cold':
+        result.append('比较怕冷：基础组合之外，适当保留一件可脱的保暖中间层。')
+    elif outlook['preference'] == 'hot':
+        result.append('比较怕热：优先选择方便脱掉的中间层，不要忽略防风和防雨。')
+    precip_years = sum(h['precipitation_days'] > 0 for h in histories)
+    if precip_years:
+        result.append(f'防雨参考：过去8年里有 {precip_years} 年在同期行程出现较明显降水；'
+                      '折叠伞或轻便防雨外层是可考虑的备选，不代表今年必然下雨。')
+    else:
+        result.append('防雨参考：所取历史年份没有明显降水记录也不能排除今年降雨。')
+    if any(h['snow_days'] > 0 for h in histories):
+        result.append('历史同期有降雪记录；是否需要冬季装备请临近出行时再看预报。')
+    result.append('行程有日期超出14天预报范围，因此整趟行程统一采用历史参考，'
+                  '不拼接少量预报制造确定性；当整趟行程进入未来14天时重新查询。')
+    result.append('来源：Open-Meteo Historical Weather（ERA5历史再分析），城市：GeoNames；'
+                  '8年样本不是气候常年值，也不能推算今年每天的天气概率。')
+    if details:
+        result.append('')
+        result.append('逐年历史参考（仅为过去年份）：')
+        for h in histories:
+            result.append(f"• {h['start']}～{h['end']}：典型 {h['typical_daytime']:g}°C，"
+                          f"最凉白天 {h['coldest_daytime']:g}°C，"
+                          f"明显降水 {h['precipitation_days']} 天，降雪 {h['snow_days']} 天。")
+    return '\n'.join(result)
+
+
 def format_trip(recommendation, histories, *, details=False):
+    if recommendation.get('kind') == 'historical_outlook':
+        return format_month_outlook(recommendation, histories, details=details)
     parts = [format_advice(recommendation) if details else format_user_advice(recommendation),
              '', '过去两年同期参考（历史再分析数据，不是未来天气预报）：']
     for h in histories:
