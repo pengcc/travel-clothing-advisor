@@ -29,8 +29,9 @@ def get_json(url):
 
 
 def geocode_url(name):
-    # The optional ", Federal State" qualifier belongs to local result
-    # disambiguation; Open-Meteo's 'name' query needs only the settlement.
+    # A federal-state qualifier is interpreted locally after lookup.
+    # Query by settlement here to inspect all exact-name candidates, even
+    # if an API result is a smaller namesake in another state.
     lookup_name = name.partition(',')[0].strip()
     return GEOCODE_URL + '?' + urlencode({
         'name': lookup_name, 'count': 30, 'language': 'de', 'countryCode': 'DE'})
@@ -63,14 +64,21 @@ def select_city(payload, requested):
     if len(exact) == 1:
         return exact[0]
     if len(exact) > 1 and (not separator or qualifier.casefold() in ('de', 'deutschland', 'germany')):
-        # A unique country capital is an authoritative place-type distinction,
-        # not the arbitrary first geocoding hit.
-        capitals = [v for v in exact if v.get('feature_code') == 'PPLC']
-        if len(capitals) == 1:
-            return capitals[0]
-        # For other cities, select a clearly dominant large city only when
-        # every exact match has a credible reported population. Unknown data,
-        # close rivals and ties are deliberately left ambiguous.
+        # Use unique major administrative seats before population. GeoNames:
+        # PPLC = national capital (Berlin); PPLA = state capital (München);
+        # PPLA2 = seat of next administrative level. Some tiny namesakes omit
+        # population, so the previous "all populations must exist" rule made
+        # even unambiguous state-capital requests fail.
+        # Never guess between multiple places with the same highest status.
+        for code in ('PPLC', 'PPLA', 'PPLA2'):
+            seats = [v for v in exact if v.get('feature_code') == code]
+            if len(seats) == 1:
+                return seats[0]
+            if len(seats) > 1:
+                break
+        # Otherwise only select a clearly dominant large city when every
+        # exact match has a credible reported population. Missing data,
+        # close rivals and ties remain ambiguous.
         populations = [v.get('population') for v in exact]
         if all(isinstance(n, int) and not isinstance(n, bool) and n >= 0
                for n in populations):
