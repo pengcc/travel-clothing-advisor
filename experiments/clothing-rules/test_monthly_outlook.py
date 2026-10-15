@@ -7,7 +7,8 @@ from test_trip_advisor import BERLIN, MUNICH, history_fixture, fake_fetch_log, N
 from trip_advisor import build, format_trip, historical_summary
 
 
-def monthly_fetch(calls, *, city=BERLIN, missing_year=None, temperatures=None, edge_offset=0):
+def monthly_fetch(calls, *, city=BERLIN, missing_year=None, temperatures=None,
+                  edge_offset=0, precipitation_years=None, snow_years=None):
     """Deterministic history-only API stand-in: a future forecast is an error."""
     temps = temperatures or {
         2025: 12.8, 2024: 9, 2023: 13, 2022: 15,
@@ -27,8 +28,11 @@ def monthly_fetch(calls, *, city=BERLIN, missing_year=None, temperatures=None, e
         self_year = start.year
         answer = history_fixture(
             start, end, temps.get(self_year, 12),
-            rain_dates=[start.isoformat()] if self_year % 2 else [],
+            rain_dates=[start.isoformat()] if (self_year % 2 if precipitation_years is None
+                                               else self_year in precipitation_years) else [],
         )
+        if snow_years and self_year in snow_years:
+            answer['daily']['snowfall_sum'][0] = 1
         if edge_offset:
             for i, stamp in enumerate(answer['hourly']['time']):
                 hour = int(stamp[11:13])
@@ -233,6 +237,60 @@ class MonthAheadOutlookTest(unittest.TestCase):
         self.assertIn('主要建议：带薄外套', summary)
         self.assertNotIn('较厚冬季外套', summary)
         self.assertIn('外出可随身带一件薄外套', summary)
+
+
+    def test_cold_early_evening_alert_even_with_small_daytime_difference(self):
+        calls = []
+        uniform = {year: 7.7 for year in range(2018, 2026)}
+        result, history = build('Berlin', dt.date(2026, 10, 28),
+                                dt.date(2026, 11, 1), now=NOW,
+                                fetch=monthly_fetch(calls, temperatures=uniform, edge_offset=1.1))
+        text = format_trip(result, history)
+        self.assertEqual(result['typical_daytime'], 7.7)
+        self.assertIn('早晚偏冷：历史同期早晚约 6.6°C', text)
+        self.assertIn('主要建议：带轻羽绒', text)
+        self.assertNotIn('接近或低于0°C', text)
+
+    def test_no_rain_snow_or_early_chill_does_not_create_unneeded_warning(self):
+        calls = []
+        warm = {year: 24 for year in range(2018, 2026)}
+        result, history = build('Berlin', dt.date(2026, 10, 28),
+                                dt.date(2026, 11, 1), now=NOW,
+                                fetch=monthly_fetch(calls, temperatures=warm,
+                                                   precipitation_years=set(),
+                                                   snow_years=set()))
+        text = format_trip(result, history)
+        self.assertNotIn('早晚偏冷：', text)
+        self.assertNotIn('降水提醒：', text)
+        self.assertNotIn('降雪提醒：', text)
+        self.assertIn('主要建议：', text)
+
+    def test_historical_precipitation_reminder_is_conditional_not_a_forecast(self):
+        calls = []
+        result, history = build('Berlin', dt.date(2026, 10, 28),
+                                dt.date(2026, 11, 1), now=NOW,
+                                fetch=monthly_fetch(calls, precipitation_years={2025, 2024}))
+        text = format_trip(result, history)
+        self.assertIn('降水提醒：历史同期多次出现较明显降水', text)
+        self.assertIn('建议带折叠伞或防水外层', text)
+        self.assertIn('不是今年的降雨预报', text)
+        result, history = build('Berlin', dt.date(2026, 10, 28),
+                                dt.date(2026, 11, 1), now=NOW,
+                                fetch=monthly_fetch([], precipitation_years={2025}))
+        self.assertNotIn('降水提醒：', format_trip(result, history))
+
+    def test_historical_snow_warns_conditionally_without_predicting_snow(self):
+        calls = []
+        result, history = build('Berlin', dt.date(2026, 10, 28),
+                                dt.date(2026, 11, 1), now=NOW,
+                                fetch=monthly_fetch(calls, precipitation_years=set(),
+                                                   snow_years={2024}))
+        text = format_trip(result, history)
+        self.assertIn('降雪提醒：历史同期曾出现降雪', text)
+        self.assertIn('如果预报有雪', text)
+        self.assertIn('鞋底防滑', text)
+        self.assertNotIn('降水提醒：', text)
+        self.assertIn('有降雪的历史年份 1/8', format_trip(result, history, details=True))
 
 
 if __name__ == '__main__':
