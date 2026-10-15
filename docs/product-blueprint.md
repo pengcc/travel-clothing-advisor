@@ -128,4 +128,6 @@ Failure to establish these conditions is a valid discovery outcome and should pr
 
 ## Implementation state
 
-No product implementation, application architecture, runtime, package manager, weather API, AI model, CI pipeline, deployment platform, or application validation command has been selected or installed.
+A **command-line experiment** now exists at `experiments/clothing-rules/trip_advisor.py` using Python's standard library and Open-Meteo. The prototype supports German-city trip dates with a live forecast within 14 calendar days (plus two prior-year references), and a historical ERA5 packing-outlook reference for trips extending beyond that forecast horizon but completely within 30 calendar days. The eight-year history is *not* a 15–30 day forecast, calibrated probability model, or proven garment-packing recommendation.
+
+There is no published product, web/mobile UI, automated daily update, deployment, database, dedicated CI, selected AI/ML architecture, or demonstrated product-validation success. Implementation experiments do not change this document's discovery success boundary.
