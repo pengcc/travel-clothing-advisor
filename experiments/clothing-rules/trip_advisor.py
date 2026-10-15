@@ -232,9 +232,10 @@ def build(city_name, start, end, preference='normal', *, now=None, fetch=get_jso
 
 
 def format_month_outlook(outlook, histories, *, details=False):
-    """Packing guidance from 8 past years; no future daily weather or calibrated odds."""
+    """A packing decision first, then only weather caveats that change packing."""
     if len(histories) != 8:
         raise ValueError('需要八个完整历史年份才能生成提前准备参考')
+
     typical = outlook['typical_daytime']
     lower = min(h['typical_daytime'] for h in histories)
     upper = max(h['typical_daytime'] for h in histories)
@@ -243,60 +244,98 @@ def format_month_outlook(outlook, histories, *, details=False):
     edge_lower = min(h['typical_edge'] for h in histories)
     edge_upper = max(h['typical_edge'] for h in histories)
     edge_coldest = min(h['coldest_edge'] for h in histories)
-    level_no = outlook['main_level']
-    near_thirteen = level_no in (4, 5) and abs(typical - 13) <= NEAR_THIRTEEN_TOLERANCE_C
-    clothing = (
-        '长袖＋毛衣或抓绒＋一件保暖程度适中的外套；'
-        '怕冷或早晚长时间在室外，可考虑用轻羽绒替代外套。'
-        if near_thirteen else USER_CLOTHING[level_no].removeprefix('建议准备')
-    )
-    result = [
-        f"{outlook['city']} · {outlook['start']}～{outlook['end']} 穿衣建议",
-        '提前准备行李｜历史天气参考',
-        '',
-        f'建议带：{clothing}',
-    ]
-    if edge_typical <= typical - 3:
-        result.append('早晚提示：历史同期早晚（06–08时、19–22时）通常比白天更凉；'
-                      '外出时保留方便加减的中间层，进入室内或车上可以脱下。')
-    else:
-        result.append('早晚提示：建议用方便穿脱的中间层应对日内变化，'
-                      '不要仅凭白天代表气温决定是否带外套。')
-    result.append(f'历史依据：过去8年同期各年白天代表温度约 {lower:g}～{upper:g}°C'
-                  f'（中位参考 {typical:g}°C）；'
-                  f'早晚时段代表值（06–08时、19–22时）约 {edge_lower:g}～{edge_upper:g}°C'
-                  f'（中位参考 {edge_typical:g}°C）。')
-    if coldest_day <= typical - 5 or edge_coldest <= edge_typical - 5:
-        result.append(f'偏冷可能性：历史个别白天的代表温度曾低至约 {coldest_day:g}°C，'
-                      f'早晚时段个别采样低至约 {edge_coldest:g}°C。'
-                      '这些是历史较冷情况，不是今年将出现的最低温预报；'
-                      '需要时可加一层保暖衣物。')
-    if outlook['preference'] == 'cold':
-        result.append('比较怕冷：可多备一件易脱的毛衣或抓绒，不必每天都穿最厚。')
-    elif outlook['preference'] == 'hot':
-        result.append('比较怕热：优先可脱的中间层，风雨防护仍需考虑。')
     precip_years = sum(h['precipitation_days'] > 0 for h in histories)
-    if precip_years:
-        result.append(f'防雨参考：过去8年有 {precip_years} 年在这段行程出现较明显降水；'
-                      '可带折叠伞或轻便防雨外层，不代表今年的降雨概率。')
+    snow_years = sum(h['snow_days'] > 0 for h in histories)
+    level_no = outlook['main_level']
+
+    headline = {
+        1: '短袖、轻薄衣物为主，不需要保暖外套。',
+        2: '短袖或薄长袖为主，备轻薄外层即可。',
+        3: '带薄外套，方便早晚加穿。',
+        4: '带保暖适中的外套，配毛衣或抓绒。',
+        5: '带轻羽绒或同等保暖的外套。',
+        6: '带较厚的冬季外套。',
+    }
+    near_thirteen = level_no in (4, 5) and abs(typical - 13) <= NEAR_THIRTEEN_TOLERANCE_C
+    if near_thirteen:
+        main_item = '带保暖程度适中的外套；怕冷可用轻羽绒替代外套。'
+        layers = '长袖＋毛衣或抓绒＋保暖外套，方便加减。'
+    elif level_no >= 6:
+        main_item = headline[level_no]
+        layers = '保暖内搭＋毛衣或抓绒＋较厚冬季外套。'
+    elif level_no == 5:
+        main_item = headline[level_no]
+        layers = '长袖＋毛衣或抓绒＋轻羽绒或保暖外套，室内可脱外层。'
+    elif level_no == 4:
+        main_item = headline[level_no]
+        layers = '长袖＋抓绒或毛衣＋适中外套。'
+    elif level_no == 3:
+        main_item = headline[level_no]
+        layers = '短袖或薄长袖＋薄外套，穿脱方便。'
     else:
-        result.append('防雨参考：所取历史年份没有明显降水记录，也不能排除今年降雨；'
-                      '可考虑一把折叠伞。')
-    if any(h['snow_days'] > 0 for h in histories):
-        result.append('历史同期有降雪记录；是否需要冬季装备请临近出发时结合预报确认。')
-    result.append('出发前更新：目前没有覆盖整趟行程的14天预报；'
-                  '当整趟行程进入预报范围后，再按实际预报调整衣物厚度。')
-    result.append('说明：以上为Open-Meteo ERA5历史再分析参考，并非今年的天气预报；'
-                  '8年样本不能推算今年某日气温或降雨概率。城市位置来自GeoNames。')
+        main_item = headline[level_no]
+        layers = '根据活动选择薄长袖，热时可脱外层。'
+
+    lines = [
+        f"{outlook['city']} · {outlook['start']}～{outlook['end']}",
+        '提前备衣参考（历史同期，不是今年的具体预报）',
+        '',
+        f'主要建议：{main_item}',
+        f'怎么穿：{layers}',
+    ]
+
+    # Absolute chilly temperatures matter even if daytime and early/evening
+    # medians are similar (e.g. 7.7°C vs 6.6°C in the observed Berlin case).
+    # 10°C is a conservative, candidate copy threshold, not a comfort law.
+    if edge_typical < 10:
+        note = (f'早晚偏冷：历史同期早晚约 {edge_typical:g}°C，'
+                '早出晚归留好保暖中间层，进室内或车上可脱。')
+        if edge_coldest <= 0:
+            note += ' 曾有接近或低于0°C的早晚样本，长时间在室外可加帽子或围巾。'
+        lines.append(note)
+    elif typical - edge_typical >= 5:
+        lines.append(f'早晚温差：历史同期早晚通常比白天凉约 {typical-edge_typical:g}°C，'
+                     '外出可随身带一件薄外套。')
+
+    # Historical precipitation totals do not identify liquid rain: they can
+    # include snow. Keep the label as precipitation, not forecast rain.
+    if precip_years >= 2:
+        lines.append('降水提醒：历史同期多次出现较明显降水，建议带折叠伞或防水外层；'
+                     '这不是今年的降雨预报。')
+    if snow_years:
+        lines.append('降雪提醒：历史同期曾出现降雪；临近出发如果预报有雪，'
+                     '注意保暖和鞋底防滑。')
+
+    if outlook['preference'] == 'cold':
+        lines.append('比较怕冷：可额外带一件可脱的抓绒或毛衣。')
+    elif outlook['preference'] == 'hot':
+        lines.append('比较怕热：尽量使用方便脱下的中间层。')
+
+    lines.extend([
+        '',
+        f'参考依据：过去8年同期白天代表气温约 {typical:g}°C。'
+        '出发前两周内，按最新预报再确认衣物厚度。',
+    ])
     if details:
-        result.append('')
-        result.append('逐年历史参考（白天09–18时，早晚06–08时及19–22时）：')
+        lines.extend([
+            '',
+            f'数据依据：过去8年同期各年份白天代表温度 {lower:g}～{upper:g}°C，'
+            f'早晚代表温度 {edge_lower:g}～{edge_upper:g}°C；'
+            f'个别历史白天代表值最低 {coldest_day:g}°C，'
+            f'早晚单小时采样最低 {edge_coldest:g}°C。'
+            f'对应行程有明显降水的历史年份 {precip_years}/8、'
+            f'有降雪的历史年份 {snow_years}/8。',
+            '时间窗：白天09–18时，早晚06–08时及19–22时。'
+            '这些是ERA5历史再分析值，不是实际气象站逐小时观测，'
+            '不能据此推算今年每天的天气概率。城市位置来源：GeoNames。',
+            '逐年历史参考：',
+        ])
         for h in histories:
-            result.append(f"• {h['start']}～{h['end']}："
-                          f"白天代表 {h['typical_daytime']:g}°C、最凉白天 {h['coldest_daytime']:g}°C；"
-                          f"早晚代表 {h['typical_edge']:g}°C、早晚最低样本 {h['coldest_edge']:g}°C；"
-                          f"明显降水 {h['precipitation_days']} 天，降雪 {h['snow_days']} 天。")
-    return '\n'.join(result)
+            lines.append(f"• {h['start']}～{h['end']}："
+                         f"白天代表 {h['typical_daytime']:g}°C、最凉白天 {h['coldest_daytime']:g}°C；"
+                         f"早晚代表 {h['typical_edge']:g}°C、早晚最低样本 {h['coldest_edge']:g}°C；"
+                         f"明显降水 {h['precipitation_days']} 天，降雪 {h['snow_days']} 天。")
+    return '\n'.join(lines)
 
 
 def format_trip(recommendation, histories, *, details=False):
