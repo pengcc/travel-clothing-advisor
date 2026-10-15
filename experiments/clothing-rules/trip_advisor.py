@@ -275,11 +275,10 @@ def format_month_outlook(outlook, histories, *, details=False):
     # 10°C is a conservative, candidate copy threshold, not a comfort law.
     if edge_typical < 10:
         note = (f'早晚偏冷：历史同期早晚约 {edge_typical:g}°C，'
-                '早出晚归注意保暖。')
+                '早出晚归注意保暖')
         if edge_coldest <= 0:
-            note = note.removesuffix('。') + ('；历史上较冷时段曾接近或低于0°C，'
-                                            '长时间在室外可加帽子或围巾。')
-        lines.append(note)
+            note += '；历史上较冷时段曾接近或低于0°C，长时间在室外可加帽子或围巾'
+        lines.append(note + '。')
     elif typical - edge_typical >= 5:
         lines.append(f'早晚温差：历史同期早晚通常比白天凉约 {typical-edge_typical:g}°C，'
                      '外出可随身带一件薄外套。')
