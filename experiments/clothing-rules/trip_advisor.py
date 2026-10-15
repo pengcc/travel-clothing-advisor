@@ -248,40 +248,26 @@ def format_month_outlook(outlook, histories, *, details=False):
     snow_years = sum(h['snow_days'] > 0 for h in histories)
     level_no = outlook['main_level']
 
-    headline = {
-        1: '短袖、轻薄衣物为主，不需要保暖外套。',
-        2: '短袖或薄长袖为主，备轻薄外层即可。',
-        3: '带薄外套，方便早晚加穿。',
-        4: '带保暖适中的外套，配毛衣或抓绒。',
-        5: '带轻羽绒或同等保暖的外套。',
-        6: '带较厚的冬季外套。',
-    }
     near_thirteen = level_no in (4, 5) and abs(typical - 13) <= NEAR_THIRTEEN_TOLERANCE_C
     if near_thirteen:
-        main_item = '带保暖程度适中的外套；怕冷可用轻羽绒替代外套。'
-        layers = '长袖＋毛衣或抓绒＋保暖外套，方便加减。'
-    elif level_no >= 6:
-        main_item = headline[level_no]
-        layers = '保暖内搭＋毛衣或抓绒＋较厚冬季外套。'
-    elif level_no == 5:
-        main_item = headline[level_no]
-        layers = '长袖＋毛衣或抓绒＋轻羽绒或保暖外套，室内可脱外层。'
-    elif level_no == 4:
-        main_item = headline[level_no]
-        layers = '长袖＋抓绒或毛衣＋适中外套。'
-    elif level_no == 3:
-        main_item = headline[level_no]
-        layers = '短袖或薄长袖＋薄外套，穿脱方便。'
+        garment_advice = ('带保暖程度适中的外套；怕冷可用轻羽绒替代外套。'
+                          '搭配长袖＋毛衣或抓绒，室内可脱外层。')
     else:
-        main_item = headline[level_no]
-        layers = '根据活动选择薄长袖，热时可脱外层。'
-
+        # Put the thickness decision first and avoid listing the same
+        # outerwear twice under "what to pack" and "what to wear".
+        garment_advice = {
+            1: '短袖及透气轻薄衣物为主，不需要保暖外套。',
+            2: '短袖或薄长袖为主，早晚可加一件轻薄外层。',
+            3: '带薄外套，搭配短袖或薄长袖，方便随时穿脱。',
+            4: '带保暖适中的外套，内搭长袖＋毛衣或抓绒，室内可脱外层。',
+            5: '带轻羽绒或同等保暖外套，内搭长袖＋毛衣或抓绒，室内可脱外层。',
+            6: '带较厚冬季外套，内搭保暖衣＋毛衣或抓绒，室内可脱外层。',
+        }[level_no]
     lines = [
         f"{outlook['city']} · {outlook['start']}～{outlook['end']}",
         '提前备衣参考（历史同期，不是今年的具体预报）',
         '',
-        f'主要建议：{main_item}',
-        f'怎么穿：{layers}',
+        f'主要建议：{garment_advice}',
     ]
 
     # Absolute chilly temperatures matter even if daytime and early/evening
