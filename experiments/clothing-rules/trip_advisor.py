@@ -64,18 +64,20 @@ def select_city(payload, requested):
     if len(exact) == 1:
         return exact[0]
     if len(exact) > 1 and (not separator or qualifier.casefold() in ('de', 'deutschland', 'germany')):
-        # Use unique major administrative seats before population. GeoNames:
-        # PPLC = national capital (Berlin); PPLA = state capital (München);
-        # PPLA2 = seat of next administrative level. Some tiny namesakes omit
-        # population, so the previous "all populations must exist" rule made
-        # even unambiguous state-capital requests fail.
-        # Never guess between multiple places with the same highest status.
-        for code in ('PPLC', 'PPLA', 'PPLA2'):
+        # Distinguish nationally/state-significant cities from namesakes
+        # without assuming all smaller places publish a population. Unique
+        # PPLC is a national capital (Berlin), unique PPLA a state capital
+        # (München). Lesser administrative seats are *not* automatically
+        # selected ahead of potentially larger cities.
+        for code in ('PPLC', 'PPLA'):
             seats = [v for v in exact if v.get('feature_code') == code]
             if len(seats) == 1:
                 return seats[0]
             if len(seats) > 1:
-                break
+                places = ', '.join(sorted({str(v.get('admin1') or '?') for v in seats}))
+                raise ValueError(
+                    f'城市名称不唯一：{requested}（{places}）；请用「城市, 州名」指定地点。'
+                )
         # Otherwise only select a clearly dominant large city when every
         # exact match has a credible reported population. Missing data,
         # close rivals and ties remain ambiguous.
