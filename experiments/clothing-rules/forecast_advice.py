@@ -23,10 +23,10 @@ MIN_MEANINGFUL_COLD_DELTA_C = 1.5  # candidate UI tolerance, not a thermal comfo
 NEAR_THIRTEEN_TOLERANCE_C = 0.75  # candidate copy tolerance, not a thermal comfort threshold
 
 
-def forecast_url():
+def forecast_url(latitude=52.52, longitude=13.41):
     params = {
-        'latitude': 52.52,
-        'longitude': 13.41,
+        'latitude': latitude,
+        'longitude': longitude,
         'timezone': TIMEZONE,
         'forecast_days': 14,
         'temperature_unit': 'celsius',
@@ -93,7 +93,7 @@ def select_trip_rows(rows, start_date=None, end_date=None):
     return [r for r in rows if start <= dt.date.fromisoformat(r['date']) <= end]
 
 
-def process(payload, now=None, preference='normal', start_date=None, end_date=None):
+def process(payload, now=None, preference='normal', start_date=None, end_date=None, city='柏林'):
     if payload.get('timezone') != TIMEZONE:
         raise ValueError('Forecast timezone must be Europe/Berlin')
     tz = ZoneInfo(TIMEZONE)
@@ -228,6 +228,7 @@ def process(payload, now=None, preference='normal', start_date=None, end_date=No
     if main <= 2 and not colddays:
         advice.append('整体偏暖，不需要仅因某天比最热一天略凉就带厚羽绒服。')
     return {'dates': dates, 'days': rows, 'forecast_start': forecast_start,
+            'city': city,
             'main_level': main,
             'preference': preference,
             'cold_dates': [r['date'] for r in colddays],
@@ -277,7 +278,7 @@ def format_user_advice(result):
         if near_thirteen else
         f'旅行期间白天的代表气温约 {result["typical_daytime"]:g}°C，衣服建议采用可增减的搭配。'
     )
-    lines = [f'柏林 · {period}穿衣建议',
+    lines = [f"{result.get('city', '柏林')} · {period}穿衣建议",
              '',
              base_clothing,
              temperature_note]
@@ -350,7 +351,9 @@ def format_user_advice(result):
 
 
 def format_advice(result):
-    title = '柏林未来14个日历日穿衣建议' if len(result['dates']) == 14 else '柏林指定旅行日期穿衣建议'
+    city = result.get('city', '柏林')
+    title = (f'{city}未来14个日历日穿衣建议' if len(result['dates']) == 14
+             else f'{city}指定旅行日期穿衣建议')
     lines = [f"{title}｜{result['dates'][0]}—{result['dates'][-1]}",
              f"典型白天约 {result['typical_daytime']:g}°C → L{result['main_level']}（推荐厚度，不是必须穿齐的衣物清单）",
              '建议：']

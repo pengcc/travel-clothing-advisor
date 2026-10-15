@@ -1,0 +1,25 @@
+# Indoor thermal conditions in Germany: accommodation, heating and public transport
+
+**Researched:** 2026-10-15. **Status:** Evidence note for Product Discovery, not an accepted predictive clothing rule or legal advice.
+
+## Traveller question
+
+A user asked whether Germany's buses, trains and hotels have legally fixed dates for starting cooling in summer or heating in winter, and whether travellers should bring thick sleepwear even when outside temperatures are low. Indoor thermal comfort and sleepwear are a **distinct context** from outdoors daytime temperature and wind-chill advice. No verified rule permits deriving an accommodation's nighttime temperature from weather alone.
+
+## Verified context and claim boundary
+
+1. **Residential tenancy:** Germany has no fixed nationwide statutory 'Heizperiode' for residential tenancies. October 1 to April 30 is a common period applied by tenancy jurisprudence/agreements, not a universal switch-on or switch-off mandate. Berliner Mieterverein describes typical tenancy temperatures of about 20–22°C by day and 18°C at night, and heating obligations outside the usual period during prolonged cold. **Do not apply these tenancy rights or numeric temperatures directly to hotel guest rooms.** Source: [Berliner Mieterverein, Heizperiode und Heizpflicht](https://www.berliner-mieterverein.de/aktuelle-mietrechts-tipps/mietrechtstipp-heizen-vor-beginn-der-heizperiode.htm).
+2. **Berlin local transport:** According to BVG, buses have air-conditioning and most trams are air-conditioned, while Berlin U-Bahn vehicles use ventilation instead of cooling air-conditioning. Vehicle doors opening frequently, occupancy and climate-system faults can cause warm or cool passenger experiences. A universal date-based passenger-cabin temperature guarantee has not been established. Sources: [BVG: Klimaanlagen](https://nachgefragt.bvg.de/klimaanlage/), [BVG: Hitzeschutz](https://nachgefragt.bvg.de/hitzeschutz/).
+3. **Technical standards:** DIN EN 14750:2025-02 defines thermal-comfort/verification parameters for urban, suburban and regional rolling stock; it does **not** mean every bus or hotel has air-conditioning, nor establish a nationally guaranteed activation season. Source: [DIN Media, DIN EN 14750:2025-02](https://www.dinmedia.de/de/norm/din-en-14750/386296004). Frankfurt's transit operator VGF explicitly says air-conditioning installation is not generally a legal duty for its vehicles; practices differ by operator. Source: [VGF FAQ](https://www.vgf-ffm.de/de/faq).
+4. **Hotel / booked accommodation:** Do not presume every German hotel has air-conditioning or that all heating systems turn on/off on a fixed calendar day. Actual room amenities and controllability must be confirmed with the specific accommodation. German/EU consumer guidance identifies failure to provide **explicitly promised** hotel room air-conditioning as a potential accommodation defect. Sources: [European Consumer Centre Germany, accommodation defects](https://www.evz.de/themen/reisen-tourismus/unterkunft/reisemangel/), [Verbraucherzentrale Sachsen, promised AC failure](https://www.verbraucherzentrale-sachsen.de/pressemitteilungen/40-grad-und-die-klimaanlage-faellt-aus-124721). These sources do not establish a universal statutory hotel room minimum temperature or mandatory A/C season.
+
+## Packing decision candidate (not yet product logic)
+
+- **Outdoor layers:** Use outdoor forecast as the primary driver for coat, wind and rain guidance. Where travellers move in and out of trains, buses and indoor venues, prefer removable layers rather than assuming a stable cabin temperature.
+- **Sleepwear:** Do **not** automatically recommend heavy fleece pyjamas just because the destination is below freezing outdoors. When accommodation heating is known and controllable, offer normal comfortable sleepwear with a light long-sleeved option if desired. When staying in an older apartment, an unheated property, or in accommodation with unknown heating, suggest checking the listing/host before departure; ordinary long-sleeved sleepwear/loungewear can be a space-efficient fallback.
+- **Summer:** First check whether the room has functional A/C, a fan, opening windows and blackout protection, rather than promising cooling or prescribing an insulating layer.
+- Ask **at most one accommodation-related clarification when materially needed**, such as “住酒店还是民宿？房间是否有暖气/空调？” Avoid turning these into required onboarding questions for every trip.
+
+## Explicitly not established
+
+No evidence found for a uniform German-city legal date that all hotels/buses must activate heating or cooling, no verified temperature for any particular hotel room or transit vehicle, no national empirical percentage of German hotel rooms with A/C, and no scientific sleeper-comfort threshold. Do not claim legal obligations for hotels by copying rental-tenancy requirements. This evidence can motivate a later *lodging-context* question or packing-risk note, but it is **not sufficient** to change the weather-derived six-tier model.
