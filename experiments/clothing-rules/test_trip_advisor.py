@@ -174,6 +174,72 @@ class TripAdvisorTest(unittest.TestCase):
             self.assertEqual(params['longitude'], ['10.45'])
         self.assertIn('Berlin · 2026年10月17～20日', format_trip(forecast, history))
 
+    def test_real_world_munich_bavaria_vs_brandenburg_namesake(self):
+        # München is a state capital (GeoNames 2867714, PPLA).
+        # The user's live 2026-10-15 lookup also included a Brandenburg
+        # namesake. A small place need not expose 'population' at all.
+        bavaria = dict(MUNICH, id=2867714, feature_code='PPLA',
+                       latitude=48.13743, longitude=11.57549, population=1505005)
+        brandenburg = dict(MUNICH, id=1234567, feature_code='PPL',
+                           admin1='Brandenburg', latitude=52.0,
+                           longitude=13.0)
+        brandenburg.pop('population', None)
+        for places in ([brandenburg, bavaria], [bavaria, brandenburg]):
+            out = select_city({'results': places}, 'München')
+            self.assertEqual(out['id'], 2867714)
+            self.assertEqual(out['admin1'], 'Bayern')
+            self.assertEqual(select_city({'results': places}, 'München, Germany')['id'],
+                             2867714)
+
+    def test_explicit_brandenburg_overrides_munich_state_capital(self):
+        bavaria = dict(MUNICH, id=2867714, feature_code='PPLA', population=1505005)
+        brandenburg = dict(MUNICH, id=1234567, feature_code='PPL',
+                           admin1='Brandenburg')
+        places = {'results': [bavaria, brandenburg]}
+        self.assertEqual(select_city(places, 'München, Brandenburg')['id'], 1234567)
+        self.assertEqual(select_city(places, 'München, Bayern')['id'], 2867714)
+
+    def test_duplicate_state_capitals_remain_ambiguous_despite_population(self):
+        a = dict(MUNICH, feature_code='PPLA', population=1505005)
+        b = dict(MUNICH, feature_code='PPLA', population=500,
+                 admin1='Brandenburg')
+        with self.assertRaisesRegex(ValueError, '不唯一'):
+            select_city({'results': [a, b]}, 'München')
+
+    def test_noncapital_not_promoted_based_only_on_admin_seat(self):
+        # A smaller county seat (PPLA2) should not automatically beat a
+        # same-name place of unknown population.
+        district = dict(MUNICH, name='Teststadt', feature_code='PPLA2',
+                        population=5000)
+        other = dict(MUNICH, name='Teststadt', feature_code='PPL',
+                     admin1='Brandenburg')
+        other.pop('population', None)
+        with self.assertRaisesRegex(ValueError, '不唯一'):
+            select_city({'results': [district, other]}, 'Teststadt')
+
+    def test_munich_state_capital_coordinates_reach_both_weather_apis(self):
+        bavaria = dict(MUNICH, id=2867714, feature_code='PPLA',
+                       latitude=48.13743, longitude=11.57549, population=1505005)
+        brandenburg = dict(MUNICH, id=1234567, feature_code='PPL',
+                           admin1='Brandenburg', latitude=52.0,
+                           longitude=13.0)
+        calls = []
+        fetch_fallback = fake_fetch_log(calls, city=bavaria)
+        def fetch(url):
+            if urlparse(url).netloc == 'geocoding-api.open-meteo.com':
+                calls.append(url)
+                return {'results': [brandenburg, bavaria]}
+            return fetch_fallback(url)
+        forecast, history = build('München', dt.date(2026, 10, 17),
+                                  dt.date(2026, 10, 20),
+                                  now=NOW, fetch=fetch)
+        self.assertEqual(len(calls), 4)
+        for weather_url in calls[1:]:
+            params = parse_qs(urlparse(weather_url).query)
+            self.assertEqual(params['latitude'], ['48.13743'])
+            self.assertEqual(params['longitude'], ['11.57549'])
+        self.assertIn('München · 2026年10月17～20日', format_trip(forecast, history))
+
     def test_historical_url_has_city_and_exact_dates(self):
         url = historic_url(MUNICH, dt.date(2025, 10, 20), dt.date(2025, 10, 23))
         q = parse_qs(urlparse(url).query)
