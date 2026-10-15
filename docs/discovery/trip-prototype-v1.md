@@ -36,6 +36,19 @@ Dates in examples are illustrative and must be within the upcoming 14 calendar d
 - Geocoding data derives from GeoNames; display attribution. Open-Meteo free endpoints have non-commercial limits and require attribution: review licensing before any commercial release.
 - **No web UI, no automatic scheduler, no generalized climate horizon, no framework or deployment.** This PR addresses the data/logic end of the agreed user flow. A thin user-facing web form can be scoped separately after review.
 
+## Follow-up: Berlin namesake geocoding regression (2026-10-15)
+
+The first **real, networked** run of `--city Berlin --start 2026-10-17 --end 2026-10-20` stopped at geocoding: Open-Meteo returned two exact-name German results, in **Land Berlin** and **Schleswig-Holstein**. The initial code rejected any duplicate spelling, so it did not reach the weather or historical API. The user-observed failure does not mean those later APIs were validated or failed.
+
+The corrected resolver:
+- keeps exact-name and Germany-only matching;
+- selects a **unique** `feature_code=PPLC` result (a national capital) without depending on API result order. Open-Meteo's documented Berlin capital is GeoNames ID `2950159`;
+- for other duplicate names, selects the sole clearly dominant large city only when every result has a valid population (largest population at least 100,000 and at least 10 times the runner-up); this is an **experiment-stage product heuristic**, not a legal city-classification rule;
+- otherwise refuses to guess and requests a precise `City, Federal State` name, e.g. `Berlin, Schleswig-Holstein`. The optional qualifier is matched against the returned administrative area, accepting `Land Berlin` and `Berlin` as aliases;
+- does not choose the first fuzzy/prefix result and never silently selects a different country.
+
+This is validated with deterministic synthetic geocoding fixtures, including a small namesake appearing **before** the capital and a complete city → forecast/history URL coordinate propagation check. **The updated resolver still needs a fresh real Berlin CLI invocation**; no live output after the correction is claimed. The original geocoding error is a confirmed real-world input and a regression case.
+
 ## Integration with merged PR #12 (2026-10-15)
 
 This prototype was originally branched before PR #12, which added trip-date scoping, a 13°C threshold copy fix, and correct forecast lead-time warnings. The current PR's reconciliation uses the latest `main` implementation of `forecast_advice.py`; the changes in that file are limited to optional coordinates, a city label argument, and location-specific headings. The `trip_advisor.py` caller now uses the canonical `start_date`/`end_date` interface rather than the superseded `trip_start`/`trip_end` parameters.
