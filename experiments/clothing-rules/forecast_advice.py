@@ -20,6 +20,7 @@ SOURCE = 'https://open-meteo.com/'
 DAILY_FIELDS = ('precipitation_probability_max', 'precipitation_sum', 'snowfall_sum', 'wind_gusts_10m_max')
 HOURLY_FIELDS = ('temperature_2m', 'precipitation_probability', 'precipitation')
 MIN_MEANINGFUL_COLD_DELTA_C = 1.5  # candidate UI tolerance, not a thermal comfort threshold
+NEAR_THIRTEEN_TOLERANCE_C = 0.75  # candidate copy tolerance, not a thermal comfort threshold
 
 
 def forecast_url():
@@ -261,10 +262,25 @@ def format_user_advice(result):
         period = f'{year}年{format_date_groups(active)}'
     else:
         period = f'{first.year}年{first.month}月{first.day}日至{last.year}年{last.month}月{last.day}日'
+    near_thirteen = (result['main_level'] in (4, 5)
+                     and abs(result['typical_daytime'] - 13) <= NEAR_THIRTEEN_TOLERANCE_C)
+    # For a trip near 13°C, a 0.2°C rounding change must not suddenly
+    # turn a moderate jacket into an apparent requirement for down insulation.
+    base_clothing = (
+        '建议长袖搭配毛衣或抓绒，再配一件保暖程度适中的外套；'
+        '怕冷或早晚长时间在室外，可以用轻羽绒替代外套。'
+        if near_thirteen else USER_CLOTHING[result['main_level']]
+    )
+    temperature_note = (
+        f'旅行期间白天的代表气温约 {result["typical_daytime"]:g}°C，'
+        '接近厚度分界，按可穿脱的分层组合准备即可。'
+        if near_thirteen else
+        f'旅行期间白天的代表气温约 {result["typical_daytime"]:g}°C，衣服建议采用可增减的搭配。'
+    )
     lines = [f'柏林 · {period}穿衣建议',
              '',
-             USER_CLOTHING[result['main_level']],
-             f'旅行期间白天的代表气温约 {result["typical_daytime"]:g}°C，衣服建议采用可增减的搭配。']
+             base_clothing,
+             temperature_note]
     by_date = {row['date']: row for row in result['days']}
     cold = set(result['cold_dates'])
     for start, end, long_range in ((0, 7, False), (7, 14, True)):
@@ -308,7 +324,7 @@ def format_user_advice(result):
         lines.append('比较怕冷：在偏凉时段可以再多备一件轻便保暖层。')
     elif result['preference'] == 'hot' and result['main_level'] <= 5:
         lines.append('比较怕热：中间层可以少穿一件，仍要留意风雨。')
-    if (result['main_level'] in (3, 4)
+    if ((result['main_level'] in (3, 4) or (result['main_level'] == 5 and near_thirteen))
             and min(row['daytemp'] for row in active) >= 9
             and not snowy
             and min((r['evening_morning_min'] for r in result['days']
