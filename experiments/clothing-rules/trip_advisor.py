@@ -34,20 +34,48 @@ def geocode_url(name):
 
 
 def select_city(payload, requested):
+    # Open-Meteo may return places with the exact same name in different
+    # German states (for example the capital Berlin and Berlin, Schleswig-Holstein).
+    # Use provider metadata only when it safely distinguishes the destination.
+    name, separator, qualifier = requested.strip().partition(',')
+    name, qualifier = name.strip(), qualifier.strip()
+    if not name or (separator and not qualifier):
+        raise ValueError('请输入德国城市名称；可选在逗号后加州名，例如 Berlin, Berlin')
     candidates = [v for v in payload.get('results', [])
                   if v.get('country_code') == 'DE'
                   and isinstance(v.get('latitude'), (int, float))
+                  and not isinstance(v.get('latitude'), bool)
                   and isinstance(v.get('longitude'), (int, float))
+                  and not isinstance(v.get('longitude'), bool)
                   and v.get('timezone') == 'Europe/Berlin']
-    exact = [v for v in candidates if v.get('name', '').casefold() == requested.casefold()]
+    exact = [v for v in candidates if isinstance(v.get('name'), str)
+             and v['name'].casefold() == name.casefold()]
+    if separator and qualifier.casefold() not in ('de', 'deutschland', 'germany'):
+        exact = [v for v in exact if isinstance(v.get('admin1'), str)
+                 and v['admin1'].casefold() == qualifier.casefold()]
     if len(exact) == 1:
         return exact[0]
-    if len(exact) > 1:
-        places = ', '.join(sorted({v.get('admin1', '?') for v in exact}))
-        raise ValueError(f'城市名称不唯一：{requested}（{places}）；请使用更完整的城市名称。')
-    # Never silently select the first fuzzy location: it may be a suburb or
-    # an entirely different city with the same beginning.
-    choices = ', '.join(v.get('name', '') for v in candidates[:5])
+    if len(exact) > 1 and not separator:
+        # A unique country capital is an authoritative place-type distinction,
+        # not the arbitrary first geocoding hit.
+        capitals = [v for v in exact if v.get('feature_code') == 'PPLC']
+        if len(capitals) == 1:
+            return capitals[0]
+        # For other cities, select a clearly dominant large city only when
+        # every exact match has a credible reported population. Unknown data,
+        # close rivals and ties are deliberately left ambiguous.
+        populations = [v.get('population') for v in exact]
+        if all(isinstance(n, int) and not isinstance(n, bool) and n >= 0
+               for n in populations):
+            ranked = sorted(exact, key=lambda v: v['population'], reverse=True)
+            if (ranked[0]['population'] >= 100_000
+                    and ranked[0]['population'] >= 10 * max(1, ranked[1]['population'])):
+                return ranked[0]
+    if exact:
+        places = ', '.join(sorted({str(v.get('admin1') or '?') for v in exact}))
+        raise ValueError(f'城市名称不唯一：{requested}（{places}）；请用「城市, 州名」指定地点。')
+    # Never silently choose a prefix result or a different state.
+    choices = ', '.join(v.get('name', '') for v in candidates[:5] if isinstance(v.get('name'), str))
     raise ValueError(f'找不到唯一匹配的德国城市「{requested}」。候选：{choices or "无"}')
 
 
