@@ -275,9 +275,10 @@ def format_month_outlook(outlook, histories, *, details=False):
     # 10°C is a conservative, candidate copy threshold, not a comfort law.
     if edge_typical < 10:
         note = (f'早晚偏冷：历史同期早晚约 {edge_typical:g}°C，'
-                '早出晚归留好保暖中间层，进室内或车上可脱。')
+                '早出晚归注意保暖。')
         if edge_coldest <= 0:
-            note += ' 曾有接近或低于0°C的早晚样本，长时间在室外可加帽子或围巾。'
+            note = note.removesuffix('。') + ('；历史上较冷时段曾接近或低于0°C，'
+                                            '长时间在室外可加帽子或围巾。')
         lines.append(note)
     elif typical - edge_typical >= 5:
         lines.append(f'早晚温差：历史同期早晚通常比白天凉约 {typical-edge_typical:g}°C，'
@@ -286,8 +287,7 @@ def format_month_outlook(outlook, histories, *, details=False):
     # Historical precipitation totals do not identify liquid rain: they can
     # include snow. Keep the label as precipitation, not forecast rain.
     if precip_years >= 2:
-        lines.append('降水提醒：历史同期多次出现较明显降水，建议带折叠伞或防水外层；'
-                     '这不是今年的降雨预报。')
+        lines.append('降水提醒：历史同期多次出现较明显降水，建议带折叠伞或防水外层。')
     if snow_years:
         lines.append('降雪提醒：历史同期曾出现降雪；临近出发如果预报有雪，'
                      '注意保暖和鞋底防滑。')
