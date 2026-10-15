@@ -310,10 +310,12 @@ class TripAdvisorTest(unittest.TestCase):
         f,history=build('Berlin',dt.date(2026,10,16),dt.date(2026,10,19),
                         now=NOW,fetch=fake_fetch_log(calls,temp_2025=1,temp_2024=3))
         text=format_trip(f,history)
+        detail=format_trip(f,history,details=True)
         self.assertEqual(f['main_level'],3)
-        self.assertIn('历史对照',text)
-        self.assertIn('更凉的白天',text)
-        self.assertIn('两年的同期记录',text)
+        self.assertNotIn('过去两年同期参考',text)
+        self.assertIn('历史对照',detail)
+        self.assertIn('更凉的白天',detail)
+        self.assertIn('两年的同期记录',detail)
 
     def test_year_earlier_cross_year_and_leap(self):
         self.assertEqual(year_earlier(dt.date(2027,1,3),1),dt.date(2026,1,3))
@@ -354,6 +356,26 @@ class TripAdvisorTest(unittest.TestCase):
                            now=NOW, fetch=fake_fetch_log(calls, city=MUNICH))
         self.assertIn('München指定旅行日期穿衣建议', format_trip(f, history, details=True))
         self.assertNotIn('柏林指定旅行日期穿衣建议', format_trip(f, history, details=True))
+
+
+    def test_short_trip_default_keeps_forecast_alerts_but_hides_past_year_rows(self):
+        calls = []
+        weather = forecast_fixture([15] * 14)
+        weather['daily']['precipitation_probability_max'][4] = 80
+        weather['daily']['snowfall_sum'][5] = 2
+        weather['daily']['wind_gusts_10m_max'][6] = 55
+        f, histories = build('Berlin', dt.date(2026, 10, 17),
+                             dt.date(2026, 10, 21), now=NOW,
+                             fetch=fake_fetch_log(calls, current=weather))
+        public = format_trip(f, histories)
+        self.assertIn('主要建议：', public)
+        self.assertIn('降水提醒：', public)
+        self.assertIn('降雪提醒：', public)
+        self.assertIn('大风提醒：', public)
+        self.assertNotIn('过去两年同期参考', public)
+        details = format_trip(f, histories, details=True)
+        self.assertIn('过去两年同期参考', details)
+        self.assertIn('2025-10-17', details)
 
 
 if __name__ == '__main__':
