@@ -60,8 +60,8 @@ class MonthAheadOutlookTest(unittest.TestCase):
         self.assertEqual(len(histories), 8)
         self.assertEqual(len(calls), 9)
         self.assertTrue(all(urlparse(u).netloc != 'api.open-meteo.com' for u in calls))
-        self.assertIn('目前没有覆盖整趟行程的14天预报', format_trip(result, histories))
-        self.assertIn('历史天气参考', format_trip(result, histories))
+        self.assertIn('出发前两周内', format_trip(result, histories))
+        self.assertIn('历史同期，不是今年的具体预报', format_trip(result, histories))
 
     def test_all_archive_queries_era5_exact_past_intervals_and_city_coordinates(self):
         calls = []
@@ -112,12 +112,12 @@ class MonthAheadOutlookTest(unittest.TestCase):
                                   dt.date(2026, 10, 31),
                                   now=NOW, fetch=monthly_fetch(calls))
         report = format_trip(result, histories)
-        self.assertIn('建议带：', report)
+        self.assertIn('主要建议：', report)
         self.assertIn('过去8年同期', report)
-        self.assertIn('8年样本不能推算', report)
-        self.assertIn('并非今年的天气预报', report)
-        self.assertIn('不代表今年的降雨概率', report)
-        self.assertIn('需要时可加一层保暖衣物', report)
+        self.assertIn('出发前两周内', report)
+        self.assertIn('不是今年的具体预报', report)
+        self.assertIn('这不是今年的降雨预报', report)
+        self.assertIn('怎么穿：', report)
         self.assertNotRegex(report, r'降雨概率\s*[:=]\s*\d')
 
     def test_near_thirteen_clothing_copy_stays_lightweight(self):
@@ -130,7 +130,7 @@ class MonthAheadOutlookTest(unittest.TestCase):
         report = format_trip(result, histories)
         self.assertIn('保暖程度适中的外套', report)
         self.assertIn('轻羽绒替代外套', report)
-        self.assertNotIn('偏冷可能性：', report)
+        self.assertNotIn('早晚偏冷：', report)
 
     def test_preferences_and_details_are_considered(self):
         for preference, phrase in (('cold', '比较怕冷'), ('hot', '比较怕热')):
@@ -208,18 +208,19 @@ class MonthAheadOutlookTest(unittest.TestCase):
         calls = []
         result, histories = build('Berlin', dt.date(2026, 10, 28),
                                   dt.date(2026, 11, 1),
-                                  now=NOW, fetch=monthly_fetch(calls))
+                                  now=NOW, fetch=monthly_fetch(calls, edge_offset=6))
         summary = format_trip(result, histories)
-        self.assertLess(summary.index('建议带：'), summary.index('历史依据：'))
+        self.assertLess(summary.index('主要建议：'), summary.index('参考依据：'))
         self.assertIn('早晚', summary)
-        self.assertIn('06–08时、19–22时', summary)
-        self.assertIn('早晚时段代表值', summary)
-        self.assertIn('早晚时段个别采样低至', summary)
+        self.assertIn('早晚偏冷', summary)
+        self.assertIn('历史同期早晚约', summary)
+        self.assertIn('接近或低于0°C', summary)
         self.assertNotIn('建议带：建议准备', summary)
-        self.assertIn('不是今年将出现的最低温预报', summary)
+        self.assertIn('不是今年的具体预报', summary)
         details = format_trip(result, histories, details=True)
         self.assertIn('逐年历史参考', details)
         self.assertIn('早晚最低样本', details)
+        self.assertIn('06–08时及19–22时', details)
 
     def test_offseason_warm_day_and_cool_evening_uses_layers_without_winter_claim(self):
         calls = []
@@ -229,9 +230,9 @@ class MonthAheadOutlookTest(unittest.TestCase):
                                   fetch=monthly_fetch(calls, temperatures={yr: 20 for yr in range(2018,2026)},
                                                       edge_offset=8))
         summary = format_trip(result, histories)
-        self.assertIn('建议带：薄长袖或短袖', summary)
+        self.assertIn('主要建议：带薄外套', summary)
         self.assertNotIn('较厚冬季外套', summary)
-        self.assertIn('进入室内或车上可以脱下', summary)
+        self.assertIn('外出可随身带一件薄外套', summary)
 
 
 if __name__ == '__main__':
