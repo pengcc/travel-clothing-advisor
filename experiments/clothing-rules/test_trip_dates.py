@@ -25,7 +25,8 @@ class TravelDatesTest(unittest.TestCase):
         self.assertEqual(result['main_level'], 5)
         text = format_user_advice(result)
         self.assertIn('2026年10月17～18日穿衣建议', text)
-        self.assertIn('保暖中间层', text)
+        self.assertIn('保暖外套或轻羽绒', text)
+        self.assertIn('毛衣或抓绒', text)
         self.assertNotIn('10月14日', text.split('穿衣建议')[0])
 
     def test_rain_wind_snow_outside_trip_are_excluded(self):

@@ -304,5 +304,43 @@ class ForecastTest(unittest.TestCase):
         self.assertNotIn('历史气候', text)
 
 
+    def test_default_forecast_has_one_outfit_decision_before_weather_evidence(self):
+        result = process(fixture([8] * 14), NOW,
+                         start_date='2026-10-17', end_date='2026-10-20')
+        text = format_user_advice(result)
+        self.assertIn('主要建议：带保暖外套或轻羽绒', text)
+        self.assertEqual(text.count('主要建议：'), 1)
+        self.assertNotIn('怎么穿：', text)
+        self.assertLess(text.index('主要建议：'), text.index('参考：'))
+        self.assertNotIn('每日预报（白天', text)
+        self.assertIn('每日预报（白天', format_advice(result))
+
+    def test_chilly_morning_evening_warns_even_if_daytime_delta_small(self):
+        data = fixture([8] * 14)
+        for i, stamp in enumerate(data['hourly']['time']):
+            h = int(stamp[11:13])
+            if h in (6, 7, 8, 19, 20, 21, 22):
+                data['hourly']['temperature_2m'][i] = 7
+        result = process(data, NOW, start_date='2026-10-17', end_date='2026-10-20')
+        self.assertFalse(result['edge_cool'])
+        public = format_user_advice(result)
+        self.assertIn('早晚偏冷：预报早晚较低时约 7°C', public)
+        self.assertIn('主要建议：带保暖外套或轻羽绒', public)
+
+
+
+    def test_default_forecast_avoids_duplicate_removable_layer_and_footer_noise(self):
+        result = process(fixture([8] * 14), NOW,
+                         start_date='2026-10-17', end_date='2026-10-20')
+        report = format_user_advice(result)
+        self.assertIn('主要建议：带保暖外套或轻羽绒', report)
+        self.assertIn('早晚偏冷：', report)
+        self.assertEqual(report.count('室内可脱外层'), 1)
+        self.assertNotIn('室内或乘车时可脱外层', report)
+        self.assertIn('参考：本次预报白天代表气温约', report)
+        self.assertIn('预报查询：10月14日 08:00（Open-Meteo）；出发前再看一次天气。', report)
+        self.assertNotIn('个人冷热感受不同', report)
+
+
 if __name__ == '__main__':
     unittest.main()

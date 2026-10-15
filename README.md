@@ -6,7 +6,7 @@ The initial market focus is Germany. The current hypothesis is that the main use
 
 ## Current phase
 
-**Product Discovery / Problem Validation**
+**Product Discovery / Problem Validation**, with a runnable command-line prototype (not a released service).
 
 Current work should focus on:
 
@@ -16,15 +16,10 @@ Current work should focus on:
 - representative travel scenarios and failure cases;
 - validating whether risk-oriented packing guidance is meaningfully better than ordinary weather or packing-list tools.
 
-## Not established yet
+## Prototype now available
 
-This repository does **not** yet select or establish:
+The Python standard-library CLI at `experiments/clothing-rules/trip_advisor.py` accepts German cities, trip dates, and optional cold/hot preference. Fully forecast-covered trips within 14 calendar days use Open-Meteo forecasts, with two past-year references. Trips with any day outside that horizon but wholly within 30 calendar days use eight years of fixed-model historical reanalysis as a **packing reference**, not a day-by-day forecast. See `experiments/clothing-rules/README.md` for commands and constraints.
 
-- an application framework or runtime;
-- a weather-data provider;
-- an AI/ML architecture;
-- a deployment platform;
-- an application validation stack;
-- a final product name, business model, or geographic expansion plan.
+The recommendation quality remains experimental. There is no website, deployed daily-update service, final application framework, AI architecture, or validated weather/clothing accuracy.
 
 See [`docs/product-blueprint.md`](docs/product-blueprint.md) for the current product-discovery boundary.
