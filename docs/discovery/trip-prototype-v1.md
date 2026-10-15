@@ -55,9 +55,22 @@ After the Berlin geocoding fix, the user's **first real München run** failed be
 
 Revised algorithm: a unique **national capital (PPLC)** or **first-order administrative seat (PPLA)** takes precedence among exact German-name candidates. These are verifiable GeoNames feature classifications. If there is more than one record at either of those top levels, reject as ambiguous even if reported populations differ. For other place types, keep the conservative population-dominance fallback and request a federal-state qualifier when data are insufficient. Lower-level `PPLA2` county/district seats are **not automatically promoted** over other locations. Explicit `München, Brandenburg` or `München, Bayern` still disambiguates by requested state.
 
-This avoids a one-city hardcode and keeps the original strict safeguards on true ambiguity. Five synthetic regression tests cover a missing-population village, both ordering variants, explicit state qualifiers, duplicate state-capital classification, non-capital safety and coordinate propagation through the forecast and both archive URLs. **No claim is made that the corrected München live API request has succeeded yet**; a renewed real run and the latest complete suite are needed.
+This avoids a one-city hardcode and keeps the original strict safeguards on true ambiguity. Five synthetic regression tests cover a missing-population village, both ordering variants, explicit state qualifiers, duplicate state-capital classification, non-capital safety and coordinate propagation through the forecast and both archive URLs. **A later real München CLI invocation succeeded (see smoke-run section below)**. The latest complete unit-test suite remains unverified.
 
 Sources: [GeoNames München (2867714)](https://www.geonames.org/2867714/munich.html), [GeoNames feature codes](https://www.geonames.org/export/codes.html), [Open-Meteo Geocoding API](https://open-meteo.com/en/docs/geocoding-api).
+
+## Successful München real-network smoke run (2026-10-15)
+
+After the PPLA geocoding correction, the user ran the same trip window with `--city München` and reported **successful live output at 13:48 Europe/Berlin**, covering forecast plus both historical reanalysis endpoints. The earlier Bavaria/Brandenburg name-collision error was therefore resolved for this case.
+
+The displayed output included:
+- **2026-10-17 through 2026-10-20:** typical daytime temperature **13.3°C**; the existing near-13°C removable-layer advice was preserved.
+- **2026-10-18:** forecast daytime cooling to approximately **10.2°C**, with a separate additional-layer warning.
+- **2026-10-17:** precipitation risk and an explicit rain/waterproof-layer note.
+- **2025-10-17 to 2025-10-20:** historical reanalysis typical daytime **10.6°C**, coolest day **9.7°C**, 0 substantial-precipitation days and 0 snow days in the displayed output.
+- **2024-10-17 to 2024-10-20:** historical reanalysis typical daytime **15.2°C**, coolest day **13.3°C**, 1 substantial-precipitation day and 0 snow days in the displayed output.
+
+This is a second-city **integration smoke test only**, not independent verification of raw provider records, forecast accuracy or historical climatology. The raw API JSON and geocoding candidate list were not retained. **Both Berlin and München end-to-end real requests succeeded on their respective tested branch revisions.** A complete test-suite report for the latest München fix is still outstanding.
 
 ## Real end-to-end Berlin smoke run (2026-10-15)
 
@@ -74,7 +87,7 @@ Their displayed output at **2026-10-15 12:16 Europe/Berlin** confirms the once-f
 - Prior interval 2024-10-17 to 2024-10-20: historical reanalysis representative daytime **15.2°C**, coolest daytime **14.5°C**, likewise 0 displayed significant-precipitation/snow days.
 - The historical section is explicitly labeled as past reanalysis and is *not* presented as a forecast or statistically robust climate baseline.
 
-**Evidence limits:** This is a successful user-reported real API **integration smoke test**. Neither the raw Geocoding JSON nor the weather/archive JSON was stored; an independent data-quality verification or forecast-accuracy assessment has **not** occurred. The historical figures should not be hard-coded as future rules. A second-city live run and the full new regression suite remain to be checked.
+**Evidence limits:** This is a successful user-reported real API **integration smoke test**. Neither the raw Geocoding JSON nor the weather/archive JSON was stored; an independent data-quality verification or forecast-accuracy assessment has **not** occurred. The historical figures should not be hard-coded as future rules. A second-city München live run later succeeded; the full new regression suite remains to be checked.
 
 Follow-up code review identified one related bug: a user-specified qualifier such as `Berlin, Schleswig-Holstein` was previously passed wholesale to the Geocoding `name` parameter, even though the solver parsed the qualifier only after receiving the response. The current version now searches by the settlement part `Berlin` and applies the provided federal-state qualifier **locally** to its returned records. Two new offline regressions cover search URL and correct coordinates used for forecast and both archive endpoints.
 
@@ -82,6 +95,6 @@ Follow-up code review identified one related bug: a user-specified qualifier suc
 
 This prototype was originally branched before PR #12, which added trip-date scoping, a 13°C threshold copy fix, and correct forecast lead-time warnings. The current PR's reconciliation uses the latest `main` implementation of `forecast_advice.py`; the changes in that file are limited to optional coordinates, a city label argument, and location-specific headings. The `trip_advisor.py` caller now uses the canonical `start_date`/`end_date` interface rather than the superseded `trip_start`/`trip_end` parameters.
 
-Existing PR #12 regressions must keep passing. New trip-advisor regression cases check the 13°C wording, second-week uncertainty, and city headings. The original 54-test count is superseded by the integrated test suite. A user-reported real Berlin end-to-end API smoke run has now succeeded (see preceding section). That establishes integration success for this case, not independent validation of historical accuracy; the second-city run remains outstanding.
+Existing PR #12 regressions must keep passing. New trip-advisor regression cases check the 13°C wording, second-week uncertainty, and city headings. The original 54-test count is superseded by the integrated test suite. A user-reported real Berlin end-to-end API smoke run has now succeeded (see preceding section). That establishes integration success for this case, not independent validation of historical accuracy; the second-city München run subsequently succeeded.
 
 Related discovery evidence: [Accommodation and transit indoor-climate findings](./indoor-temperature-transit-accommodation-2026-10.md). No automatic sleepwear recommendation has been added to the engine.
