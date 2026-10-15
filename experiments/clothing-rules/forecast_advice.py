@@ -138,8 +138,6 @@ def process(payload, now=None, preference='normal', start_date=None, end_date=No
         hours = obs.get(day, [])
         daytemps = [t for hour, t in hours if 9 <= hour <= 18]
         edge = [t for hour, t in hours if 6 <= hour <= 8 or 19 <= hour <= 22]
-        if i > 0 and not daytemps:
-            raise ValueError('Missing daytime forecast for ' + day)
         daytemp = round(median(daytemps), 1) if daytemps else None
         rows.append({
             'date': day,
@@ -156,6 +154,9 @@ def process(payload, now=None, preference='normal', start_date=None, end_date=No
     forecast_start = dates[0]
     rows = select_trip_rows(rows, start_date, end_date)
     dates = [r['date'] for r in rows]
+    for row in rows:
+        if row['daytemp'] is None and row['date'] != now.date().isoformat():
+            raise ValueError('Missing daytime forecast for ' + row['date'])
     lead_days = {
         r['date']: (dt.date.fromisoformat(r['date']) - dt.date.fromisoformat(forecast_start)).days
         for r in rows
