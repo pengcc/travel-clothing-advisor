@@ -141,6 +141,62 @@ class TravelDatesTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Missing daytime forecast'):
             process(f, NOW, start_date='2026-10-17', end_date='2026-10-19')
 
+    def test_actual_129c_trip_uses_moderate_outerwear_not_required_down(self):
+        # Reproduces the traveler-visible 2026-10-15 run's ~12.9°C
+        # representative daytime temperature using synthetic hourly data.
+        # The raw API forecast was not saved.
+        temps = [32] * 14
+        temps[3:7] = [12.9, 12.9, 12.9, 12.9]
+        out = process(fixture(temps), NOW,
+                      start_date='2026-10-17', end_date='2026-10-20')
+        self.assertEqual(out['main_level'], 5)
+        self.assertEqual(out['typical_daytime'], 12.9)
+        text = format_user_advice(out)
+        self.assertIn('2026年10月17～20日穿衣建议', text)
+        self.assertIn('长袖搭配毛衣或抓绒', text)
+        self.assertIn('保暖程度适中的外套', text)
+        self.assertIn('轻羽绒替代外套', text)
+        self.assertIn('接近厚度分界', text)
+        self.assertIn('一般不必优先准备厚冬季羽绒服', text)
+        self.assertNotIn('建议准备长袖、保暖中间层，以及保暖外套或轻羽绒', text)
+
+    def test_131c_trip_does_not_switch_to_incompatible_clothing(self):
+        low = [32] * 14
+        high = [32] * 14
+        low[3:7] = [12.9] * 4
+        high[3:7] = [13.1] * 4
+        a = format_user_advice(process(fixture(low), NOW,
+                             start_date='2026-10-17', end_date='2026-10-20'))
+        b = format_user_advice(process(fixture(high), NOW,
+                             start_date='2026-10-17', end_date='2026-10-20'))
+        self.assertIn('建议长袖搭配毛衣或抓绒', a)
+        self.assertIn('建议长袖搭配毛衣或抓绒', b)
+        self.assertIn('轻羽绒替代外套', a)
+        self.assertIn('轻羽绒替代外套', b)
+
+    def test_significantly_colder_trip_keeps_stronger_outerwear(self):
+        temps = [32] * 14
+        temps[3:7] = [9.5] * 4
+        out = process(fixture(temps), NOW,
+                      start_date='2026-10-17', end_date='2026-10-20')
+        self.assertEqual(out['main_level'], 5)
+        text = format_user_advice(out)
+        self.assertIn('保暖外套或轻羽绒', text)
+        self.assertNotIn('接近厚度分界', text)
+        self.assertNotIn('一般不必优先准备厚冬季羽绒服', text)
+
+    def test_near_boundary_does_not_hide_real_cold_day(self):
+        temps = [32] * 14
+        temps[3:8] = [12.9, 12.9, 0, 12.9, 12.9]
+        out = process(fixture(temps), NOW,
+                      start_date='2026-10-17', end_date='2026-10-21')
+        self.assertEqual(out['main_level'], 5)
+        text = format_user_advice(out)
+        self.assertIn('接近厚度分界', text)
+        self.assertIn('冬季保暖内搭', text)
+        self.assertIn('较厚的冬季外套', text)
+        self.assertNotIn('一般不必优先准备厚冬季羽绒服', text)
+
     def test_cli_date_arguments_work_with_offline_fixture(self):
         with tempfile.TemporaryDirectory() as td:
             saved = Path(td) / 'forecast.json'
