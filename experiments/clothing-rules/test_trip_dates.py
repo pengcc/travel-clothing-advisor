@@ -197,6 +197,28 @@ class TravelDatesTest(unittest.TestCase):
         self.assertIn('较厚的冬季外套', text)
         self.assertNotIn('一般不必优先准备厚冬季羽绒服', text)
 
+    def test_short_near_term_trip_has_no_irrelevant_week_two_warning(self):
+        out = process(fixture(), NOW,
+                      start_date='2026-10-17', end_date='2026-10-20')
+        self.assertNotIn('第8～14天', format_advice(out))
+        self.assertNotIn('第8～14天', format_user_advice(out))
+
+    def test_far_only_trip_explicitly_discloses_lower_confidence(self):
+        out = process(fixture(), NOW,
+                      start_date='2026-10-23', end_date='2026-10-25')
+        text = format_user_advice(out)
+        self.assertIn('行程全部处于预报第8～14天', text)
+        self.assertIn('临近出发复查', text)
+        self.assertIn('行程包含预报第8～14天', format_advice(out))
+
+    def test_trip_spanning_week_boundary_qualifies_only_later_days(self):
+        out = process(fixture(), NOW,
+                      start_date='2026-10-19', end_date='2026-10-23')
+        text = format_user_advice(out)
+        self.assertIn('行程后段涉及预报第8～14天', text)
+        self.assertNotIn('行程全部处于预报第8～14天', text)
+        self.assertIn('2026年10月19～23日穿衣建议', text)
+
     def test_cli_date_arguments_work_with_offline_fixture(self):
         with tempfile.TemporaryDirectory() as td:
             saved = Path(td) / 'forecast.json'
