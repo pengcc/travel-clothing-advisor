@@ -47,7 +47,26 @@ The corrected resolver:
 - otherwise refuses to guess and requests a precise `City, Federal State` name, e.g. `Berlin, Schleswig-Holstein`. The optional qualifier is matched against the returned administrative area, accepting `Land Berlin` and `Berlin` as aliases;
 - does not choose the first fuzzy/prefix result and never silently selects a different country.
 
-This is validated with deterministic synthetic geocoding fixtures, including a small namesake appearing **before** the capital and a complete city → forecast/history URL coordinate propagation check. **The updated resolver still needs a fresh real Berlin CLI invocation**; no live output after the correction is claimed. The original geocoding error is a confirmed real-world input and a regression case.
+This is validated with deterministic synthetic geocoding fixtures, including a small namesake appearing **before** the capital and a complete city → forecast/history URL coordinate propagation check. **A real Berlin CLI invocation subsequently succeeded (see end-to-end smoke run below)**. The original geocoding error is a confirmed real-world input and a regression case.
+
+## Real end-to-end Berlin smoke run (2026-10-15)
+
+A user ran the updated branch locally with an internet connection:
+
+```bash
+python3 experiments/clothing-rules/trip_advisor.py --city Berlin --start 2026-10-17 --end 2026-10-20
+```
+
+Their displayed output at **2026-10-15 12:16 Europe/Berlin** confirms the once-failing Berlin name selection now proceeds through forecast and **both** historical archive queries:
+
+- 2026-10-17 to 2026-10-20: representative daytime **12.8°C**, traveler-facing output uses the retained near-13°C advice rather than a compulsory light-down coat.
+- Prior corresponding interval 2025-10-17 to 2025-10-20: historical reanalysis representative daytime **10.1°C**, coolest daytime **8.5°C**, 0 days of significant precipitation and 0 snow days in the displayed output.
+- Prior interval 2024-10-17 to 2024-10-20: historical reanalysis representative daytime **15.2°C**, coolest daytime **14.5°C**, likewise 0 displayed significant-precipitation/snow days.
+- The historical section is explicitly labeled as past reanalysis and is *not* presented as a forecast or statistically robust climate baseline.
+
+**Evidence limits:** This is a successful user-reported real API **integration smoke test**. Neither the raw Geocoding JSON nor the weather/archive JSON was stored; an independent data-quality verification or forecast-accuracy assessment has **not** occurred. The historical figures should not be hard-coded as future rules. A second-city live run and the full new regression suite remain to be checked.
+
+Follow-up code review identified one related bug: a user-specified qualifier such as `Berlin, Schleswig-Holstein` was previously passed wholesale to the Geocoding `name` parameter, even though the solver parsed the qualifier only after receiving the response. The current version now searches by the settlement part `Berlin` and applies the provided federal-state qualifier **locally** to its returned records. Two new offline regressions cover search URL and correct coordinates used for forecast and both archive endpoints.
 
 ## Integration with merged PR #12 (2026-10-15)
 
