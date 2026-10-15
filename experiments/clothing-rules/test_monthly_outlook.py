@@ -122,7 +122,8 @@ class MonthAheadOutlookTest(unittest.TestCase):
         self.assertIn('过去8年同期', report)
         self.assertIn('出发前两周内', report)
         self.assertIn('不是今年的具体预报', report)
-        self.assertIn('这不是今年的降雨预报', report)
+        self.assertNotIn('这不是今年的降雨预报', report)
+        self.assertIn('不是今年的具体预报', report)
         self.assertIn('内搭', report)
         self.assertNotIn('怎么穿：', report)
         self.assertNotRegex(report, r'降雨概率\s*[:=]\s*\d')
@@ -276,7 +277,8 @@ class MonthAheadOutlookTest(unittest.TestCase):
         text = format_trip(result, history)
         self.assertIn('降水提醒：历史同期多次出现较明显降水', text)
         self.assertIn('建议带折叠伞或防水外层', text)
-        self.assertIn('不是今年的降雨预报', text)
+        self.assertNotIn('不是今年的降雨预报', text)
+        self.assertIn('历史同期多次出现较明显降水', text)
         result, history = build('Berlin', dt.date(2026, 10, 28),
                                 dt.date(2026, 11, 1), now=NOW,
                                 fetch=monthly_fetch([], precipitation_years={2025}))
@@ -308,6 +310,27 @@ class MonthAheadOutlookTest(unittest.TestCase):
         self.assertNotIn('数据依据：', public)
         self.assertIn('数据依据：', format_trip(result, histories, details=True))
 
+
+
+    def test_default_history_cold_and_rain_copy_avoids_repeated_caveats(self):
+        calls = []
+        result, histories = build('Berlin', dt.date(2026, 10, 28),
+                                  dt.date(2026, 11, 1), now=NOW,
+                                  fetch=monthly_fetch(
+                                      calls, temperatures={year: 8 for year in range(2018, 2026)},
+                                      edge_offset=9, precipitation_years={2025, 2024, 2023}))
+        public = format_trip(result, histories)
+        self.assertIn('主要建议：', public)
+        self.assertIn('早晚偏冷：', public)
+        self.assertIn('接近或低于0°C', public)
+        self.assertIn('降水提醒：', public)
+        self.assertEqual(public.count('室内可脱外层'), 1)
+        self.assertNotIn('进室内或车上可脱', public)
+        self.assertNotIn('不是今年的降雨预报', public)
+        self.assertIn('不是今年的具体预报', public)
+        self.assertNotIn('。 曾有', public)
+        self.assertIn('历史上较冷时段曾接近或低于0°C', public)
+        self.assertIn('逐年历史参考：', format_trip(result, histories, details=True))
 
 
 if __name__ == '__main__':
