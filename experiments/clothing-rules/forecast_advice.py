@@ -330,10 +330,22 @@ def format_user_advice(result):
             and min((r['evening_morning_min'] for r in result['days']
                      if r['evening_morning_min'] is not None), default=9) >= 0):
         lines.append('按当前预报，一般不必优先准备厚冬季羽绒服，但只带薄衣服也不合适。')
+    # Forecast lead time is counted from the provider's issue date, not
+    # from the traveler's arrival date or the selected trip's first row.
+    forecast_day = dt.date.fromisoformat(result['forecast_start'])
+    active_leads = [(dt.date.fromisoformat(row['date']) - forecast_day).days
+                    for row in active]
+    if all(lead >= 7 for lead in active_leads):
+        closing = ('本次行程全部处于预报第8～14天，穿衣建议仍有较大不确定性；'
+                   '请临近出发复查天气和衣物厚度。')
+    elif any(lead >= 7 for lead in active_leads):
+        closing = ('行程后段涉及预报第8～14天，请临近出发复查天气和衣物厚度。')
+    else:
+        closing = '天气预报可能变化；个人冷热感受不同，临近出发再查看。'
     updated = dt.datetime.fromisoformat(result['generated_at']).astimezone(ZoneInfo(TIMEZONE))
     lines.extend(['', f'预报查询：{updated.month}月{updated.day}日 {updated:%H:%M}（柏林时间）'
                      f' · 来源：Open-Meteo',
-                  '较远日期的天气可能变化；个人冷热感受不同，临近出发再查看。'])
+                  closing])
     return '\n'.join(lines)
 
 
@@ -351,7 +363,11 @@ def format_advice(result):
                      dt.date.fromisoformat(result['forecast_start'])).days
         flag = ' · 后期预报需复查' if lead_days >= 7 else ''
         lines.append(f"{row['date']}: {temp} {mark}{flag}")
-    lines.append('第8～14天的不确定性较高，请在接近出发时复查；每个人对冷热的感受也不同。')
+    forecast_day = dt.date.fromisoformat(result['forecast_start'])
+    if any((dt.date.fromisoformat(row['date']) - forecast_day).days >= 7
+           for row in result['days'] if row['daytemp'] is not None):
+        lines.append('所选行程包含预报第8～14天，后期预报请临近出发复查。')
+    lines.append('每个人对冷热的感受也不同。')
     lines.append(f"数据：Open-Meteo（{result['source']}），读取/计算时间 {result['generated_at']}；建议由规则推算，并非天气服务商的穿衣建议。")
     return '\n'.join(lines)
 
