@@ -47,7 +47,7 @@ UI 阶段再确定：信息层级、首页与结果页布局、卡片分页/滑�
 - `city`、`start`、`end`、`preference`、`mode`（`forecast | historical_reference`）；
 - `headline`（一条外套决定）、`layers`（主要内搭/可脱层）、`notices[]`（其他气温相关提示）、`reference_temperature_c`；
 - `packing_variation_notice`（**必有字段，简短字符串或 `null`**）：后端检测跨日期明显冷热变化且会影响备衣时生成；即使主等级存在、甚至只有一天偏冷或偏热也可以非空。文案包含有依据的偏冷/偏暖日期或日期范围及实际备衣提醒；若无有意义变化则为 `null`。这一条在结果页**紧跟外套结论、优先于内搭及早晚提醒**，不在 `notices[]` 中重复堆叠；
-- **精选城市预取快照另提供** `packing_variation_summary: string | null`（必有字段）：与相同德国日期、相同预报数据版本下的完整结果 `packing_variation_notice` **来自同一后端逐日判断**，有变化则两者均非空，无变化则两者均为 `null`。摘要是**面向卡片独立写成的一句短而完整的中文备衣提醒**（说明偏冷/偏暖和可带/可脱的层次），无需复制全部日期和长说明；不得由前端截断完整通知、重新分析气温或硬拼接文案。移动端若字数超出一行可换行，不以省略号隐藏关键意思；
+- **精选城市预取快照另提供** `packing_variation_summary: string | null`（必有字段）：与相同德国日期、相同预报数据版本、相同有效预测时段下的完整结果 `packing_variation_notice` **来自同一后端逐日判断**，有变化则两者均非空，无变化则两者均为 `null`。摘要是**面向卡片独立写成的一句短而完整的中文备衣提醒**（说明偏冷/偏暖和可带/可脱的层次），无需复制全部日期和长说明；不得由前端截断完整通知、重新分析气温或硬拼接文案。移动端若字数超出一行可换行，不以省略号隐藏关键意思；
 - `warmth_indicator_level`（**必有字段，值为 1–6 或 `null`**）：服务端从现有六档衣物模型与逐日分布生成可展示的主档位，精选城市摘要也带同字段；当没有代表性的主档位才置 `null`，UI 不显示误导性单档信号格而改为文字提示；**这与 `packing_variation_notice` 是否存在相互独立**，例如 L2→L4→L2 可有明确 L2 主档且同时出现提醒；客户端不得根据气温重新计算等级；
 - `weather_fetched_at`、`advice_generated_at`、`data_status`（`fresh | stale`）、`source`、`caveat`。
 
