@@ -263,7 +263,7 @@ def format_user_advice(result):
     lines = [f'柏林 · {period}穿衣建议',
              '',
              USER_CLOTHING[result['main_level']],
-             f'多数白天约 {result["typical_daytime"]:g}°C，衣服建议采用可增减的搭配。']
+             f'旅行期间白天的代表气温约 {result["typical_daytime"]:g}°C，衣服建议采用可增减的搭配。']
     by_date = {row['date']: row for row in result['days']}
     cold = set(result['cold_dates'])
     for start, end, long_range in ((0, 7, False), (7, 14, True)):
