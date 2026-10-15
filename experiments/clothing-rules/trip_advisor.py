@@ -264,7 +264,7 @@ def format_month_outlook(outlook, histories, *, details=False):
                       '不要仅凭白天代表气温决定是否带外套。')
     result.append(f'历史依据：过去8年同期各年白天代表温度约 {lower:g}～{upper:g}°C'
                   f'（中位参考 {typical:g}°C）；'
-                  f'早晚时段代表值约 {edge_lower:g}～{edge_upper:g}°C'
+                  f'早晚时段代表值（06–08时、19–22时）约 {edge_lower:g}～{edge_upper:g}°C'
                   f'（中位参考 {edge_typical:g}°C）。')
     if coldest_day <= typical - 5 or edge_coldest <= edge_typical - 5:
         result.append(f'偏冷可能性：历史个别白天的代表温度曾低至约 {coldest_day:g}°C，'
