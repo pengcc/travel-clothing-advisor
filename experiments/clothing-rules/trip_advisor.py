@@ -40,7 +40,7 @@ def select_city(payload, requested):
     name, separator, qualifier = requested.strip().partition(',')
     name, qualifier = name.strip(), qualifier.strip()
     if not name or (separator and not qualifier):
-        raise ValueError('请输入德国城市名称；可选在逗号后加州名，例如 Berlin, Berlin')
+        raise ValueError('请输入德国城市名称；可选在逗号后加州名，例如 Berlin, Land Berlin')
     candidates = [v for v in payload.get('results', [])
                   if v.get('country_code') == 'DE'
                   and isinstance(v.get('latitude'), (int, float))
@@ -51,8 +51,12 @@ def select_city(payload, requested):
     exact = [v for v in candidates if isinstance(v.get('name'), str)
              and v['name'].casefold() == name.casefold()]
     if separator and qualifier.casefold() not in ('de', 'deutschland', 'germany'):
+        # The same federal state may be written "Land Berlin" or "Berlin"
+        # depending on the API's localized administrative display name.
+        def normalize_admin1(value):
+            return value.casefold().removeprefix('land ').strip()
         exact = [v for v in exact if isinstance(v.get('admin1'), str)
-                 and v['admin1'].casefold() == qualifier.casefold()]
+                 and normalize_admin1(v['admin1']) == normalize_admin1(qualifier)]
     if len(exact) == 1:
         return exact[0]
     if len(exact) > 1 and not separator:
