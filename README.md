@@ -18,7 +18,7 @@ Current work should focus on:
 
 ## Prototype now available
 
-The Python standard-library CLI at `experiments/clothing-rules/trip_advisor.py` accepts German cities, trip dates, and optional cold/hot preference. Fully forecast-covered trips within 14 calendar days use Open-Meteo forecasts, with two past-year references. Trips with any day outside that horizon but wholly within 30 calendar days use eight years of fixed-model historical reanalysis as a **packing reference**, not a day-by-day forecast. See `experiments/clothing-rules/README.md` for commands and constraints.
+The Python standard-library CLI at `experiments/clothing-rules/trip_advisor.py` accepts German cities, trip dates, and optional cold/hot preference. Fully forecast-covered trips within 14 calendar days use Open-Meteo forecasts, with two past-year references. Trips with any day outside that horizon but wholly within 30 calendar days use eight years of fixed-model historical reanalysis as a **packing reference**, not a day-by-day forecast. This describes the **still-unmodified experimental CLI**, not the accepted Phase 2B web requirement. The web target uses **five** previous analogous years of incrementally prefetched, durably stored ERA5 temperatures ([Issue #21](https://github.com/pengcc/travel-clothing-advisor/issues/21)); the CLI has not been converted. See `experiments/clothing-rules/README.md` for commands and constraints.
 
 The recommendation quality remains experimental. A local Phase 2A web UI now uses real temperature-only forecasts for personal trips within 14 days; featured cities remain explicitly simulated. There is no deployed daily-update service, final production framework, AI architecture, or validated weather/clothing accuracy.
 
