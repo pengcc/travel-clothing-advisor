@@ -5,6 +5,7 @@ const feelings = { cold: '怕冷', normal: '一般', hot: '怕热' };
 let personal = { city: null, preference: 'normal' };
 let cities = [], snapshot = null, page = 0, current = null, requestVersion = 0, searchVersion = 0;
 let context = null;
+let featuredRequestVersion = 0;
 const short = iso => iso.replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$1年$2月$3日');
 const range = (s, e) => `${short(s)}—${short(e)}`;
 const scenario = () => $('fixture').value;
@@ -78,6 +79,9 @@ async function refreshContext() {
 function renderFeatured() {
   const grid = $('featuredGrid'); grid.replaceChildren();
   if (!snapshot) return;
+  if (!validFeaturedSnapshot(snapshot)) {
+    featuredStatus('模拟数据已过期或日期不匹配，暂无可用城市建议。'); return;
+  }
   for (const data of snapshot.cities.slice(page * 4, page * 4 + 4)) {
     const params = { view: 'city', city_id: data.city.id }, card = CityCard(data, link(params));
     card.addEventListener('click', e => { if (e.button === 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey) { e.preventDefault(); navigate(params); } });
@@ -86,19 +90,33 @@ function renderFeatured() {
   $('featuredDates').textContent = `${range(snapshot.today, snapshot.forecast_end)} · 一般体感 · 未获取真实天气数据`;
   $('pageDisplay').textContent = `${page + 1} / 3`; $('prevPage').disabled = page === 0; $('nextPage').disabled = page === 2;
 }
-async function loadFeatured() {
+function validFeaturedSnapshot(data) {
+  return context && data?.today === context.today && data.forecast_end === context.forecast_end &&
+    (data.data_status === undefined || data.data_status === 'fresh') &&
+    Array.isArray(data.cities) && data.cities.length > 0 && data.cities.every(city =>
+      city?.data_status === 'fresh' && city.start === context.today && city.end === context.forecast_end);
+}
+function featuredStatus(message) {
   snapshot = null; $('prevPage').disabled = true; $('nextPage').disabled = true;
-  $('featuredGrid').replaceChildren(text('p', '正在加载模拟城市参考…'));
+  $('featuredDates').textContent = '未获取真实天气数据'; $('pageDisplay').textContent = '';
+  $('featuredGrid').replaceChildren(text('p', message));
+}
+async function loadFeatured() {
+  const version = ++featuredRequestVersion;
+  featuredStatus('正在加载模拟城市参考…');
   const selected = scenario();
   if (selected === 'loading') return;
   try {
     const data = await api('/api/featured', { fixture: selected });
-    if (selected !== scenario()) return;
-    if (selected === 'stale') {
-      $('featuredGrid').replaceChildren(text('p', '模拟数据已过期，暂无可用城市建议。')); $('featuredDates').textContent = '未获取真实天气数据'; return;
+    if (version !== featuredRequestVersion || selected !== scenario()) return;
+    if (!validFeaturedSnapshot(data)) {
+      featuredStatus('模拟数据已过期或日期不匹配，暂无可用城市建议。'); return;
     }
     snapshot = data; renderFeatured();
-  } catch (error) { $('featuredGrid').replaceChildren(text('p', error.message)); }
+  } catch (error) {
+    if (version !== featuredRequestVersion || selected !== scenario()) return;
+    featuredStatus(error.message);
+  }
 }
 $('prevPage').addEventListener('click', () => { page = Math.max(0, page - 1); renderFeatured(); saveForm(); });
 $('nextPage').addEventListener('click', () => { page = Math.min(2, page + 1); renderFeatured(); saveForm(); });

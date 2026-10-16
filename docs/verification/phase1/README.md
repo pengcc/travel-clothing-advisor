@@ -36,3 +36,11 @@ The collapsed fixture selector is an intentional Phase 1 testing aid below the m
 ## Limits and handoff
 
 Only desktop Chrome with responsive viewports was exercised; physical Android/iOS, Safari and WeChat remain unverified. No live forecast, eight-year history, real temperature-to-clothing calculations, weather timestamps, current-day effective-hour validation, cache, scheduled refresh, deployment or production service is claimed. The fixtures demonstrate presentation and routing only. See [web/README.md](../../../web/README.md) for run/test commands and Phase 2 API handoff boundaries.
+
+## Review #5543893878 follow-up — 2026-10-16
+
+Both featured-loading findings are covered by `tests/web/featured-regressions.cjs`. Ten browser regression cases failed against the reviewed application revision and passed after the fix, with the fixture selector kept on `default`. They inject a stale off-page city, a stale snapshot status, missing city freshness, yesterday's window, a wrong forecast end and a mismatched city window. They also invert completion order for older successes/failures, repeat that race across a simulated German midnight, and reject a latest response that still carries yesterday's dates. Rejected responses remove clothing cards and disable pagination; a subsequent valid response recovers.
+
+The response validator requires every city to be fresh and its dates to match the current server-provided Germany window. Snapshot-level status is checked when supplied (the current fixture envelope has status on each city). A dedicated featured request version guards both success and failure callbacks, regardless of whether the fixture selection changed. Pagination revalidates the retained snapshot too.
+
+Validation: **10 new browser regression cases, 63 existing browser assertions, 11 Python UI contract tests and 122 existing experiment tests passed**. Run `node tests/web/featured-regressions.cjs` and `node tests/web/browser.cjs --check-only` against the local server. The latter runs assertions without overwriting the original 2026-10-15 screenshots/results. These fixes do not redesign the UI or change weather fixtures.

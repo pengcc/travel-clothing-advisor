@@ -44,6 +44,10 @@ Optional local browser test dependency (not an application dependency):
 npm install --prefix .local-tools --no-save --package-lock=false playwright
 # Requires installed Google Chrome. Start the Python server separately.
 node tests/web/browser.cjs
+# Run assertions without replacing the original screenshots/results:
+node tests/web/browser.cjs --check-only
+# Review #5543893878: stale/default responses and inverted completion order:
+node tests/web/featured-regressions.cjs
 ```
 
 `.local-tools/` is ignored. The browser test uses an isolated headless Chrome profile and writes actual screenshots/results to `docs/verification/phase1/`. It exercises navigation, reload, sharing, fixtures, API failures, mobile widths, enlarged text and a simulated server-date rollover, without changing machine time. On a different port, set `UI_BASE_URL=http://127.0.0.1:8001`.

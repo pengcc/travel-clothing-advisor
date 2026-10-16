@@ -3,6 +3,7 @@ const { chromium } = require('../../.local-tools/node_modules/playwright');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const output = 'docs/verification/phase1';
+const capture = !process.argv.includes('--check-only');
 const shortDate = iso => iso.replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$1年$2月$3日');
 const base = process.env.UI_BASE_URL || 'http://127.0.0.1:8000';
 (async () => {
@@ -14,6 +15,7 @@ const base = process.env.UI_BASE_URL || 'http://127.0.0.1:8000';
   const waitHome = () => p.waitForSelector('.city-card');
   const waitResult = () => p.waitForSelector('#resultContent:not(.hidden)');
   const shot = async name => {
+    if (!capture) return;
     const viewport = p.viewportSize();
     const height = await p.evaluate(() => document.documentElement.scrollHeight);
     await p.setViewportSize({width:viewport.width, height});
@@ -123,7 +125,7 @@ const base = process.env.UI_BASE_URL || 'http://127.0.0.1:8000';
   check('Action white text has AA contrast', contrast(colors.action,'rgb(255,255,255)') >= 4.5);
   check('Body and source text have AA contrast', contrast(colors.ink,colors.page) >= 4.5 && contrast(colors.muted,colors.page) >= 4.5);
   check('No browser JavaScript errors', errors.length === 0);
-  fs.writeFileSync(`${output}/browser-results.json`, JSON.stringify({browser:await browser.version(), checks, errors},null,2)+'\n');
+  if (capture) fs.writeFileSync(`${output}/browser-results.json`, JSON.stringify({browser:await browser.version(), checks, errors},null,2)+'\n');
   console.log(`${checks.length} browser checks passed`);
   await browser.close();
 })().catch(error=>{console.error(error);process.exit(1)});
