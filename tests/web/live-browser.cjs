@@ -1,0 +1,55 @@
+/* Run against the deterministic Service(Fake) server documented in web/README.md. */
+const {chromium}=require('../../.local-tools/node_modules/playwright');
+const assert=require('node:assert/strict');
+const base=process.env.UI_BASE_URL || 'http://127.0.0.1:8002';
+(async()=>{
+  const browser=await chromium.launch({channel:'chrome',headless:true});
+  const page=await browser.newPage({viewport:{width:390,height:844},permissions:['clipboard-read','clipboard-write']});
+  const errors=[];page.on('pageerror',e=>errors.push(e.message));
+  let checks=0;
+  const check=(value,message)=>{assert.ok(value,message);checks++};
+  const result=()=>page.waitForSelector('#resultContent:not(.hidden)');
+  await page.goto(base);await page.waitForSelector('.city-card');
+  check(!await page.locator('#demo').isChecked(),'live is default');
+  await page.locator('#city').fill('frankfurt');await page.waitForSelector('#cityOptions button');
+  check(await page.locator('#cityOptions button').count()===2,'German namesakes shown separately');
+  await page.goto(base+'/?view=trip&city_id=berlin&start=2026-10-16&end=2026-10-18&preference=normal');await result();
+  check((await page.locator('#resultKind').textContent()).includes('真实气温'),'live result label');
+  const source=await page.locator('#source').textContent();
+  check(source.includes('Open-Meteo')&&source.includes('天气获取时间：2026')&&source.includes('建议生成时间：2026'),'separate acquisition and generation labels');
+  check(!source.includes('模拟'),'live source never simulated');
+  check((await page.locator('#spanText').textContent()).includes('2026-10-17偏冷'),'real derived outlier date');
+  check(await page.evaluate(()=>Boolean(document.querySelector('#spanRemind').compareDocumentPosition(document.querySelector('#resultLayers'))&Node.DOCUMENT_POSITION_FOLLOWING)),'variation immediately before layers');
+  await page.locator('#copyAdvice').click();check(!(await page.evaluate(()=>navigator.clipboard.readText())).includes('演示数据'),'copied live advice not fixture');
+  await page.locator('#shareTrip').click();check(await page.evaluate(()=>navigator.clipboard.readText())===page.url(),'live share keeps trip params');
+  await page.reload();await result();await page.locator('#back').click();await page.waitForSelector('.city-card');
+  check((await page.locator('#city').inputValue()).includes('Berlin'),'return restores direct trip');
+  await page.locator('.city-card').first().click();await result();
+  check((await page.locator('#resultKind').textContent()).includes('模拟'),'featured remains demo');
+  check((await page.locator('#source').textContent()).includes('天气获取时间：未获取'),'featured has no fabricated acquisition');
+  await page.locator('#back').click();await page.waitForSelector('.city-card');
+  check(await page.locator('#start').inputValue()==='2026-10-16','featured leaves personal dates');
+  await page.goto(base+'/?view=trip&city_id=berlin&start=2026-10-16&end=2026-10-30&preference=normal');
+  await page.waitForSelector('#resultStatus button');
+  check((await page.locator('#resultStatus').textContent()).includes('Phase 2B'),'beyond 14 days unavailable');
+  check(!await page.locator('#resultContent').isVisible(),'no fabricated historical live advice');
+  await page.locator('.demo-tools summary').click();await page.locator('#demo').check();await result();
+  check((await page.locator('#resultKind').textContent()).includes('模拟'),'historical fixture explicitly demo');
+  await page.goto(base+'/?view=trip&city_id=berlin&start=2026-10-16&end=2026-10-29&preference=cold');await result();
+  check((await page.locator('#resultNotice').textContent()).includes('第8–14天'),'long-range uncertainty');
+  for(const width of [320,375,390,430,1280]){
+    await page.setViewportSize({width,height:844});
+    check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`live ${width}px no overflow`);
+  }
+  await page.setViewportSize({width:390,height:844});
+  const height=await page.evaluate(()=>document.documentElement.scrollHeight);
+  await page.setViewportSize({width:390,height});
+  await page.evaluate(()=>{document.activeElement.blur();window.scrollTo({top:0,behavior:'instant'});return new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))});
+  await page.screenshot({path:'docs/verification/phase2a/live-injected-mobile.png',fullPage:false});
+  await page.route('**/api/advice?*',route=>route.fulfill({status:503,json:{error:'上游超时，暂不可用'}}));
+  await page.reload();await page.waitForSelector('#resultStatus button');
+  check(!await page.locator('#resultContent').isVisible(),'upstream failure hides answer');
+  check((await page.locator('#resultStatus').textContent()).includes('超时'),'clear unavailable state');
+  check(errors.length===0,'no JS errors');
+  console.log(`${checks} live browser checks passed`);await browser.close();
+})().catch(e=>{console.error(e);process.exit(1)});
