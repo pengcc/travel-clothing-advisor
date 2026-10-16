@@ -134,8 +134,11 @@ def packing(days):
 
 
 class Service:
-    def __init__(self, fetch=fetch_json, clock=lambda: datetime.now(BERLIN)):
+    def __init__(self, fetch=fetch_json, clock=lambda: datetime.now(BERLIN), *, history=None, history_downloader=None, history_max_missing=0):
         self.fetch, self.clock = fetch, clock
+        self.history = history
+        self.history_downloader = history_downloader
+        self.history_max_missing = history_max_missing
         self.cache = {}
         self.lock = Lock()
 
@@ -193,7 +196,11 @@ class Service:
         except (KeyError, TypeError, ValueError):
             raise ValueError('请选择德国今天起30天内的有效日期，离开日期不能早于到达日期。')
         if end>w['forecast_end']:
-            raise Unavailable('此行程超出14天预报范围。15–30天的8年历史参考尚待 Phase 2B 接入；可在模拟状态测试中查看明确标注的演示。')
+            if self.history is None:
+                raise Unavailable('过去五年同期历史资料尚未齐备，暂不提供穿衣建议。')
+            from web.historical_advice import advise
+            city = self.resolve(p.get('city_id'))
+            return advise(self.history, city, p, now, self.clock, self.history_downloader, self.history_max_missing)
         city = self.resolve(p.get('city_id'))
         key = (city['id'], w['today'])
         with self.lock:

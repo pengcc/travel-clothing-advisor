@@ -1,6 +1,6 @@
 # Travel Clothing Advisor — MVP Functional & Technical Specification
 
-> **版本：** V1 目标规格；Phase 2A（PR #20）已合并；Phase 2B 五年历史方案（Issue #21）于 2026-10-16 确定，实施尚未完成。  
+> **版本：** V1 目标规格；Phase 2A（PR #20）已合并；Phase 2B 五年历史方案（Issue #21）已有本地 Python 实现及离线验证；尚未下载生产资料、配置托管存储或部署。
 > **范围：** 德国旅行穿衣建议网站的功能、输入输出、天气数据、缓存和部署；**不是 UI 视觉设计稿，也不是已实现功能**。  
 > **依据：** 用户在 2026-10-15 的产品取舍；现有 `main` 上 PR #14 的 Python 原型。
 
@@ -112,7 +112,7 @@ UI 阶段再确定：信息层级、首页与结果页布局、卡片分页/滑�
 - 首次部署可初始化首页；Cron 安全、可重跑，失败不发布半成品；清楚显示旧首页快照或不可用状态。显示真实 `weather_fetched_at` 和数据状态，天气来源与不确定性可见。
 - Preview 可供手机真实使用；记录平台额度、缓存命中率与主要查询耗时，再决定是否正式发布。
 
-**接下来的实施路线：** Phase 2A 已合并（PR #20）；按 [Issue #21](https://github.com/pengcc/travel-clothing-advisor/issues/21) 实现 Phase 2B 五年历史资料预下载及 15–30 天备衣参考，随后推进 Phase 2C 真实精选城市与每日预报缓存，最后另行授权 Preview。此规格修订不授权实际历史批量下载、开通存储服务、部署或合并。
+**接下来的实施路线：** Phase 2A 已合并（PR #20）；Phase 2B 本地实现及离线验证见 `web/README.md` 和 `docs/verification/phase2b/README.md`；随后推进 Phase 2C 真实精选城市与每日预报缓存，最后另行授权 Preview。此规格修订不授权实际历史批量下载、开通存储服务、部署或合并。
 
 ## 7. 参考资料（核对于 2026-10-15）
 

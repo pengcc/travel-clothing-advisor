@@ -1,4 +1,4 @@
-"""Local-only Phase 2A UI server. Run: python3 -m web.server"""
+"""Local-only travel UI server. Run: python3 -m web.server"""
 import argparse
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -80,9 +80,13 @@ class Handler(BaseHTTPRequestHandler):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--fixtures', action='store_true', help='Explicit offline Phase 1 testing mode')
+    parser.add_argument('--history-dir', help='Explicit local history library (read-only in web requests; no downloads)')
     parser.add_argument('--port', type=int, default=8000)
     args = parser.parse_args()
     Handler.fixtures_only = args.fixtures
+    if args.history_dir:
+        from web.history import DirectoryStore, Library
+        Handler.service = Service(history=Library(DirectoryStore(args.history_dir)))
     server = ThreadingHTTPServer(('127.0.0.1', args.port), Handler)
     print(f'Local travel UI: http://127.0.0.1:{args.port}', flush=True)
     server.serve_forever()

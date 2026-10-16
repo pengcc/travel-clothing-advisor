@@ -106,7 +106,7 @@ def advice(params, scenario='default', now=None):
                 advice_generated_at=(now or now_berlin()).isoformat(timespec='seconds'),
                 data_status='stale' if selected == 'stale' else 'fresh',
                 fixture=True, fixture_scenario=selected, data_version='ui-fixtures-v1',
-                caveat=('依据：过去8年同期气温（模拟）。这是提前备衣参考，不是旅行当天的天气预报。未查询历史数据。'
+                caveat=('依据：过去五年同期气温（模拟）。这是提前备衣参考，不是旅行当天的天气预报。未查询历史数据。'
                         if historical else '演示数据，非真实天气。第8–14天的预报通常存在更大不确定性，出发前请复查；此处尚未接入天气服务。'))
     return data
 

@@ -115,8 +115,8 @@ class LiveTests(unittest.TestCase):
         with self.assertRaises(Unavailable):
             self.service.resolve('123')
 
-    def test_no_history_or_client_coordinates(self):
-        with self.assertRaisesRegex(Unavailable,'Phase 2B'):
+    def test_unconfigured_history_or_client_coordinates(self):
+        with self.assertRaisesRegex(Unavailable,'五年'):
             self.service.advice(self.params(end='2026-10-30'))
         self.assertEqual(self.fake.calls,[])
         for kw in [dict(latitude='1'),dict(preference='other'),dict(view='city'),dict(start='2026-10-15'),dict(end='2026-02-30'),dict(end='2026-10-1'),dict(start='2026-10-20'),dict(city_id='unknown'),dict(city_id='https://example.com')]:
