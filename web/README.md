@@ -81,6 +81,6 @@ See [Phase 2A results](../docs/verification/phase2a/README.md) for actual runs a
 
 ## Deferred work and provider references
 
-Phase **2B**: eight-year temperature-only historical reference for trips ending after +13 and within +29. Existing CLI history remains an experiment, not a live web fallback. Phase **2C**: featured-city daily prefetch, shared cache/snapshots, budgets and scheduling. This PR adds none of those production facilities or deployment machinery.
+Phase **2B** target ([Issue #21](https://github.com/pengcc/travel-clothing-advisor/issues/21)): **five-year** temperature-only ERA5 historical reference for trips ending after +13 and within +29, backed by incrementally prefetched and durably stored city/month data. The existing eight-year experimental CLI and the Phase 2A live API's not-yet-implemented historical error wording remain unchanged until Phase 2B; neither provides a live web fallback. Phase **2C**: featured-city daily prefetch, shared cache/snapshots, budgets and scheduling. This PR adds none of those production facilities or deployment machinery.
 
 Provider contract checked 2026-10-16 against official [forecast documentation](https://open-meteo.com/en/docs) (`timeformat`, DST-aware conversion, `forecast_days`) and [geocoding documentation](https://open-meteo.com/en/docs/geocoding-api) (`countryCode`, GeoNames IDs and `/v1/get`). These establish API behavior, not clothing accuracy. The narrower Issue #19 local scope takes precedence over the target spec's later historical, shared-cache and deployment goals.
