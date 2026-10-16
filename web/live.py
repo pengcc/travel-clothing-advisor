@@ -27,6 +27,15 @@ IDS = {
 }
 OUTER = {1:'穿轻薄透气衣物，无需厚外套', 2:'轻薄即可，不必带厚外套', 3:'建议带一件方便脱下的薄外套', 4:'建议带适中外套，里面可叠穿薄毛衣', 5:'建议带保暖夹克或轻羽绒，可叠穿抓绒', 6:'建议带冬季保暖外套和保暖内搭'}
 
+INNER = {
+    1: '短袖和轻薄透气下装为主。',
+    2: '短袖或薄长袖为主，方便增减。',
+    3: '短袖或薄长袖，搭配可脱的薄外套。',
+    4: '长袖搭配薄毛衣，进室内可脱外层。',
+    5: '长袖搭配毛衣或抓绒，保暖外套方便脱下。',
+    6: '保暖内搭搭配毛衣或抓绒，外出加冬季外套。',
+}
+
 
 class Unavailable(LookupError):
     pass
@@ -103,8 +112,10 @@ def packing(days):
     notice = summary = None
     if meaningful:
         if main is None:
-            notice = f'{days[values.index(min(values))][0]}较冷、{days[values.index(max(values))][0]}较暖；备轻薄内搭和可叠穿的外套，按当天增减。'
-            summary = '冷热变化明显，备轻薄内搭和可叠穿外套。'
+            coldest, warmest = max(levels), min(levels)
+            notice = (f'{days[values.index(min(values))][0]}较冷：{OUTER[coldest]}；'
+                      f'{days[values.index(max(values))][0]}较暖：{OUTER[warmest]}，按当天增减。')
+            summary = f'冷暖分化，冷时{OUTER[coldest]}，暖时减薄。'
         else:
             colder = [(d,v) for d,v in days if level(v)>main and median(values)-v>1.5]
             warmer = [(d,v) for d,v in days if level(v)<main and v-median(values)>1.5]
@@ -163,8 +174,11 @@ class Service:
             try:
                 c = location(item)
                 cities[c['id']] = public_city(c)
-            except ValueError:
+            except (ValueError, Unavailable):
+                # A bad candidate must not discard other validated locations.
                 continue
+        if results and not cities:
+            raise Unavailable('城市搜索结果缺少可用的德国城市资料，请换个名称重试。')
         return dict(cities=list(cities.values()), fixture=False, source='Open-Meteo / GeoNames')
 
     def advice(self, p):
@@ -212,7 +226,12 @@ class Service:
             raise Unavailable('今天可用的白天及早晚时段均已过去，请选择明天起的日期。')
         main, notice, summary = packing(days) if days else (None,None,None)
         ref = round(median(v for _,v in days),1) if days and main is not None else None
-        headline = OUTER[main] if main else ('冷热变化大，备轻薄内搭和可叠穿外套' if days else '今天白天已过，仅参考剩余晚间时段备衣')
+        if main is not None:
+            headline = OUTER[main]
+        elif days:
+            headline = f'冷热分化，冷时{OUTER[level(min(v for _,v in days))]}，暖时减薄'
+        else:
+            headline = '今天白天已过，仅参考剩余晚间时段备衣'
         notes = []
         if ref is not None and main in (4,5) and abs(ref-13)<=0.75:
             headline = '建议带保暖程度适中的外套；怕冷可用轻羽绒替代'
@@ -228,15 +247,13 @@ class Service:
                 notes.append('有效早晚时段与当天白天保暖需求接近，按实际体感增减。')
         if start==w['today']:
             notes.append('今天仅使用查询时刻之后的小时；已过去的时段不计入建议。')
-        layers = {
-            1: '短袖和轻薄透气下装为主。',
-            2: '短袖或薄长袖为主，方便增减。',
-            3: '短袖或薄长袖，搭配可脱的薄外套。',
-            4: '长袖搭配薄毛衣，进室内可脱外层。',
-            5: '长袖搭配毛衣或抓绒，保暖外套方便脱下。',
-            6: '保暖内搭搭配毛衣或抓绒，外出加冬季外套。',
-            None: '备轻薄内搭与可叠穿的毛衣，按当天冷暖增减。',
-        }[main if days else level(min(v for _,v in edges))]
+        if main is None and days:
+            # Packing coverage uses observed extremes, not a representative level.
+            coldest = level(min(v for _,v in days))
+            warmest = level(max(v for _,v in days))
+            layers = f'较冷时：{INNER[coldest]}较暖时：{INNER[warmest]}'
+        else:
+            layers = INNER[main if days else level(min(v for _,v in edges))]
         if p['preference'] == 'cold':
             layers += '怕冷：较凉时可多备一层薄长袖或薄毛衣。'
         elif p['preference'] == 'hot':

@@ -75,6 +75,46 @@ class LiveTests(unittest.TestCase):
                 self.assertEqual(m,main)
                 self.assertEqual(bool(n),notice)
                 self.assertEqual(bool(s),notice)
+    def test_split_clothing_covers_actual_cold_requirement(self):
+        for warm, cold, outer, inner, warm_inner in [
+            (24, 0, '冬季保暖外套', '保暖内搭', '短袖或薄长袖'),
+            (14, 0, '冬季保暖外套', '保暖内搭', '长袖搭配薄毛衣'),
+            (24, 14, '适中外套', '薄毛衣', '短袖或薄长袖'),
+        ]:
+            for preference in ('normal', 'cold', 'hot'):
+                with self.subTest(warm=warm, cold=cold, preference=preference):
+                    fake = Fake(values=[warm]*7+[cold]*7)
+                    d = Service(fake, lambda: NOW).advice(self.params(end='2026-10-29', preference=preference))
+                    self.assertIsNone(d['warmth_indicator_level'])
+                    self.assertIsNone(d['reference_temperature_c'])
+                    for field in ('headline', 'packing_variation_notice', 'packing_variation_summary'):
+                        self.assertIn(outer, d[field])
+                    self.assertIn(inner, d['layers'])
+                    self.assertIn(warm_inner, d['layers'])
+                    self.assertIn('2026-10-23', d['packing_variation_notice'])
+                    self.assertIn('2026-10-16', d['packing_variation_notice'])
+                    if cold == 14:
+                        self.assertNotIn('冬季', d['headline']+d['layers'])
+
+    def test_city_search_skips_incomplete_candidates(self):
+        valid = geo()
+        for field in ('admin1', 'id', 'latitude', 'longitude', 'name'):
+            broken = geo(123)
+            del broken[field]
+            for candidates in ([valid, broken], [broken, valid]):
+                with self.subTest(field=field, candidates=candidates):
+                    self.fake.search = candidates
+                    cities = self.service.cities('Berlin')['cities']
+                    self.assertEqual(cities, [dict(id='berlin', zh='柏林', name='Berlin', state='Berlin')])
+        self.fake.search = [broken]
+        with self.assertRaises(Unavailable):
+            self.service.cities('Berlin')
+        self.fake.search = []
+        self.assertEqual(self.service.cities('Missing')['cities'], [])
+        self.fake.city = broken
+        with self.assertRaises(Unavailable):
+            self.service.resolve('123')
+
     def test_no_history_or_client_coordinates(self):
         with self.assertRaisesRegex(Unavailable,'Phase 2B'):
             self.service.advice(self.params(end='2026-10-30'))
@@ -199,6 +239,25 @@ class APITests(unittest.TestCase):
         try:
             with urlopen(self.base+path) as r:return r.status,json.load(r)
         except HTTPError as e:return e.code,json.load(e)
+    def test_city_search_partial_and_unusable_http_results(self):
+        original = self.fake.search
+        try:
+            broken = geo(123)
+            del broken['admin1']
+            self.fake.search = [broken, geo()]
+            code, data = self.request('/api/cities?q=Berlin')
+            self.assertEqual(code, 200)
+            self.assertEqual(data['cities'], [dict(id='berlin', zh='柏林', name='Berlin', state='Berlin')])
+            self.fake.search = [broken]
+            code, data = self.request('/api/cities?q=Berlin')
+            self.assertEqual(code, 503)
+            self.assertNotIn('cities', data)
+            self.fake.search = []
+            code, data = self.request('/api/cities?q=Missing')
+            self.assertEqual((code, data['cities']), (200, []))
+        finally:
+            self.fake.search = original
+
     def test_routes(self):
         p=dict(view='trip',city_id='berlin',start='2026-10-16',end='2026-10-18',preference='normal')
         code,d=self.request('/api/advice?'+urlencode(p));self.assertEqual(code,200);self.assertFalse(d['fixture'])

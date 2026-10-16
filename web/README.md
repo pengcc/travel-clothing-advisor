@@ -7,7 +7,7 @@ python3 -m web.server
 # http://127.0.0.1:8000
 ```
 
-Personal trips now use real Open-Meteo temperature forecasts and server-resolved German GeoNames locations. Choose dates wholly within Germany-today…today+13 and cold/normal/hot sensitivity. Chinese names for the existing cities remain available; other German places use their provider names and federal states. A numeric location ID in a shared URL is resolved through Open-Meteo `/v1/get`; client coordinates are rejected. Search results are filtered to German populated places. Requests go to fixed provider URLs with an eight-second timeout per call and no automatic retries. No trip URLs, headers or provider errors are logged.
+Personal trips now use real Open-Meteo temperature forecasts and server-resolved German GeoNames locations. Choose dates wholly within Germany-today…today+13 and cold/normal/hot sensitivity. Chinese names for the existing cities remain available; other German places use their provider names and federal states. A numeric location ID in a shared URL is resolved through Open-Meteo `/v1/get`; client coordinates are rejected. Search results are filtered to German populated places. Individually incomplete/invalid candidates are skipped; usable matches retain their verified state and coordinates. A nonempty response with no usable candidate returns 503, while a genuinely empty search returns an empty list. Direct ID resolution still rejects incomplete metadata. Requests go to fixed provider URLs with an eight-second timeout per call and no automatic retries. No trip URLs, headers or provider errors are logged.
 
 This is a loopback-only local development server, not a production server. No deployment, accounts, storage service, new dependencies or scheduler is included. Closing the process stops it.
 
@@ -27,7 +27,7 @@ Loading, stale and unavailable states hide clothing results. Stale presentation 
 
 The adapter validates timezone, Celsius units, original strictly consecutive hourly order, finite numeric temperatures, current Germany start date, and every required future 06–22 hour throughout the 14-day window (daytime 09–18; morning 06–08/evening 19–22). Missing, duplicate, reordered, null, stale or error data is refused. Elapsed hours today are excluded. A trip containing only this evening can receive an evening-only answer with no daytime temperature/indicator; after the final usable hour, a today-only query is unavailable.
 
-Each day's remaining daytime median feeds the six-level model. A majority observed level can be the main indicator; a meaningful split without a majority returns null, rather than inventing the median's unobserved level. Independent variation detection considers level changes and temperature differences greater than the existing candidate 1.5°C noise tolerance. The 13°C ±0.75°C outerwear copy tolerance remains. These are experimental clothing heuristics, not validated thermal-comfort guarantees. Reminders name a supported colder/warmer date and the layer to add/remove. Early/evening layers are compared with that same day's daytime conditions to avoid repeating a cross-day change. Day 8–14 uncertainty appears separately. Sensitivity changes clothing copy, not weather samples or the weather version.
+Each day's remaining daytime median feeds the six-level model. A majority observed level can be the main indicator; a meaningful split without a majority returns null, rather than inventing the median's unobserved level. Its headline, variation notice/summary and inner-layer advice cover the actual coldest observed clothing requirement, with lighter options for warmer days; a null indicator never means winter layers may be omitted. Independent variation detection considers level changes and temperature differences greater than the existing candidate 1.5°C noise tolerance. The 13°C ±0.75°C outerwear copy tolerance remains. These are experimental clothing heuristics, not validated thermal-comfort guarantees. Reminders name a supported colder/warmer date and the layer to add/remove. Early/evening layers are compared with that same day's daytime conditions to avoid repeating a cross-day change. Day 8–14 uncertainty appears separately. Sensitivity changes clothing copy, not weather samples or the weather version.
 
 A bounded, process-local dictionary reuses at most 32 city/Germany-date weather responses; a lock prevents duplicate forecast fetches within this single process. Acquisition time stays attached to the reused weather, while effective hours and advice are recalculated. Cross-midnight acquisition/calculation is rejected, and tomorrow uses a new key. This is a local development optimization, not a shared or persistent cache. City resolution still verifies the provider ID per advice request.
 
@@ -50,6 +50,8 @@ python3 -m unittest discover -s experiments/clothing-rules -q
 # Start --fixtures --port 8001 separately, then use existing optional Playwright/Chrome:
 UI_BASE_URL=http://127.0.0.1:8001 node tests/web/browser.cjs --check-only
 UI_BASE_URL=http://127.0.0.1:8001 node tests/web/featured-regressions.cjs
+# Review #5545508096: full service JSON with offline provider, rendered in browser:
+UI_BASE_URL=http://127.0.0.1:8001 node tests/web/review-regressions.cjs
 ```
 
 For deterministic full live-path browser testing, start the injected provider (no external weather network):
