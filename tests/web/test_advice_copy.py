@@ -96,6 +96,36 @@ class CopyPresentationTests(unittest.TestCase):
                 self.assertIn('如有结冰风险', text)
             self.assertNotIn('通常', ' '.join(result['guidance'].values()))
 
+    def test_hot_stable_guidance_does_not_claim_a_colder_event(self):
+        for lev in (4, 5, 6):
+            for events in ([], [dict(kind='warm', level=2, when='较暖日')]):
+                with self.subTest(level=lev, events=events):
+                    result = packing_copy(lev, events, preference='hot')
+                    self.assertNotIn('已提醒的较冷时段', result['guidance']['personal_layer'])
+                    self.assertIn('保留上述保暖衣物', result['guidance']['personal_layer'])
+                    self.assertIn('减薄中间层', result['guidance']['personal_layer'])
+                    self.assertEqual(result['risks'], packing_copy(lev, events)['risks'])
+        for kind in ('cold', 'edge'):
+            result = packing_copy(5, [dict(kind=kind, level=6, when='较冷时')], preference='hot')
+            self.assertIn('已提醒的较冷时段仍需保留相应保暖覆盖', result['guidance']['personal_layer'])
+            self.assertIn('冬季保暖外套、保暖内搭', result['risks'][0])
+
+    def test_cold_preference_in_hot_bands_keeps_layers_proportionate(self):
+        for lev in (1, 2):
+            for events in ([], [dict(kind='warm', level=1, when='较暖日')],
+                           [dict(kind='edge', level=2, when='早晚')]):
+                with self.subTest(level=lev, events=events):
+                    result = packing_copy(lev, events, preference='cold')
+                    self.assertIn('薄长袖', result['guidance']['personal_layer'])
+                    self.assertNotIn('毛衣', result['guidance']['personal_layer'])
+                    self.assertNotIn('随身备', result['guidance']['personal_layer'])
+                    self.assertEqual(result['outer'], '不必带厚外套')
+                    self.assertEqual(result['risks'], packing_copy(lev, events)['risks'])
+            for kind in ('cold', 'edge'):
+                result = packing_copy(lev, [dict(kind=kind, level=3, when='较凉时')], preference='cold')
+                self.assertIn('可脱的薄毛衣', result['guidance']['personal_layer'])
+                self.assertIn('可脱的薄外套', result['risks'][0])
+
 
 if __name__ == '__main__':
     unittest.main()

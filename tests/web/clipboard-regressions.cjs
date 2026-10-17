@@ -34,7 +34,18 @@ evening=Service(evening_fake,lambda:NOW).advice(p)
 fixture=advice(p,now=NOW)
 l5=[Service(Fake(values=[8]*14),lambda:NOW).advice(dict(p,preference=pref)) for pref in ('normal','cold','hot')]
 
-print(json.dumps(dict(history=history,forecast=forecast,split=split,edge=edge,long=long,warm=warm,stable=stable,summer=summer,evening=evening,fixture=fixture,l5=l5)))
+review_stable=[Service(Fake(values=[temp]*14),lambda:NOW).advice(dict(p,preference=pref))
+               for temp,pref in ((14,'hot'),(8,'hot'),(0,'hot'),(29,'cold'),(24,'cold'))]
+review_cool=[]
+for temp in (29,24):
+    for kind in ('cold','edge'):
+        fake=Fake(values=[temp,18,temp]+[temp]*11 if kind=='cold' else [temp]*14)
+        if kind=='edge':
+            for i,t in enumerate(fake.data['hourly']['time']):
+                if datetime.fromtimestamp(t,BERLIN).strftime('%Y-%m-%d %H')=='2026-10-16 20':
+                    fake.data['hourly']['temperature_2m'][i]=18
+        review_cool.append(Service(fake,lambda:NOW).advice(dict(p,preference='cold')))
+print(json.dumps(dict(history=history,forecast=forecast,split=split,edge=edge,long=long,warm=warm,stable=stable,summer=summer,evening=evening,fixture=fixture,l5=l5,review_stable=review_stable,review_cool=review_cool)))
 `],{encoding:'utf8'}));
 (async()=>{
  const browser=await chromium.launch({channel:'chrome',headless:true});
@@ -97,6 +108,26 @@ print(json.dumps(dict(history=history,forecast=forecast,split=split,edge=edge,lo
     await page.setViewportSize({width,height:844});
     check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'guidance wraps '+width);
    }
+  }
+  // Review #5557993556: preference copy must match actual coverage, on page and export.
+  for(const data of samples.review_stable) {
+   const copied=await copy(data);
+   const visible=await page.locator('#resultGuidance').innerText();
+   check(data.packing_copy.risks.length===0,'stable sample has no risk events');
+   for(const output of [visible,copied]) {
+    check(!output.includes('已提醒的较冷时段'),'no fabricated prior warning');
+    if(data.preference==='cold') {
+     check(output.includes('薄长袖作为轻薄内搭'),'light preference adjustment');
+     check(!output.includes('毛衣'),'stable hot trip adds no sweater');
+    } else check(output.includes('保留上述保暖衣物'),'stable cold coverage retained');
+   }
+  }
+  for(const data of samples.review_cool) {
+   const copied=await copy(data);
+   const visible=await page.locator('#resultGuidance').innerText();
+   check(data.packing_copy.risks.length>0,'cooler sample has real risk');
+   for(const output of [visible,copied]) check(output.includes('可脱的薄毛衣'),'real cooler need retains actionable layer');
+   check(copied.includes('可脱的薄外套'),'cooler event keeps outer coverage');
   }
   const edge=await copy(samples.edge);
   check(edge.includes('历史同期早晚较凉：外出带上已备的保暖层。'),'evening event retained without duplicate clothes');

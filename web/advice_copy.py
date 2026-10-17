@@ -47,10 +47,18 @@ def packing_copy(main, events, *, split=None, evening_only=False, boundary=False
             personal_layer = '怕冷可把已建议的中间层选厚一些，较冷时穿上，进入较暖室内可脱下外层。'
         elif coldest == 4:
             personal_layer = '怕冷可把已建议的薄毛衣换成较厚的中间层，较凉时穿、较暖室内脱下。'
+        elif coldest <= 2:
+            personal_layer = '怕冷可按体感选择薄长袖作为轻薄内搭。'
         else:
             personal_layer = '怕冷可随身备一层可脱的薄毛衣，较凉时再穿。'
     elif preference == 'hot':
-        personal_layer = '怕热可减薄中间层，进入较暖室内脱下外层；已提醒的较冷时段仍需保留相应保暖覆盖。' if coldest >= 4 else '怕热可选更薄的内搭，外层方便脱下。'
+        if coldest >= 4:
+            coverage = ('已提醒的较冷时段仍需保留相应保暖覆盖。'
+                        if any(event['kind'] in ('cold', 'edge') for event in events)
+                        else '仍需保留上述保暖衣物，按体感增减。')
+            personal_layer = '怕热可减薄中间层，进入较暖室内脱下外层；' + coverage
+        else:
+            personal_layer = '怕热可选更薄的内搭，外层方便脱下。'
     else:
         personal_layer = '按上述内搭准备，进入较暖室内可脱下外层，较冷时再穿上。' if coldest >= 3 else ''
     trousers_shoes = ''
