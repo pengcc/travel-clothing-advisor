@@ -75,8 +75,8 @@ document.querySelectorAll('[data-feeling]').forEach(b => b.addEventListener('cli
 ['start', 'end'].forEach(id => $(id).addEventListener('input', saveForm));
 async function refreshContext() {
   context = await api('/api/context');
-  for (const id of ['start', 'end']) { $(id).min = context.today; $(id).max = scenario() === 'live' ? context.forecast_end : context.max_date; }
-  $('dateHint').textContent = `可选 ${short(context.today)} 至 ${short(scenario() === 'live' ? context.forecast_end : context.max_date)}（德国当地日期；15–30天历史参考待接入）`;
+  for (const id of ['start', 'end']) { $(id).min = context.today; $(id).max = context.max_date; }
+  $('dateHint').textContent = `可选 ${short(context.today)} 至 ${short(context.max_date)}（德国当地日期；14天内使用预报，超出则参考过去五年同期资料）`;
 }
 function renderFeatured() {
   const grid = $('featuredGrid'); grid.replaceChildren();
@@ -148,7 +148,7 @@ async function showResult(params) {
     document.querySelector('#spanRemind strong').textContent = data.fixture ? '冷热变化提醒 · 示例' : '冷热变化提醒';
     $('resultCity').textContent = `${data.city.zh} · ${data.city.name}`;
     $('resultDates').textContent = `${range(data.start, data.end)} · ${isCity ? '今起14天 · ' : ''}${feelings[data.preference]}体感`;
-    $('resultMode').textContent = historical ? '过去8年同期气温参考 · 模拟' : `${isCity ? '今起14天' : '所选日期'}气温预报${data.fixture ? ' · 模拟' : ''}`;
+    $('resultMode').textContent = historical ? `过去五年同期气温参考${data.fixture ? ' · 模拟' : ''}` : `${isCity ? '今起14天' : '所选日期'}气温预报${data.fixture ? ' · 模拟' : ''}`;
     document.title = `${isCity ? '城市穿衣参考' : '行程穿衣建议'} · ${data.city.zh}${data.fixture ? ' · 演示' : ''}`;
     if (data.data_status === 'stale') { current = null; resultStatus(`数据已过期，暂无有效建议。查询日期：${range(data.start, data.end)}；天气获取时间：${data.weather_fetched_at || '未获取（模拟数据）'}。`, true); return; }
     $('resultStatus').classList.add('hidden'); $('resultContent').classList.remove('hidden');
@@ -158,15 +158,16 @@ async function showResult(params) {
     $('spanText').textContent = data.packing_variation_notice || '';
     $('resultLayers').textContent = data.layers;
     $('tempTitle').textContent = historical ? '往年同期白天气温参考' : (data.fixture ? '白天的示例气温' : '有效白天时段气温参考');
-    $('tempText').textContent = data.reference_temperature_c === null ? '无单一代表气温，请看备衣说明。' : (data.fixture ? `模拟数值约 ${data.reference_temperature_c}°C，不代表真实气温。` : `所选日期有效白天时段的代表气温约 ${data.reference_temperature_c}°C。`);
+    $('tempText').textContent = data.reference_temperature_c === null ? '无单一代表气温，请看备衣说明。' : (data.fixture ? `模拟数值约 ${data.reference_temperature_c}°C，不代表真实气温。` : `${historical ? '过去五年同期样本' : '所选日期有效白天时段'}的代表气温约 ${data.reference_temperature_c}°C。`);
     $('edgeText').textContent = data.notices.join(' ');
     $('noticeTitle').textContent = historical ? '这是往年参考，不是这次旅行的预报' : '出发前再确认';
     $('resultNotice').textContent = data.caveat;
     $('source').textContent = `来源：${data.source}。天气获取时间：未获取。模拟建议生成：${new Date(data.advice_generated_at).toLocaleString('zh-CN', { timeZone: 'Europe/Berlin', hour12: false })}（德国当地时间）。状态：模拟响应可用；非真实天气新鲜度。临时保暖标记，尚未接入真实服务。`;
     if (!data.fixture) {
       const stamp = value => new Date(value).toLocaleString('zh-CN', { timeZone: 'Europe/Berlin', hour12: false });
-      $('source').textContent = `来源：${data.source}。天气获取时间：${stamp(data.weather_fetched_at)}；建议生成时间：${stamp(data.advice_generated_at)}（德国当地时间）。获取时间不代表提供方模型更新时间。`;
-      const attribution = text('a', 'Open-Meteo / GeoNames'); attribution.href = 'https://open-meteo.com/'; $('source').append(' ', attribution);
+      $('source').textContent = `来源：${data.source}。${historical ? '历史资料获取时间（最早）' : '天气获取时间'}：${stamp(data.weather_fetched_at)}；建议生成时间：${stamp(data.advice_generated_at)}（德国当地时间）。获取时间不代表提供方模型更新时间。`;
+      if (historical) $('source').append(` 各月块实际获取时间：${data.history_fetched_at.map(stamp).join('；')}。历史资料长期复用，无需每日刷新。`);
+      const attribution = text('a', historical ? 'Open-Meteo ERA5 / CC BY 4.0 / GeoNames' : 'Open-Meteo / GeoNames'); attribution.href = 'https://open-meteo.com/'; $('source').append(' ', attribution);
     }
   } catch (error) {
     if (version !== requestVersion) return;

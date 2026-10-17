@@ -1,4 +1,4 @@
-# Local Phase 2A web UI
+# Local Python web UI — Phases 2A and 2B
 
 Python 3.9+ with `Europe/Berlin` zone data; standard library only:
 
@@ -15,7 +15,7 @@ This is a loopback-only local development server, not a production server. No de
 
 - **Personal trip, default:** live temperature-only data. `weather_fetched_at` is when this process received the weather response; `advice_generated_at` is when it computed this recommendation. Neither is a provider model update time. The UI and copied advice identify live results and attribute Open-Meteo / GeoNames.
 - **Featured cities:** always explicitly simulated, including their independent result pages. Cards never imply a live shared snapshot. They keep their own Germany-today…today+13 dates and normal sensitivity, without reading or changing the personal form.
-- **15–30-day live trips:** return 503 with a clear Phase 2B deferral and no clothing result. The live date controls end at +13; direct later URLs also fail clearly. Historical fixture examples remain available only through the explicit demo path.
+- **15–30-day personal trips:** use the five-year local history library when configured and complete; otherwise return 503 without clothing defaults. The form accepts the full 30-day window. Historical fixture examples remain explicitly simulated. See Phase 2B below.
 - **Demo control:** expand 模拟状态测试 and check 个人行程使用演示数据, or select a fixture scenario. Uncheck to restore live personal queries. `fixture=default|stable|colder|warmer|split|loading|stale|unavailable` explicitly selects authored API fixtures. Fixture weather acquisition time is null. Fixture overrides are never included in share links; ordinary live mode reopens personal links against real data. A demo result never claims to be real weather.
 - **Phase 1 regression mode:** `python3 -m web.server --fixtures --port 8001` explicitly disables live advice/search for the existing offline browser suite. The response still identifies itself as a fixture even if the client asks otherwise. Do not use this runner to test provider integration.
 
@@ -81,6 +81,60 @@ See [Phase 2A results](../docs/verification/phase2a/README.md) for actual runs a
 
 ## Deferred work and provider references
 
-Phase **2B** target ([Issue #21](https://github.com/pengcc/travel-clothing-advisor/issues/21)): **five-year** temperature-only ERA5 historical reference for trips ending after +13 and within +29, backed by incrementally prefetched and durably stored city/month data. The existing eight-year experimental CLI and the Phase 2A live API's not-yet-implemented historical error wording remain unchanged until Phase 2B; neither provides a live web fallback. Phase **2C**: featured-city daily prefetch, shared cache/snapshots, budgets and scheduling. This PR adds none of those production facilities or deployment machinery.
+Phase **2C** remains responsible for featured-city daily forecast prefetch, shared cache/snapshots and scheduling. Phase **2D** selects hosted storage and validates a separately authorized Preview. This change adds no production infrastructure or deployment machinery.
 
-Provider contract checked 2026-10-16 against official [forecast documentation](https://open-meteo.com/en/docs) (`timeformat`, DST-aware conversion, `forecast_days`) and [geocoding documentation](https://open-meteo.com/en/docs/geocoding-api) (`countryCode`, GeoNames IDs and `/v1/get`). These establish API behavior, not clothing accuracy. The narrower Issue #19 local scope takes precedence over the target spec's later historical, shared-cache and deployment goals.
+The Phase 2A provider contract was checked 2026-10-16 against official [forecast documentation](https://open-meteo.com/en/docs) and [geocoding documentation](https://open-meteo.com/en/docs/geocoding-api). These establish API behavior, not clothing accuracy.
+
+## Phase 2B: local five-year ERA5 library
+
+Personal trips ending after Germany-today+13 and by today+29 now use five complete analogous annual windows for the **entire** trip. The previous independent eight-year experimental CLI is unchanged. Live featured-city cards remain simulated until Phase 2C.
+
+`history.py` provides `Library`, `Downloader`, `Store`, `MemoryStore` and `DirectoryStore`. The directory adapter is an explicit local-development library, **not production container storage**. Production needs a durable shared object adapter and reliable admission/quota coordination, deferred to Phase 2D. No vendor, infrastructure, credentials, scheduler or hosted store is configured here.
+
+Start the read-only local web path with an already populated library:
+
+```sh
+python3 -m web.server --history-dir .history-local
+```
+
+The default server has no history library and returns a clear 503 for historical trips. With a library, missing/corrupt blocks or storage outages also return 503 without clothing defaults. Web requests never populate storage by default. The injectable `Service(history=..., history_downloader=..., history_max_missing=1)` permits strictly bounded admission for a resolved German city; if more than that number of blocks is missing it makes **zero** archive requests. A downloader requires its own equivalent-call and time budgets. A request still includes the existing geocoding call (8-second maximum) before historical admission (default 12-second worker maximum). Shared forecast caching and real featured snapshots remain Phase 2C.
+
+### Explicit initialization and manual prefetch
+
+The worker uses an operator-supplied JSON **list of GeoNames `/v1/get` city records** (`id,name,admin1,country_code,feature_code,latitude,longitude`); `location()` applies the same German populated-place metadata validation as the server. This is trusted local operator configuration, never client-submitted coordinates. To initialize all ten featured cities, prepare records for IDs `2950159,2867714,2911298,2925533,2886242,2935022,2907911,2861650,2934246,2879139` in `.history-local/cities.json`. Live geocoding/seeding is a separately authorized initialization step; this change does not perform it. Optional additional German city records may follow. Do not put credentials or user information in this file.
+
+Offline planning (no provider requests):
+
+```sh
+python3 -m web.prefetch_history --cities-file .history-local/cities.json
+python3 -m web.prefetch_history --cities-file .history-local/cities.json --full-years
+```
+
+**Only after separate approval for real downloads**, append `--download`. Each invocation fetches at most five missing month blocks by default, with a 30-equivalent-call batch, 60 daily, 600 monthly internal ceilings and a 30-second total network-work deadline. Use `--batch-calls`, `--daily-calls`, `--monthly-calls`, `--max-blocks`, `--timeout` to reduce/adjust limits. These ceilings deliberately leave room for forecasts/geocoding and do not represent the provider's account-wide usage. No retry loop runs. A bounded batch returns `status=paused` / exit 1 when work remains; rerun later to continue. Successful blocks survive interruptions. Never delete the usage ledger to evade quotas; a missing ledger on a restored/empty store does not recover prior account usage.
+
+`plan()` computes the actual mapped months for **every** possible start in the next 30 local calendar days, including leap and cross-year ranges. It prioritizes these months across the supplied cities before optional full-year backfill. The supplied cities should include all ten featured IDs; the planner also supports a smaller initial subset without requiring all cities to finish before serving complete trips. Already valid blocks are revalidated and skipped. Corrupt blocks count as missing and can be repaired by the same bounded worker. Model/format/coordinates select a different namespace; they never silently reuse old blocks.
+
+### Storage, validation and budgets
+
+Each gzip JSON object is `history/era5/temp-v1/<GeoNames ID>/<coordinate SHA-256 prefix>/<YYYY-MM>.json.gz`. Its body contains the exact model/variable/unit/timezone/schema identity, requested coordinates, canonical continuous UTC hourly epochs and Celsius values, acquisition timestamp and source URL. An outer SHA-256 covers that entire body. Reads check identity, checksum, full-month UTC coverage, finite plausible temperature values, timezone, units and acquisition time. Compressed and expanded sizes are bounded. A manifest is the validated month object itself, avoiding a separate mutable index that could disagree with its payload. Missing objects are misses; IO outages fail closed. Month objects contain no trips, preferences, users, IPs or account data.
+
+The archive request fixes `models=era5`, only `hourly=temperature_2m`, Celsius, `timezone=Europe/Berlin`, `timeformat=unixtime`. It pads the requested month by one date at each end because provider range boundaries use a fixed offset; normalization trims to the exact Berlin month using each UTC instant. DST months retain 23/25-hour days and both autumn folds. A conservative six-day publication guard and full validation reject incomplete recent months without substituting older years. No daily refresh or expiration is applied to valid historical blocks.
+
+Window mapping anchors the **arrival year**, using years -1 through -5. Replace only the start's year (Feb 29 becomes Feb 28 in nonleap years), then add the original inclusive calendar duration. Never independently replace the end's year or collapse individual leap days. All five windows must be available before any answer is returned. Daytime medians (09–18) use the existing six-level rule/packing detector; morning 06–08 and evening 19–22 remain separate. Historical copy discards all dated forecast wording, covers winter outerwear/inner layers when supported, preserves the 13°C tolerance, and never assigns a historical cold day to a future trip date. Sensitivity affects clothing copy, not data identity.
+
+Acquisition and recommendation time remain separate. `weather_fetched_at` is the **oldest contributing block acquisition**, not a claim of newly fetched weather; `history_fetched_at[]` lists distinct contributing acquisition times in chronological order. The UI explicitly labels these, identifies five-year reference, and attributes ERA5/Open-Meteo/GeoNames. `data_status=complete` means validated full historical coverage, not forecast freshness.
+
+The downloader serializes calls (concurrency **1**, within the maximum 2). A nonblocking per-store lock admits one worker or reader at a time; concurrent requests fail quickly and cannot duplicate a block download. `DirectoryStore` uses a filesystem advisory lock and atomic `os.replace`; `MemoryStore` uses a thread lock for deterministic tests. All participating local processes must use the same directory. These mechanisms **do not implement distributed account-wide locking or quotas** across hosts, copied libraries or separately configured stores.
+
+The control ledger atomically reserves daily/monthly equivalent-call usage **before** outbound IO. It persists failed attempts and cooldown across worker restarts; invalid ledgers stop fetching. The conservative internal estimate is `2 * ceil((days-in-month + 2 padded dates) / 14)` per HTTP request (six equivalent calls for each 28–31-day month), not a provider invoice or exact quota measurement. Worker output records HTTP attempts, equivalent calls, hits, publications and failures only. On 429/5xx, transport, validation or publication failure it stops immediately and persists a five-minute cooldown (longer numeric `Retry-After` is honored). Provider errors and headers are never printed. A provider injected for tests must honor its supplied remaining timeout; the real transport limits socket waits, response size and wall time. Optional live smoke/data seeding was **not run**.
+
+Verified official contracts (2026-10-16): [Historical Weather API](https://open-meteo.com/en/docs/historical-weather-api) for ERA5, epoch/timezone handling and publication delay; [pricing and attribution](https://open-meteo.com/en/pricing) for weighted calls and [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Weather is transformed into experimental packing advice; this is not a validated comfort model. API noncommercial usage eligibility must be checked before release.
+
+Additional offline checks:
+
+```sh
+python3 -m unittest discover -s tests/web -q
+python3 -m unittest discover -s experiments/clothing-rules -q
+# Against a loopback fixture server, all historical data is injected:
+UI_BASE_URL=http://127.0.0.1:8001 node tests/web/history-browser.cjs
+```

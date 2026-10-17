@@ -60,7 +60,7 @@ print(json.dumps(dict(context=dict(window(NOW),fixture_mode=False),featured=feat
         const height=await page.evaluate(()=>document.documentElement.scrollHeight);
         await page.setViewportSize({width:390,height});
         await page.evaluate(()=>{document.activeElement.blur();window.scrollTo({top:0,behavior:'instant'});return new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)))});
-        await page.screenshot({path:path.join(root,'docs/verification/phase2a/winter-split-injected-mobile.png'),fullPage:false});
+        if (!process.argv.includes('--check-only')) await page.screenshot({path:path.join(root,'docs/verification/phase2a/winter-split-injected-mobile.png'),fullPage:false});
       }
       await page.setViewportSize({width:390,height:844});
     }
