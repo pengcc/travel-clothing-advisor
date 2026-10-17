@@ -440,7 +440,9 @@ class HistoricalAPITests(unittest.TestCase):
             library.store.objects.pop(key(CITY,'2025-11'))
             with self.assertRaises(HTTPError) as error:urlopen(url)
             self.assertEqual(error.exception.code,503)
-            self.assertNotIn('headline',json.load(error.exception))
+            failure=json.load(error.exception)
+            self.assertNotIn('headline',failure)
+            self.assertEqual(failure['code'],'history_incomplete')
             self.assertEqual(len(provider.calls),5)
         finally:
             server.shutdown();server.server_close();thread.join()

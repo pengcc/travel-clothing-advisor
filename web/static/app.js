@@ -17,7 +17,7 @@ async function api(path, params = {}) {
     response = await fetch(path + '?' + new URLSearchParams(params));
     data = await response.json();
   } catch { throw new Error('暂时无法连接服务，请检查网络后重试。'); }
-  if (!response.ok) throw new Error(data.error || '数据暂不可用，请重试。');
+  if (!response.ok) throw Object.assign(new Error(data.error || '数据暂不可用，请重试。'), { code: data.code, status: response.status });
   return data;
 }
 function formState() {
@@ -129,7 +129,9 @@ $('nextPage').addEventListener('click', () => { page = Math.min(2, page + 1); re
 function resultStatus(message, error = false) {
   $('resultContent').classList.add('hidden'); $('resultStatus').classList.remove('hidden');
   $('resultStatus').replaceChildren(text('p', message));
-  if (error) { const retry = text('button', '重试查询', 'secondary-action'); retry.type = 'button'; retry.onclick = () => route(); $('resultStatus').append(retry); }
+  if (error === 'history_incomplete') {
+    const edit = text('button', '修改行程', 'secondary-action'); edit.type = 'button'; edit.onclick = () => $('back').click(); $('resultStatus').append(edit);
+  } else if (error && error !== 'invalid_request') { const retry = text('button', '重试查询', 'secondary-action'); retry.type = 'button'; retry.onclick = () => route(); $('resultStatus').append(retry); }
 }
 function focusHeading(id) { const el = $(id); el.tabIndex = -1; el.focus({ preventScroll: true }); }
 async function showResult(params) {
@@ -138,12 +140,37 @@ async function showResult(params) {
   const isCity = params.view === 'city', demo = (isCity ? featuredScenario() : scenario()) !== 'live'; current = null;
   $('back').textContent = isCity ? '← 返回精选城市' : '← 修改行程';
   $('resultKind').textContent = `${isCity ? '城市穿衣参考' : '行程穿衣建议'} · ${demo ? '模拟数据' : '真实气温参考'}`;
-  $('resultCity').textContent = '加载中'; $('resultDates').textContent = ''; $('resultMode').textContent = demo ? '模拟响应' : 'Open-Meteo 气温预报';
+  // Featured browsing reads published sources only; never resolve through GeoNames.
+  const featuredCity = isCity && validFeaturedSnapshot(snapshot)
+    ? snapshot.cities.find(entry => entry.city.id === params.city_id)?.city : null;
+  const knownCity = isCity ? featuredCity : personal.city?.id === params.city_id ? personal.city : null;
+  const validDates = !isCity && /^\d{4}-\d{2}-\d{2}$/.test(params.start) && /^\d{4}-\d{2}-\d{2}$/.test(params.end);
+  const historicalRequest = validDates && context && params.end > context.forecast_end;
+  $('resultCity').textContent = knownCity ? `${knownCity.zh} · ${knownCity.name}` : '尚未确定城市';
+  $('resultDates').textContent = validDates ? range(params.start, params.end) : '';
+  if (!isCity && feelings[params.preference]) $('resultDates').append(text('span', '冷热偏好：' + feelings[params.preference], 'trip-preference'));
+  $('resultMode').textContent = `${historicalRequest ? '过去五年同期参考，不是本次旅行预报' : isCity ? '今起14天气温预报' : validDates ? '所选日期气温预报' : '请检查链接'}${demo ? ' · 模拟' : ''}`;
+  document.title = `${isCity ? '城市穿衣参考' : '行程穿衣建议'} · ${knownCity ? knownCity.zh : '尚未确定城市'}`;
   resultStatus(demo ? '正在加载模拟穿衣参考…' : '正在获取气温并生成建议…'); $('result').setAttribute('aria-busy', 'true'); focusHeading('resultCity');
   window.scrollTo(0, 0);
   const selected = isCity ? featuredScenario() : scenario();
   if (selected === 'loading') return;
   try {
+    if (!knownCity && !isCity) {
+      try {
+        const city = demo ? cities.find(c => c.id === params.city_id) : (await api('/api/city', { city_id: params.city_id })).city;
+        if (version !== requestVersion) return;
+        if (city) {
+          $('resultCity').textContent = `${city.zh} · ${city.name}`;
+          document.title = `${isCity ? '城市穿衣参考' : '行程穿衣建议'} · ${city.zh}`;
+          if (!isCity) { restoreForm({ city, cityText: `${city.zh} · ${city.name}`, start: params.start, end: params.end, preference: params.preference }); saveForm(); }
+        }
+      } catch (error) {
+        if (version !== requestVersion) return;
+        $('resultCity').textContent = '未能确定城市';
+        if (error.code === 'invalid_request') throw error;
+      }
+    }
     const data = await api('/api/advice', { ...params, ...(demo ? { fixture: selected } : {}) });
     if (version !== requestVersion) return;
     current = data;
@@ -151,6 +178,7 @@ async function showResult(params) {
     $('resultKind').textContent = `${isCity ? '城市穿衣参考' : '行程穿衣建议'} · ${data.fixture ? '模拟数据' : '真实气温参考'}`;
     document.querySelector('#spanRemind strong').textContent = data.fixture ? '冷热变化提醒 · 示例' : historical ? '历史冷暖风险 · 非本次预报' : '冷热变化提醒';
     $('resultCity').textContent = `${data.city.zh} · ${data.city.name}`;
+    if (!isCity) { restoreForm({ city: data.city, cityText: `${data.city.zh} · ${data.city.name}`, start: data.start, end: data.end, preference: data.preference }); saveForm(); }
     $('resultDates').textContent = `${range(data.start, data.end)}${isCity ? ' · 今起14天' : ''}`;
     if (!isCity) $('resultDates').append(text('span', '冷热偏好：' + feelings[data.preference], 'trip-preference'));
     $('resultMode').textContent = historical ? `过去五年同期参考，不是本次旅行预报${data.fixture ? ' · 模拟' : ''}` : `${isCity ? '今起14天' : '所选日期'}气温预报${data.fixture ? ' · 模拟' : ''}`;
@@ -189,7 +217,8 @@ async function showResult(params) {
     }
   } catch (error) {
     if (version !== requestVersion) return;
-    $('resultCity').textContent = '暂时无法显示建议'; resultStatus(error.message, true);
+    if ($('resultCity').textContent === '尚未确定城市') $('resultCity').textContent = '未能确定城市';
+    resultStatus(error.message, error.code || true);
   } finally { if (version === requestVersion) $('result').setAttribute('aria-busy', 'false'); }
 }
 function navigate(params) {
@@ -208,6 +237,7 @@ async function route() {
     $('home').classList.add('hidden'); $('result').classList.remove('hidden');
     ++requestVersion; current = null; $('back').textContent = '← 返回首页'; $('resultKind').textContent = '无效链接';
     $('resultCity').textContent = '查询参数无效'; $('resultDates').textContent = ''; $('resultMode').textContent = '请检查链接';
+    $('result').setAttribute('aria-busy', 'false'); focusHeading('resultCity');
     resultStatus('链接参数无效或重复，请返回首页重新查询。'); return;
   }
   // City navigation deliberately discards any personal trip parameters.
@@ -260,14 +290,5 @@ try {
   document.querySelector('.demo-tools').classList.toggle('hidden', !context.fixture_mode);
   await refreshContext();
   cities = (await api('/api/cities', cityParams(''))).cities;
-  // A directly opened personal link can be edited without entering it twice.
-  if (!history.state?.form && new URLSearchParams(location.search).get('view') === 'trip') {
-    const q = new URLSearchParams(location.search);
-    let city = cities.find(c => c.id === q.get('city_id'));
-    if (!city && scenario() === 'live') {
-      try { city = (await api('/api/city', { city_id: q.get('city_id') || '' })).city; } catch { /* Result route explains invalid city. */ }
-    }
-    if (city) restoreForm({ city, cityText: `${city.zh} · ${city.name}`, start: q.get('start'), end: q.get('end'), preference: feelings[q.get('preference')] ? q.get('preference') : 'normal' });
-  }
   saveForm(); await refreshContext(); await route();
 } catch (error) { $('formError').textContent = error.message; }

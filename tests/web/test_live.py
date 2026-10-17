@@ -265,11 +265,11 @@ class APITests(unittest.TestCase):
         code,d=self.request('/api/advice?'+urlencode(p));self.assertEqual(code,200);self.assertFalse(d['fixture'])
         for extra in ['&city_id=munich','&latitude=1','&fixture=']:
             code,d=self.request('/api/advice?'+urlencode(p)+extra);self.assertEqual(code,400)
-        code,d=self.request('/api/advice?'+urlencode(dict(p,end='2026-10-30')));self.assertEqual(code,503);self.assertNotIn('headline',d)
+        code,d=self.request('/api/advice?'+urlencode(dict(p,end='2026-10-30')));self.assertEqual(code,503);self.assertNotIn('headline',d);self.assertEqual(d['code'],'history_incomplete')
         code,d=self.request('/api/cities?q=frankfurt');self.assertEqual(code,200);self.assertEqual(len(d['cities']),2)
         code,d=self.request('/api/advice?view=city&city_id=berlin');self.assertEqual(code,503);self.assertNotIn('headline',d)
         code,d=self.request('/api/advice?view=city&city_id=berlin&fixture=stable');self.assertEqual(code,200);self.assertTrue(d['fixture']);self.assertIsNone(d['weather_fetched_at'])
-        code,d=self.request('/api/featured');self.assertEqual(code,503);self.assertNotIn('cities',d)
+        code,d=self.request('/api/featured');self.assertEqual(code,503);self.assertNotIn('cities',d);self.assertEqual(d['code'],'temporarily_unavailable')
         code,d=self.request('/api/featured?fixture=default');self.assertEqual(code,200);self.assertTrue(d['fixture'])
         code,d=self.request('/api/advice?'+urlencode(p)+'&fixture=stable');self.assertEqual(code,200);self.assertTrue(d['fixture'])
         code,d=self.request('/api/cities?q=x&q=y');self.assertEqual(code,400)
