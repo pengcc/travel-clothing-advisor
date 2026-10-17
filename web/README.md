@@ -2,9 +2,44 @@
 
 Python 3.9+ with `Europe/Berlin` zone data; standard library only:
 
+From the repository root:
+
+```sh
+make dev    # Check both prepared stores, then serve http://127.0.0.1:8000
+make test   # Existing offline web unittest suite; no provider requests
+make demo   # Explicit offline fixtures; no cache directories required
+```
+
+`make dev` attaches **both** `.history-local` and `.forecast-local`. Before
+starting it checks directory access, the presence of history month blocks, and
+validates the complete Germany-today featured forecast publication using the
+existing cache checks. Missing directories, empty history, or missing/stale/invalid
+featured forecasts stop startup with preparation guidance. Preflight is read-only:
+it creates no directories, locks or ledgers and makes no provider calls. Its
+observations can change before the server reads the data.
+
+History block presence does **not** certify validity or coverage for a specific
+city/trip. Use the existing read-only exact-trip check described below:
+
+```sh
+python3 -m web.prefetch_history --check --store .history-local \
+  --cities-file .history-local/cities.json --start YYYY-MM-DD --end YYYY-MM-DD
+```
+
+Daily featured snapshots still require the **separate explicit manual worker**
+preparation described under Phase 2C; `make dev` never refreshes or downloads data.
+History preparation also remains a separate explicit operator action. Do not
+create empty directories to bypass preparation. Once running, live personal
+queries retain their existing provider calls and cache behavior.
+
+Optional overrides: `make dev PORT=8001 HISTORY_DIR=.history-local
+FORECAST_DIR=.forecast-local PYTHON=python3`. `make check-dev` runs only the
+read-only preflight. Stop a running server with Ctrl-C. If you intentionally need
+to run without one of the stores, the existing direct CLI remains supported:
+
 ```sh
 python3 -m web.server
-# http://127.0.0.1:8000
+python3 -m web.server --history-dir .history-local --forecast-dir .forecast-local --port 8000
 ```
 
 Personal trips now use real Open-Meteo temperature forecasts and server-resolved German GeoNames locations. Choose dates wholly within Germany-today…today+13 and cold/normal/hot sensitivity. Chinese names for the existing cities remain available; other German places use their provider names and federal states. A numeric location ID in a shared URL is resolved through Open-Meteo `/v1/get`; client coordinates are rejected. Search results are filtered to German populated places. Individually incomplete/invalid candidates are skipped; usable matches retain their verified state and coordinates. A nonempty response with no usable candidate returns 503, while a genuinely empty search returns an empty list. Direct ID resolution still rejects incomplete metadata. Requests go to fixed provider URLs with an eight-second timeout per call and no automatic retries. No trip URLs, headers or provider errors are logged.
