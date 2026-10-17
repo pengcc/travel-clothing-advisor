@@ -24,7 +24,7 @@ UI_BASE_URL=http://127.0.0.1:8002 node tests/web/copy-regressions.cjs
 node docs/verification/issue27/capture.cjs
 ```
 
-Results: 60 web tests and 122 clothing-rule tests pass; browser suites pass 63, 10, 35, 27, 33 and 32 checks/cases respectively. Restricted execution requires loopback/Chrome permission. All provider data is synthetic and injected: these results establish no live-weather acquisition, actual forecast accuracy or garment-science validity. No live weather calls, production data mutation, deployment or merge.
+Results: 60 web tests and 122 clothing-rule tests pass; browser suites pass 63, 10, 35, 27, 33 and 57 checks/cases respectively. Restricted execution requires loopback/Chrome permission. All provider data is synthetic and injected: these results establish no live-weather acquisition, actual forecast accuracy or garment-science validity. No live weather calls, production data mutation, deployment or merge.
 
 ## Output comparison
 
@@ -39,10 +39,10 @@ Historical example (November 2–5; four yearly samples at 8°C and one at 0°C)
 
 - Before: the headline combined the common L5 coat and extra L6 cold-risk coat; cold inner-layer text repeated in the main layers.
 - Now headline: “建议带保暖夹克或轻羽绒”.
-- Separate risk retains “冬季保暖外套和保暖内搭” plus “保暖内搭搭配毛衣或抓绒”. Typical inner layers remain long sleeves with a sweater/fleece.
+- Separate risk: “过去五年同期曾出现较冷情况：建议带冬季保暖外套，搭配保暖内搭、毛衣或抓绒；较暖时内搭减薄、外层方便脱下。不是本次旅行预报。” Each cold garment is named once within the risk block. Typical inner layers remain long sleeves with a sweater/fleece.
 - Mode prominently says “过去五年同期参考，不是本次旅行预报”. No future cold date is invented. No acquisition is repeated when preference changes.
 
-Some cold outer/inner and meaningful early-evening coverage remains explicit in overlapping notices. This intentionally preserves safety information where the existing API does not distinguish an already-covered garment from an independent colder-hours need. No frontend temperature inference or trigger changes were introduced. Near-13°C boundary advice and no-representative-level cold/warm coverage remain covered by existing regression tests.
+Meaningful early-evening coverage remains explicit when supported by the existing notices. General thickness-boundary guidance uses a neutral heading rather than an evening-risk heading. Separate cold/warm coverage in genuinely split results remains explicit; the L5/L6 risk block no longer repeats its own garment recommendations. No frontend temperature inference or trigger changes were introduced. Near-13°C boundary advice and no-representative-level cold/warm coverage remain covered by existing regression tests.
 
 ## Browser scope and visual inspection
 
@@ -53,3 +53,13 @@ Automated mobile overflow checks cover 320/375/390px (existing suites also cover
 - [Homepage](home-375.png)
 - [Forecast city detail](forecast-375.png)
 - [Historical L5 usual / L6 risk](history-375.png)
+
+## Review #5557370663 follow-up
+
+Addressed all three P2 findings on the same delivery branch:
+
+- **F1:** Conditional heading/icon uses “分层与厚度提示” for general or mixed notes, reserving “早晚注意分层” for genuine cooler-hour guidance. Browser tests render Python-derived near-13°C forecast and historical inputs with no cooler edges, verify the general guidance is visible/copied without an evening heading/icon, and verify real 20:00 cooler-hour advice retains its evening title.
+- **F2:** “通常准备的外套” requires a representative historical level. Evenly split historical samples instead use “外套建议”, retaining null bars/temperature, winter outer/inner coverage and lightweight warm alternatives. Browser tests cover both representative L5 and equal cold/warm historical samples.
+- **F3:** The historical risk composes cold outerwear plus concise inner layers once and omits the usual jacket as a redundant warmer option. The 4×8°C + 1×0°C test checks each winter garment appears exactly once, warmer/removable-layer options and non-prediction remain, for all three preferences. Existing split/near-boundary safety tests continue passing.
+
+Re-ran all six browser suites: 225 checks/cases in total, plus 60 web and 122 clothing-rule tests. The updated historical capture was visually inspected at 375px. Data acquisition, cache and clothing/risk calculations are unchanged. Tests remain entirely synthetic; no merge or deployment.

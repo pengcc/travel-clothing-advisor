@@ -263,7 +263,7 @@ class HistoryTests(unittest.TestCase):
                         self.assertIn(outer,d[field])
                     self.assertNotIn(outer,d['headline'])
                     self.assertNotIn('偏冷情况另备',d['layers'])
-                    self.assertIn('偏冷时内搭另备',d['packing_variation_notice'])
+                    self.assertIn('搭配',d['packing_variation_notice'])
                     self.assertTrue(any('13°C' in n for n in d['notices']))
                     self.assertEqual(d['mode'],'historical_reference')
                     self.assertNotIn('2026-11',d['headline']+d['packing_variation_notice'])
@@ -282,6 +282,12 @@ class HistoryTests(unittest.TestCase):
             self.assertIn('保暖内搭', d['packing_variation_notice'])
             self.assertNotIn('2026-11', d['packing_variation_notice'])
             self.assertNotIn('偏冷情况另备', d['layers'])
+            notice = d['packing_variation_notice']
+            for garment in ('冬季保暖外套', '保暖内搭', '毛衣', '抓绒'):
+                self.assertEqual(notice.count(garment), 1)
+            self.assertNotIn('保暖夹克或轻羽绒', notice)
+            self.assertIn('较暖时内搭减薄、外层方便脱下', notice)
+            self.assertIn('不是本次旅行预报', notice)
         self.assertEqual(len(self.provider.calls), requests)
 
     def test_near_13_override_without_meaningful_cold_outlier(self):

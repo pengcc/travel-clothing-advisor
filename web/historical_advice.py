@@ -22,11 +22,16 @@ def advise(library, city, p, now, clock, downloader=None, max_missing=0):
     notice = summary = None
     if variation:
         # Deliberately discard dated forecast copy, keep the shared packing decision.
-        notice = f'过去五年同期曾出现较冷情况：{OUTER[cold]}；较暖时{OUTER[warm]}，内搭减薄、外套方便脱下。'
+        # Presentation-only garment copy: name cold outer and inner coverage once.
+        cold_layers = {
+            1: '搭配短袖和透气下装', 2: '搭配短袖或薄长袖',
+            3: '搭配短袖或薄长袖', 4: '搭配长袖和薄毛衣',
+            5: '搭配长袖、毛衣或抓绒', 6: '搭配保暖内搭、毛衣或抓绒',
+        }
+        warm_option = f'{usual_coat[warm]}，' if main is None or warm < main else ''
+        notice = (f'过去五年同期曾出现较冷情况：{usual_coat[cold]}，{cold_layers[cold]}；'
+                  f'较暖时{warm_option}内搭减薄、外层方便脱下。不是本次旅行预报。')
         summary = f'过去五年同期有冷暖差异，冷时{OUTER[cold]}，暖时减薄。'
-        if main is not None and cold > main:
-            # Keep the usual coat separate from observed cold-risk coverage.
-            notice += f'偏冷时内搭另备：{INNER[cold]}'
     notes = []
     if ref is not None and main in (4,5) and abs(ref-13)<=0.75:
         # Boundary wording must not erase an observed colder packing requirement.

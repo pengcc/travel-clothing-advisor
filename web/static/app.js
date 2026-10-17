@@ -157,7 +157,7 @@ async function showResult(params) {
     document.title = `${isCity ? '城市穿衣参考' : '行程穿衣建议'} · ${data.city.zh}${data.fixture ? ' · 演示' : ''}`;
     if (data.data_status === 'stale') { current = null; resultStatus(`数据已过期，暂无有效建议。查询日期：${range(data.start, data.end)}；天气获取时间：${data.weather_fetched_at || '未获取（模拟数据）'}。`, true); return; }
     $('resultStatus').classList.add('hidden'); $('resultContent').classList.remove('hidden');
-    $('coatLabel').textContent = historical ? '通常准备的外套' : '外套建议';
+    $('coatLabel').textContent = historical && data.warmth_indicator_level !== null ? '通常准备的外套' : '外套建议';
     $('resultHeadline').textContent = data.headline;
     $('resultWarmthMark').replaceChildren(data.warmth_indicator_level === null && !data.packing_variation_notice ? text('span', '暂无白天参考', 'warmth-mark') : WarmthIndicator(data.warmth_indicator_level));
     $('spanRemind').classList.toggle('hidden', !data.packing_variation_notice);
@@ -168,6 +168,10 @@ async function showResult(params) {
     $('tempTitle').textContent = historical ? '往年同期白天气温参考' : (data.fixture ? '白天的示例气温' : '白天气温参考');
     $('tempText').textContent = data.reference_temperature_c === null ? (data.packing_variation_notice ? '白天冷暖差异较大，请按上方建议备衣。' : '今天白天已过，请参考剩余晚间的备衣建议。') : (data.fixture ? `模拟数值约 ${data.reference_temperature_c}°C，不代表真实气温。` : `${historical ? '过去五年同期样本' : '所选日期白天'}气温中间水平约 ${data.reference_temperature_c}°C。`);
     const notes = data.notices.filter(note => !note.includes('今天仅使用查询时刻之后') && !note.includes('保暖需求接近'));
+    // General thickness-boundary advice is not evidence of cooler mornings/evenings.
+    const onlyEdgeGuidance = notes.every(note => note.includes('较凉') || note.startsWith('早晚示例：'));
+    $('edgeTitle').textContent = onlyEdgeGuidance ? '早晚注意分层' : '分层与厚度提示';
+    $('edgeIcon').textContent = onlyEdgeGuidance ? '🌙' : '＋';
     $('edgeText').textContent = notes.join(' ');
     $('edgeNotice').classList.toggle('hidden', !notes.length);
     $('temperatureNotice').before($('edgeNotice'));
