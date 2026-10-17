@@ -3,6 +3,7 @@ from contextlib import redirect_stdout, redirect_stderr
 from datetime import date
 from io import StringIO
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -34,6 +35,74 @@ class OperationsTests(unittest.TestCase):
                 with self.assertRaises((Unavailable, ValueError)):
                     resolve_manifest(['munich'], other, lambda *a:raw)
                 self.assertFalse(other.exists())
+
+    def test_manifest_publication_failures_leave_no_destination_and_allow_retry(self):
+        original_temp = tempfile.NamedTemporaryFile
+
+        class FailingOutput:
+            def __init__(self, wrapped, stage):
+                self.wrapped, self.stage = wrapped, stage
+            def __getattr__(self, name):
+                return getattr(self.wrapped, name)
+            def __enter__(self):
+                self.wrapped.__enter__()
+                return self
+            def write(self, value):
+                if self.stage == 'write':
+                    self.wrapped.write(value[:10])
+                    raise OSError('Injected partial write')
+                return self.wrapped.write(value)
+            def flush(self):
+                if self.stage == 'flush':
+                    raise OSError('Injected flush failure')
+                return self.wrapped.flush()
+            def __exit__(self, *args):
+                result = self.wrapped.__exit__(*args)
+                if self.stage == 'close':
+                    raise OSError('Injected close failure')
+                return result
+
+        for stage in ('serialize', 'write', 'flush', 'close', 'sync', 'link'):
+            with self.subTest(stage=stage), tempfile.TemporaryDirectory() as root:
+                target = Path(root)/'cities.json'
+                def fetch(url, params):
+                    return dict(geo(), id=params['id'])
+                def temporary(*args, **kwargs):
+                    self.assertEqual(Path(kwargs['dir']), target.parent)
+                    self.assertFalse(target.exists())
+                    return FailingOutput(original_temp(*args, **kwargs), stage)
+                with patch('web.prefetch_history.tempfile.NamedTemporaryFile', side_effect=temporary):
+                    if stage in ('serialize', 'sync', 'link'):
+                        operation = {'serialize':'json.dumps', 'sync':'os.fsync', 'link':'os.link'}[stage]
+                        with patch('web.prefetch_history.'+operation, side_effect=OSError('Injected IO failure')):
+                            with self.assertRaises(OSError):
+                                resolve_manifest(['munich'], target, fetch)
+                    else:
+                        with self.assertRaises(OSError):
+                            resolve_manifest(['munich'], target, fetch)
+                self.assertFalse(target.exists())
+                self.assertEqual(list(Path(root).iterdir()), [])
+                resolve_manifest(['munich'], target, fetch)
+                self.assertEqual(location(json.loads(target.read_text())[0])['id'], 'munich')
+                self.assertEqual(list(Path(root).iterdir()), [target])
+
+    def test_manifest_concurrent_publication_never_overwrites_winner(self):
+        original_link = os.link
+        with tempfile.TemporaryDirectory() as root:
+            target = Path(root)/'cities.json'
+            winner = json.dumps([geo()]).encode()
+            def competing_link(source, destination):
+                # Publication only occurs after the staging file is complete.
+                staged = json.loads(Path(source).read_text())
+                self.assertEqual(location(staged[0])['id'], 'munich')
+                target.write_bytes(winner)
+                return original_link(source, destination)
+            with patch('web.prefetch_history.os.link', side_effect=competing_link):
+                with self.assertRaises(FileExistsError):
+                    resolve_manifest(['munich'], target,
+                                     lambda url, params: dict(geo(), id=params['id']))
+            self.assertEqual(target.read_bytes(), winner)
+            self.assertEqual(list(Path(root).iterdir()), [target])
 
     def test_cli_all_featured_metadata_and_partial_failure(self):
         with tempfile.TemporaryDirectory() as root:

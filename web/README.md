@@ -235,7 +235,10 @@ configuration and coverage remain unverified.
    To prioritize München in that initialization, pass `--city-id munich` first
    then repeat `--city-id` for each remaining alias. All records must pass the
    existing `location()` validation and requested-ID equality before publication.
-   No coordinates are invented. A failed batch creates no manifest; requests
+   No coordinates are invented. The complete manifest is staged, flushed, synced
+   and closed before atomic no-overwrite publication; write failures leave no
+   partial destination and staging files are cleaned up. A destination created
+   concurrently is preserved. A failed batch creates no manifest; requests
    already attempted still count. Keep provider records ignored and out of Git.
    Do not merge records by copying UI fixtures or manually supplying coordinates.
 

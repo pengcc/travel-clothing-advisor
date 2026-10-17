@@ -6,6 +6,8 @@ Creating it with --resolve-cities makes LIVE GeoNames requests and requires sepa
 import argparse
 from datetime import date, datetime
 import json
+import os
+import tempfile
 from pathlib import Path
 
 from web.fixtures import BERLIN, CITIES
@@ -70,9 +72,24 @@ def resolve_manifest(city_ids, destination, fetch=fetch_json):
         # Retain only the provider fields consumed by location(), never arbitrary payloads.
         records.append({k:raw[k] for k in
                         ('id','name','admin1','country_code','feature_code','latitude','longitude')})
-    # Never overwrite an operator's existing trusted manifest.
-    with Path(destination).open('x') as output:
-        json.dump(records, output, ensure_ascii=False)
+    # Serialize before touching storage, and close staging before exposing a name.
+    payload = json.dumps(records, ensure_ascii=False)
+    destination = Path(destination)
+    staging = None
+    try:
+        with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8',
+                dir=destination.parent, prefix='.cities-', suffix='.tmp', delete=False) as output:
+            staging = output.name
+            output.write(payload)
+            output.flush()
+            os.fsync(output.fileno())
+        # Same-directory hard link publishes the complete file atomically and
+        # fails if any destination already exists (including a concurrent writer).
+        # Do not use replace/rename: replacing an operator manifest is forbidden.
+        os.link(staging, destination)
+    finally:
+        if staging is not None:
+            os.unlink(staging)
 
 
 def main(argv=None):
