@@ -162,7 +162,11 @@ async function showResult(params) {
           document.title = `${isCity ? '城市穿衣参考' : '行程穿衣建议'} · ${city.zh}`;
           if (!isCity) { restoreForm({ city, cityText: `${city.zh} · ${city.name}`, start: params.start, end: params.end, preference: params.preference }); saveForm(); }
         }
-      } catch { if (version !== requestVersion) return; $('resultCity').textContent = '未能确定城市'; }
+      } catch (error) {
+        if (version !== requestVersion) return;
+        $('resultCity').textContent = '未能确定城市';
+        if (error.code === 'invalid_request') throw error;
+      }
     }
     const data = await api('/api/advice', { ...params, ...(demo ? { fixture: selected } : {}) });
     if (version !== requestVersion) return;

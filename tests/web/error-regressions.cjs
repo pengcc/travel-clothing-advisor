@@ -25,7 +25,7 @@ const assert=require('node:assert/strict');
  assert.equal(await page.locator('#city').inputValue(),'慕尼黑 · München');assert.equal(await page.locator('#end').inputValue(),'2026-11-02');assert.equal(await page.locator('[data-feeling=cold]').getAttribute('aria-pressed'),'true');
  code='temporarily_unavailable';await open('2026-10-22');release();await page.getByRole('button',{name:'重试查询',exact:true}).waitFor();
  assert.match(await page.locator('#resultMode').textContent(),/气温预报/);assert.match(await page.locator('#resultCity').textContent(),/München/);
- status=400;code='invalid_request';await open('2026-10-22','invalid');release();await page.waitForFunction(()=>document.querySelector('#result').getAttribute('aria-busy')==='false');
+ status=400;code='invalid_request';await page.goto((process.env.UI_BASE_URL||'http://127.0.0.1:8002')+'/?view=trip&city_id=invalid&start=2026-10-20&end=2026-11-02&preference=cold');await page.waitForFunction(()=>document.querySelector('#result').getAttribute('aria-busy')==='false');
  assert.match(await page.locator('#resultCity').textContent(),/未能确定城市/);assert.equal(await page.getByRole('button',{name:'重试查询',exact:true}).count(),0);
  await page.goto((process.env.UI_BASE_URL||'http://127.0.0.1:8002')+'/?view=trip&view=city');await page.getByText('查询参数无效',{exact:true}).waitFor();
  console.log('Error context, loading, history/forecast actions, unknown city, duplicate link and edit restoration passed');
