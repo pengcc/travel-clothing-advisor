@@ -163,8 +163,11 @@ async function showResult(params) {
     $('spanRemind').classList.toggle('hidden', !data.packing_variation_notice);
     $('spanText').textContent = data.packing_variation_notice || '';
     $('resultLayers').textContent = data.layers;
+    const guidance = data.packing_copy?.guidance;
+    $('resultGuidance').replaceChildren(...['alternative', 'personal_layer', 'trousers_shoes']
+      .filter(key => guidance?.[key]).map(key => text('p', guidance[key])));
     $('preferenceNote').classList.toggle('hidden', !isCity);
-    $('preferenceNote').textContent = isCity ? '默认按正常冷热偏好推荐。每个人对冷热的感受不同，怕冷可多备一层，怕热可适当减薄。' : '';
+    $('preferenceNote').textContent = isCity ? '默认按正常冷热偏好推荐。' : '';
     $('tempTitle').textContent = historical ? '往年同期白天气温参考' : (data.fixture ? '白天的示例气温' : '白天气温参考');
     $('tempText').textContent = data.reference_temperature_c === null ? (data.packing_variation_notice ? '白天冷暖差异较大，请按上方建议备衣。' : '今天白天已过，请参考剩余晚间的备衣建议。') : (data.fixture ? `模拟数值约 ${data.reference_temperature_c}°C，不代表真实气温。` : `${historical ? '过去五年同期样本' : '所选日期白天'}气温中间水平约 ${data.reference_temperature_c}°C。`);
     const notes = data.notices.filter(note => !note.includes('今天仅使用查询时刻之后') && !note.includes('保暖需求接近'));

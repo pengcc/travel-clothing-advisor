@@ -59,7 +59,7 @@ class LiveTests(unittest.TestCase):
         self.assertNotEqual(d['advice_generated_at'],cold['advice_generated_at'])
         self.assertEqual(d['reference_temperature_c'],cold['reference_temperature_c'])
         self.assertEqual(d['data_version'],cold['data_version'])
-        self.assertNotEqual(d['layers'],cold['layers'])
+        self.assertNotEqual(d['packing_copy']['guidance'],cold['packing_copy']['guidance'])
         calls=[p for u,p in self.fake.calls if u==FORECAST]
         self.assertEqual(len(calls),1)
         self.assertEqual(calls[0]['hourly'],'temperature_2m')

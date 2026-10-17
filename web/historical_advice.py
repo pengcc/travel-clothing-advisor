@@ -53,17 +53,13 @@ def advise(library, city, p, now, clock, downloader=None, max_missing=0):
         notes.append(f'过去五年同期的早晚样本曾较凉：{OUTER[level(v)]}，外出可带可脱保暖层。')
     else:
         notes.append('过去五年同期早晚样本与白天保暖需求接近，按体感增减。')
-    if p['preference'] == 'cold':
-        layers += '怕冷：较凉时可多备一层薄长袖或薄毛衣。'
-    elif p['preference'] == 'hot':
-        layers += '怕热：内搭可减薄，中间层方便脱下。'
     from web.history import digest
     times = sorted({b['body']['fetched_at'] for b in blocks.values()},
                    key=lambda t: datetime.fromisoformat(t).timestamp())
     if any(datetime.fromisoformat(t)>generated for t in times):
         raise Unavailable('历史资料时间无效，请重试。')
     from web.advice_copy import packing_copy
-    clipboard = packing_copy(main, copy_events, split=(cold, warm) if main is None else None, boundary=copy_boundary)
+    clipboard = packing_copy(main, copy_events, split=(cold, warm) if main is None else None, boundary=copy_boundary, preference=p['preference'])
     if copy_boundary_note:
         clipboard['boundary'] = '接近13°C厚度分界，按体感增减中间层。'
     return dict(packing_copy=clipboard, city=public_city(city), start=p['start'], end=p['end'], preference=p['preference'],
