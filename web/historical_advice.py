@@ -16,7 +16,8 @@ def advise(library, city, p, now, clock, downloader=None, max_missing=0):
     values = [v for _,v in days]
     cold, warm = level(min(values)), level(max(values))
     ref = round(median(values),1) if main is not None else None
-    headline = OUTER[main] if main is not None else f'历史冷暖分化，冷时{OUTER[cold]}，暖时减薄'
+    usual_coat = {**OUTER, 4: '建议带适中外套', 5: '建议带保暖夹克或轻羽绒', 6: '建议带冬季保暖外套'}
+    headline = usual_coat[main] if main is not None else f'历史冷暖分化，冷时{OUTER[cold]}，暖时减薄'
     layers = INNER[main] if main is not None else f'较冷时：{INNER[cold]}较暖时：{INNER[warm]}'
     notice = summary = None
     if variation:
@@ -24,9 +25,8 @@ def advise(library, city, p, now, clock, downloader=None, max_missing=0):
         notice = f'过去五年同期曾出现较冷情况：{OUTER[cold]}；较暖时{OUTER[warm]}，内搭减薄、外套方便脱下。'
         summary = f'过去五年同期有冷暖差异，冷时{OUTER[cold]}，暖时减薄。'
         if main is not None and cold > main:
-            headline = f'历史常见情况：{OUTER[main]}；偏冷情况另备：{OUTER[cold]}'
-        if main is not None and cold > main:
-            layers += f'历史偏冷情况另备：{INNER[cold]}'
+            # Keep the usual coat separate from observed cold-risk coverage.
+            notice += f'偏冷时内搭另备：{INNER[cold]}'
     notes = []
     if ref is not None and main in (4,5) and abs(ref-13)<=0.75:
         # Boundary wording must not erase an observed colder packing requirement.

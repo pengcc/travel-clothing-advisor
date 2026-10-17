@@ -15,7 +15,7 @@ export function WarmthIndicator(level) {
   const m = meta[level];
   if (!m) throw new Error('无效保暖标记');
   const chip = text('span', '', 'warmth-mark');
-  chip.setAttribute('aria-label', `临时保暖标记：${m[0]}`);
+  chip.setAttribute('aria-label', `保暖程度：${m[0]}`);
   chip.style.setProperty('--mark-ink', m[2]); chip.style.setProperty('--mark-bg', m[3]);
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('viewBox', '0 0 30 17'); svg.setAttribute('aria-hidden', 'true');
@@ -35,7 +35,7 @@ export function CityCard(data, href) {
   const host = text('span', '', 'warmth-host'); host.append(WarmthIndicator(data.warmth_indicator_level));
   card.append(host, text('span', data.headline, 'coat'));
   if (data.packing_variation_summary) card.append(text('span', data.packing_variation_summary, 'card-variation'));
-  card.append(text('span', data.fixture ? '模拟数据 · 未获取真实天气' : `Open-Meteo · 获取于 ${new Date(data.weather_fetched_at).toLocaleString('zh-CN', { timeZone: 'Europe/Berlin', hour12: false })}（德国）`, 'card-source'));
+  if (data.fixture) card.append(text('span', '模拟数据 · 非真实天气', 'card-source'));
   card.append(text('span', '查看14天建议 →', 'go'));
   return card;
 }
