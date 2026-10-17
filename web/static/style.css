@@ -49,3 +49,5 @@ input::placeholder{color:var(--muted)}.suggestions button{min-height:44px}
 @media(min-width:421px) and (max-width:800px){.container{padding:0 16px}}
 
 body{overflow-wrap:anywhere}.warmth-mark,.warmth-mark .warmth-name{white-space:normal}
+
+.city-card .card-source{font-size:11px;line-height:1.5;color:var(--muted);margin-top:8px}

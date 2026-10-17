@@ -35,7 +35,7 @@ class Handler(BaseHTTPRequestHandler):
                 name, mime = STATIC[url.path]
                 return self.send_bytes(200, (ROOT / 'static' / name).read_bytes(), mime)
             if url.path == '/api/context':
-                return self.send_json(200, dict(window(), fixture_mode=self.fixtures_only))
+                return self.send_json(200, dict(window(self.service.clock()), fixture_mode=self.fixtures_only))
             if url.path == '/api/cities':
                 if set(p) - {'q', 'fixture'}:
                     raise ValueError('查询参数无效。')
@@ -51,13 +51,13 @@ class Handler(BaseHTTPRequestHandler):
             if url.path == '/api/featured':
                 if set(p) - {'fixture'}:
                     raise ValueError('查询参数无效。')
-                return self.send_json(200, featured(p.get('fixture', 'default')))
+                return self.send_json(200, featured(p.get('fixture', 'default'), self.service.clock()) if self.fixtures_only or 'fixture' in p else self.service.featured())
             if url.path == '/api/advice':
                 if set(p) - {'view','city_id','start','end','preference','fixture'}:
                     raise ValueError('查询参数无效。')
-                if self.fixtures_only or 'fixture' in p or p.get('view') == 'city':
-                    return self.send_json(200, advice(p, p.get('fixture', 'default')))
-                return self.send_json(200, self.service.advice(p))
+                if self.fixtures_only or 'fixture' in p:
+                    return self.send_json(200, advice(p, p.get('fixture', 'default'), self.service.clock()))
+                return self.send_json(200, self.service.city_advice(p) if p.get('view') == 'city' else self.service.advice(p))
             self.send_json(404, dict(error='页面不存在。'))
         except ValueError as exc:
             self.send_json(400, dict(error=str(exc)))
@@ -81,12 +81,15 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--fixtures', action='store_true', help='Explicit offline Phase 1 testing mode')
     parser.add_argument('--history-dir', help='Explicit local history library (read-only in web requests; no downloads)')
+    parser.add_argument('--forecast-dir', help='Explicit local shared daily forecast store')
     parser.add_argument('--port', type=int, default=8000)
     args = parser.parse_args()
     Handler.fixtures_only = args.fixtures
-    if args.history_dir:
-        from web.history import DirectoryStore, Library
-        Handler.service = Service(history=Library(DirectoryStore(args.history_dir)))
+    from web.history import DirectoryStore, Library
+    from web.forecasts import Cache
+    Handler.service = Service(
+        history=Library(DirectoryStore(args.history_dir)) if args.history_dir else None,
+        forecast_cache=Cache(DirectoryStore(args.forecast_dir)) if args.forecast_dir else None)
     server = ThreadingHTTPServer(('127.0.0.1', args.port), Handler)
     print(f'Local travel UI: http://127.0.0.1:{args.port}', flush=True)
     server.serve_forever()

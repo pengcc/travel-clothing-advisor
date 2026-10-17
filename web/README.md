@@ -1,4 +1,4 @@
-# Local Python web UI — Phases 2A and 2B
+# Local Python web UI — Phases 2A–2C
 
 Python 3.9+ with `Europe/Berlin` zone data; standard library only:
 
@@ -14,9 +14,9 @@ This is a loopback-only local development server, not a production server. No de
 ## Live and demo boundaries
 
 - **Personal trip, default:** live temperature-only data. `weather_fetched_at` is when this process received the weather response; `advice_generated_at` is when it computed this recommendation. Neither is a provider model update time. The UI and copied advice identify live results and attribute Open-Meteo / GeoNames.
-- **Featured cities:** always explicitly simulated, including their independent result pages. Cards never imply a live shared snapshot. They keep their own Germany-today…today+13 dates and normal sensitivity, without reading or changing the personal form.
+- **Featured cities, default:** real advice derived from a complete daily forecast publication (see Phase 2C below). Missing, corrupt or yesterday-only publications return 503; no fixtures are substituted. Cards and independent city views keep their own Germany-today…today+13 dates and normal sensitivity without reading or changing the personal form. Browsing makes zero provider calls.
 - **15–30-day personal trips:** use the five-year local history library when configured and complete; otherwise return 503 without clothing defaults. The form accepts the full 30-day window. Historical fixture examples remain explicitly simulated. See Phase 2B below.
-- **Demo control:** expand 模拟状态测试 and check 个人行程使用演示数据, or select a fixture scenario. Uncheck to restore live personal queries. `fixture=default|stable|colder|warmer|split|loading|stale|unavailable` explicitly selects authored API fixtures. Fixture weather acquisition time is null. Fixture overrides are never included in share links; ordinary live mode reopens personal links against real data. A demo result never claims to be real weather.
+- **Demo control:** expand 模拟状态测试 and check 使用演示数据, or select a fixture scenario. Uncheck to restore live personal queries. `fixture=default|stable|colder|warmer|split|loading|stale|unavailable` explicitly selects authored API fixtures. Fixture weather acquisition time is null. Fixture overrides are never included in share links; ordinary live mode reopens personal links against real data. A demo result never claims to be real weather.
 - **Phase 1 regression mode:** `python3 -m web.server --fixtures --port 8001` explicitly disables live advice/search for the existing offline browser suite. The response still identifies itself as a fixture even if the client asks otherwise. Do not use this runner to test provider integration.
 
 Loading, stale and unavailable states hide clothing results. Stale presentation retains the trip dates and acquisition time. Browser history retains form values only within that entry; no cookies, local storage, server sessions or analytics are added. Independent trip and city share URLs remain unchanged. The additional read-only `/api/city?city_id=` route resolves non-featured direct-link locations for return-to-form editing.
@@ -29,7 +29,7 @@ The adapter validates timezone, Celsius units, original strictly consecutive hou
 
 Each day's remaining daytime median feeds the six-level model. A majority observed level can be the main indicator; a meaningful split without a majority returns null, rather than inventing the median's unobserved level. Its headline, variation notice/summary and inner-layer advice cover the actual coldest observed clothing requirement, with lighter options for warmer days; a null indicator never means winter layers may be omitted. Independent variation detection considers level changes and temperature differences greater than the existing candidate 1.5°C noise tolerance. The 13°C ±0.75°C outerwear copy tolerance remains. These are experimental clothing heuristics, not validated thermal-comfort guarantees. Reminders name a supported colder/warmer date and the layer to add/remove. Early/evening layers are compared with that same day's daytime conditions to avoid repeating a cross-day change. Day 8–14 uncertainty appears separately. Sensitivity changes clothing copy, not weather samples or the weather version.
 
-A bounded, process-local dictionary reuses at most 32 city/Germany-date weather responses; a lock prevents duplicate forecast fetches within this single process. Acquisition time stays attached to the reused weather, while effective hours and advice are recalculated. Cross-midnight acquisition/calculation is rejected, and tomorrow uses a new key. This is a local development optimization, not a shared or persistent cache. City resolution still verifies the provider ID per advice request.
+Phase 2C replaces the process dictionary with an injectable daily source store (memory by default; explicit local persistent directory for restart sharing). See the cache identity, admission and local-only limits below. City resolution still verifies the provider ID per personal advice request; those geocoding requests are counted separately from forecast calls.
 
 Examples with injected complete hourly data:
 
@@ -40,7 +40,7 @@ Examples with injected complete hourly data:
 | Seven 24°C + seven 14°C days | null | Both ranges need coverage; no fabricated 19°C representative |
 | Stable 14°C or 12.9/13.1/13.2°C | observed level | No extra variation notice for boundary noise |
 
-Result JSON keeps `city,start,end,preference,mode,headline,layers,notices,reference_temperature_c,warmth_indicator_level,packing_variation_notice,packing_variation_summary,weather_fetched_at,advice_generated_at,source,data_status,data_version,caveat`. Nulls are explicit. Both variation fields come from the same service decision. The UI never computes temperatures or levels; `WarmthIndicator` remains replaceable. Featured cards continue using their authored fixture contract until Phase 2C.
+Result JSON keeps `city,start,end,preference,mode,headline,layers,notices,reference_temperature_c,warmth_indicator_level,packing_variation_notice,packing_variation_summary,weather_fetched_at,advice_generated_at,source,data_status,data_version,caveat`. Nulls are explicit. Both variation fields come from the same service decision. The UI never computes temperatures or levels; `WarmthIndicator` remains replaceable. Featured cards use the same backend rules; explicitly selected fixture cards keep their authored contract.
 
 ## Verification
 
@@ -57,11 +57,11 @@ UI_BASE_URL=http://127.0.0.1:8001 node tests/web/review-regressions.cjs
 For deterministic full live-path browser testing, start the injected provider (no external weather network):
 
 ```sh
-python3 -c "import sys; sys.path.insert(0,'tests/web'); from test_live import Fake, NOW; from web.live import Service; from web.server import Handler, ThreadingHTTPServer; Handler.service=Service(Fake(),lambda:NOW); ThreadingHTTPServer(('127.0.0.1',8002),Handler).serve_forever()"
+python3 tests/web/serve_forecasts.py
 node tests/web/live-browser.cjs
 ```
 
-The test writes `docs/verification/phase2a/live-injected-mobile.png`. The screenshot's live-path labels are exercised with **injected synthetic weather**, not a captured real forecast. Test dependencies remain optional and ignored in `.local-tools/`; see the original [Phase 1 record](../docs/verification/phase1/README.md).
+The test writes three images under `docs/verification/phase2c/`. The screenshot's live-path labels are exercised with **injected synthetic weather**, not a captured real forecast. Test dependencies remain optional and ignored in `.local-tools/`; see the original [Phase 1 record](../docs/verification/phase1/README.md).
 
 Optional public Berlin provider smoke test (requires network; no personal data needed):
 
@@ -81,13 +81,13 @@ See [Phase 2A results](../docs/verification/phase2a/README.md) for actual runs a
 
 ## Deferred work and provider references
 
-Phase **2C** remains responsible for featured-city daily forecast prefetch, shared cache/snapshots and scheduling. Phase **2D** selects hosted storage and validates a separately authorized Preview. This change adds no production infrastructure or deployment machinery.
+Phase **2C** implements local daily forecast preparation and shared sources; scheduling is deferred. Phase **2D** selects hosted storage and validates a separately authorized Preview. This change adds no production infrastructure or deployment machinery.
 
 The Phase 2A provider contract was checked 2026-10-16 against official [forecast documentation](https://open-meteo.com/en/docs) and [geocoding documentation](https://open-meteo.com/en/docs/geocoding-api). These establish API behavior, not clothing accuracy.
 
 ## Phase 2B: local five-year ERA5 library
 
-Personal trips ending after Germany-today+13 and by today+29 now use five complete analogous annual windows for the **entire** trip. The previous independent eight-year experimental CLI is unchanged. Live featured-city cards remain simulated until Phase 2C.
+Personal trips ending after Germany-today+13 and by today+29 now use five complete analogous annual windows for the **entire** trip. The previous independent eight-year experimental CLI is unchanged. Phase 2C serves real cached featured-city references independently of this history library.
 
 `history.py` provides `Library`, `Downloader`, `Store`, `MemoryStore` and `DirectoryStore`. The directory adapter is an explicit local-development library, **not production container storage**. Production needs a durable shared object adapter and reliable admission/quota coordination, deferred to Phase 2D. No vendor, infrastructure, credentials, scheduler or hosted store is configured here.
 
@@ -97,7 +97,7 @@ Start the read-only local web path with an already populated library:
 python3 -m web.server --history-dir .history-local
 ```
 
-The default server has no history library and returns a clear 503 for historical trips. With a library, missing/corrupt blocks or storage outages also return 503 without clothing defaults. Web requests never populate storage by default. The injectable `Service(history=..., history_downloader=..., history_max_missing=1)` permits strictly bounded admission for a resolved German city; if more than that number of blocks is missing it makes **zero** archive requests. A downloader requires its own equivalent-call and time budgets. A request still includes the existing geocoding call (8-second maximum) before historical admission (default 12-second worker maximum). Shared forecast caching and real featured snapshots remain Phase 2C.
+The default server has no history library and returns a clear 503 for historical trips. With a library, missing/corrupt blocks or storage outages also return 503 without clothing defaults. Web requests never populate storage by default. The injectable `Service(history=..., history_downloader=..., history_max_missing=1)` permits strictly bounded admission for a resolved German city; if more than that number of blocks is missing it makes **zero** archive requests. A downloader requires its own equivalent-call and time budgets. A request still includes the existing geocoding call (8-second maximum) before historical admission (default 12-second worker maximum). Shared forecast caching and real featured snapshots are described under Phase 2C below.
 
 ### Explicit initialization and manual prefetch
 
@@ -138,3 +138,39 @@ python3 -m unittest discover -s experiments/clothing-rules -q
 # Against a loopback fixture server, all historical data is injected:
 UI_BASE_URL=http://127.0.0.1:8001 node tests/web/history-browser.cjs
 ```
+
+
+## Phase 2C: shared daily forecast sources (local only)
+
+Issue #25 adds `web.forecasts.Cache`, using the existing `Store` protocol and atomic `MemoryStore` / `DirectoryStore` adapters. The in-memory default retains Phase 2A real personal queries; it does not imply durable sharing. Configure the **same explicit local directory** for the manual worker and all local web processes to reuse data across restarts:
+
+```sh
+python3 -m web.prefetch_forecasts --cities-file .forecast-local/cities.json --store-dir .forecast-local
+python3 -m web.server --forecast-dir .forecast-local --history-dir .history-local
+```
+
+Omit `--history-dir` if no five-year library exists. Both directories are ignored. No production filesystem/shared-storage claim, hosted adapter, credentials, cron, HTTP refresh endpoint, deployment or live-data initialization is included. Phase 2D owns hosted persistence, distributed admission, protected scheduling and Preview validation.
+
+### Operator invocation contract
+
+Prepare a local JSON **list of actual Open-Meteo GeoNames `/v1/get` records**, retaining `id,name,admin1,country_code,feature_code,latitude,longitude`. Use the same validated provider-record boundary as history; do not invent coordinates or use the synthetic test records as real input. Exactly the ten existing featured IDs are required: `2950159,2867714,2911298,2925533,2886242,2935022,2907911,2861650,2934246,2879139`. No geocoding occurs in the command. Provisioning real metadata/downloads is a separate operator action, not performed by this PR. Keep input local/ignored and free of credentials and personal information.
+
+The command prepares Germany-today only, serially, with at most **10 forecast attempts**, at most **4 seconds per network call**, a default **45-second total deadline** (`--timeout` may reduce it or increase it to at most 60), no automatic retries and a nonblocking per-store worker/reader lock. The real transport bounds both response bytes and wall time. A future daily scheduler should run this exact operator command with a persistent shared local directory on the same host, check exit status, and handle failure; this is a contract only, not scheduling configuration.
+
+Success emits operational JSON and exits 0. Failure/admission/storage/date/validation/timeout emits counts with `status=unavailable, complete=false` and exits 1; no provider error payloads, records, trips or user inputs are logged. `forecast_attempts` counts attempted outbound calls; `hits` counts valid reused city sources; `published` counts source objects written, not complete featured blocks. `geocoding_attempts` is always zero for this command. Valid source objects survive partial failure. No featured manifest is published until all ten sources validate **and all ten advice results can be derived**. Recover after the five-minute failure cooldown by rerunning; completed cities are hits. A same-day complete rerun makes zero forecast requests. Other German cities need no featured publication: personal requests admit at most one missing forecast, with no retry.
+
+A checksummed admission ledger reserves attempts **before** IO; failures remain charged. The conservative local ceiling is **42 forecast HTTP attempts per Germany day per store**, shared by the worker and personal misses, with a five-minute cooldown after failed fetch/validation/publication. This is an internal HTTP-attempt budget, not a provider equivalent-call measurement or account-wide quota. Geocoding retains its distinct 8-second timeout; on-demand weather has a 12-second service deadline with one at-most-4-second network call. Cached reads bypass download admission and cooldown. A corrupt ledger blocks downloads. Do not delete the ledger to evade limits. All local processes must use the same store; copied stores or other hosts do not share locks or usage. Admission failures return 503 without clothing defaults.
+
+### Identity, publication and reads
+
+Raw source keys include GeoNames ID, exact validated coordinates, request/model/format identity and Germany-local date:
+
+`forecast/hourly-14d-v1/<GeoNames ID>/<identity SHA-256>/<YYYY-MM-DD>.json`
+
+The checksummed object contains the raw provider response, exact identity, fixed source URL, and observed `weather_fetched_at`. Reads revalidate checksum, format/model, coordinates, acquisition day/time, Celsius units, strictly consecutive original UTC epochs, finite temperatures and **all 06–22 slots for all 14 days**, including elapsed hours today. Both DST folds survive UTC-instant parsing. The forecast explicitly requests `models=best_match`, one hourly Celsius temperature variable, `forecast_days=14`, `Europe/Berlin` and Unix instants. A version/coordinate change selects a different namespace; old objects are not silently accepted.
+
+`forecast/featured-v1/<Germany date>.json` atomically names all ten validated source versions and verified city metadata. Every featured/card/detail read checks the whole manifest and all sources, derives advice through `Service.forecast_advice` with one calculation instant per response, and does **zero forecast or geocoding IO**. A missing/corrupt source or manifest, reader contention or storage outage returns 503. At local midnight only the new date's complete manifest is eligible. A failed refresh never advertises a partial block as complete. Individual atomic source publication plus the final manifest allow safe interruption and recovery.
+
+Personal queries resolve a trusted city, read the same source, and recompute advice for their dates/preference and remaining hours; no per-user advice, trip, preference or user identifier is stored. Weather version/acquisition remain attached to the source while `advice_generated_at` reflects calculation, not model-update time. Cards and details use the same backend variation decision and nullable indicator/summary contract. As in Phase 2A, advice can change when elapsed hours are excluded even when its source version stays unchanged. Day 8–14 uncertainty and all historical garment rules remain unchanged.
+
+Reproducible offline commands, counts, screenshots and evidence limits: [Phase 2C verification](../docs/verification/phase2c/README.md).

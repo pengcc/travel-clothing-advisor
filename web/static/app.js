@@ -9,7 +9,7 @@ let featuredRequestVersion = 0;
 const short = iso => iso.replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$1年$2月$3日');
 const range = (s, e) => `${short(s)}—${short(e)}`;
 const scenario = () => $('demo').checked ? $('fixture').value : 'live';
-const featuredScenario = () => scenario() === 'live' ? 'default' : scenario();
+const featuredScenario = () => context?.fixture_mode && scenario() === 'live' ? 'default' : scenario();
 const cityParams = q => ({ q, ...(scenario() === 'live' ? {} : { fixture: scenario() }) });
 async function api(path, params = {}) {
   const response = await fetch(path + '?' + new URLSearchParams(params));
@@ -82,37 +82,37 @@ function renderFeatured() {
   const grid = $('featuredGrid'); grid.replaceChildren();
   if (!snapshot) return;
   if (!validFeaturedSnapshot(snapshot)) {
-    featuredStatus('模拟数据已过期或日期不匹配，暂无可用城市建议。'); return;
+    featuredStatus('城市数据已过期或日期不匹配，暂无可用城市建议。'); return;
   }
   for (const data of snapshot.cities.slice(page * 4, page * 4 + 4)) {
     const params = { view: 'city', city_id: data.city.id }, card = CityCard(data, link(params));
     card.addEventListener('click', e => { if (e.button === 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey) { e.preventDefault(); navigate(params); } });
     grid.append(card);
   }
-  $('featuredDates').textContent = `${range(snapshot.today, snapshot.forecast_end)} · 一般体感 · 未获取真实天气数据`;
+  $('featuredDates').textContent = `${range(snapshot.today, snapshot.forecast_end)} · 一般体感 · ${snapshot.fixture ? '模拟数据，未获取真实天气' : '真实气温预报 · Open-Meteo / GeoNames；各城市获取时间见卡片'}`;
   $('pageDisplay').textContent = `${page + 1} / 3`; $('prevPage').disabled = page === 0; $('nextPage').disabled = page === 2;
 }
 function validFeaturedSnapshot(data) {
   return context && data?.today === context.today && data.forecast_end === context.forecast_end &&
     (data.data_status === undefined || data.data_status === 'fresh') &&
-    Array.isArray(data.cities) && data.cities.length > 0 && data.cities.every(city =>
+    Array.isArray(data.cities) && data.cities.length === 10 && data.cities.every(city =>
       city?.data_status === 'fresh' && city.start === context.today && city.end === context.forecast_end);
 }
 function featuredStatus(message) {
   snapshot = null; $('prevPage').disabled = true; $('nextPage').disabled = true;
-  $('featuredDates').textContent = '未获取真实天气数据'; $('pageDisplay').textContent = '';
+  $('featuredDates').textContent = '暂无可用的完整城市参考'; $('pageDisplay').textContent = '';
   $('featuredGrid').replaceChildren(text('p', message));
 }
 async function loadFeatured() {
   const version = ++featuredRequestVersion;
-  featuredStatus('正在加载模拟城市参考…');
+  featuredStatus('正在加载城市参考…');
   const selected = featuredScenario();
   if (selected === 'loading') return;
   try {
-    const data = await api('/api/featured', { fixture: selected });
+    const data = await api('/api/featured', selected === 'live' ? {} : { fixture: selected });
     if (version !== featuredRequestVersion || selected !== featuredScenario()) return;
     if (!validFeaturedSnapshot(data)) {
-      featuredStatus('模拟数据已过期或日期不匹配，暂无可用城市建议。'); return;
+      featuredStatus('城市数据已过期或日期不匹配，暂无可用城市建议。'); return;
     }
     snapshot = data; renderFeatured();
   } catch (error) {
@@ -131,9 +131,9 @@ function focusHeading(id) { const el = $(id); el.tabIndex = -1; el.focus({ preve
 async function showResult(params) {
   const version = ++requestVersion;
   $('home').classList.add('hidden'); $('result').classList.remove('hidden');
-  const isCity = params.view === 'city', demo = isCity || scenario() !== 'live'; current = null;
+  const isCity = params.view === 'city', demo = (isCity ? featuredScenario() : scenario()) !== 'live'; current = null;
   $('back').textContent = isCity ? '← 返回精选城市' : '← 修改行程';
-  $('resultKind').textContent = isCity ? '城市穿衣参考 · 模拟数据' : `行程穿衣建议 · ${demo ? '模拟数据' : '真实气温参考'}`;
+  $('resultKind').textContent = `${isCity ? '城市穿衣参考' : '行程穿衣建议'} · ${demo ? '模拟数据' : '真实气温参考'}`;
   $('resultCity').textContent = '加载中'; $('resultDates').textContent = ''; $('resultMode').textContent = demo ? '模拟响应' : 'Open-Meteo 气温预报';
   resultStatus(demo ? '正在加载模拟穿衣参考…' : '正在获取气温并生成建议…'); $('result').setAttribute('aria-busy', 'true'); focusHeading('resultCity');
   window.scrollTo(0, 0);

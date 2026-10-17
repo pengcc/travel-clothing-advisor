@@ -1,13 +1,11 @@
 """Local temperature-only adapter. Provider JSON and clock are injectable; no CLI IO."""
 from collections import Counter
 from datetime import date, datetime, time, timedelta
-import hashlib
 import importlib.util
 import json
 import math
 from pathlib import Path
 from statistics import median
-from threading import Lock
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import urlopen
@@ -88,12 +86,12 @@ def parse_hours(data, now):
         if hours[0][0].date() != today or hours[0][0].hour != 0 or hours[-1][0].date() < today + timedelta(days=13):
             raise ValueError()
         indexed = dict(zip(times, temps))
-        # Require every future daytime and edge hour throughout the whole forecast window.
+        # Require all daytime and edge hours, including elapsed hours in stored sources.
         for n in range(14):
             day = today + timedelta(days=n)
             for h in range(6,23):
                 instant = datetime.combine(day, time(h), BERLIN)
-                if instant >= now and int(instant.timestamp()) not in indexed:
+                if int(instant.timestamp()) not in indexed:
                     raise ValueError()
         return hours
     except (KeyError, TypeError, ValueError, OverflowError, OSError) as exc:
@@ -134,13 +132,13 @@ def packing(days):
 
 
 class Service:
-    def __init__(self, fetch=fetch_json, clock=lambda: datetime.now(BERLIN), *, history=None, history_downloader=None, history_max_missing=0):
+    def __init__(self, fetch=fetch_json, clock=lambda: datetime.now(BERLIN), *, history=None, history_downloader=None, history_max_missing=0, forecast_cache=None):
         self.fetch, self.clock = fetch, clock
         self.history = history
         self.history_downloader = history_downloader
         self.history_max_missing = history_max_missing
-        self.cache = {}
-        self.lock = Lock()
+        from web.forecasts import Cache, MemoryStore
+        self.forecasts = forecast_cache if forecast_cache is not None else Cache(MemoryStore(), clock)
 
     def get(self, url, params):
         try:
@@ -184,6 +182,14 @@ class Service:
             raise Unavailable('城市搜索结果缺少可用的德国城市资料，请换个名称重试。')
         return dict(cities=list(cities.values()), fixture=False, source='Open-Meteo / GeoNames')
 
+    def featured(self):
+        return self.forecasts.featured(self)
+
+    def city_advice(self, p):
+        if not p.get('city_id') or set(p) - {'view', 'city_id', 'start', 'end', 'preference'}:
+            raise ValueError('查询参数无效。')
+        return self.forecasts.featured(self, p.get('city_id'))
+
     def advice(self, p):
         if set(p) - {'view','city_id','start','end','preference'} or p.get('view','trip') != 'trip' or p.get('preference') not in ('cold','normal','hot'):
             raise ValueError('查询参数或体感无效。')
@@ -202,22 +208,15 @@ class Service:
             city = self.resolve(p.get('city_id'))
             return advise(self.history, city, p, now, self.clock, self.history_downloader, self.history_max_missing)
         city = self.resolve(p.get('city_id'))
-        key = (city['id'], w['today'])
-        with self.lock:
-            cached = self.cache.get(key)
-            if cached is None:
-                data = self.get(FORECAST, dict(latitude=city['latitude'], longitude=city['longitude'], hourly='temperature_2m', forecast_days=14, timezone='Europe/Berlin', timeformat='unixtime', temperature_unit='celsius'))
-                acquired = self.clock().astimezone(BERLIN)
-                if acquired.date()!=now.date():
-                    raise Unavailable('德国日期已变化，请重新查询。')
-                parse_hours(data, acquired)
-                version = hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()[:16]
-                cached = (data, acquired, version)
-                if len(self.cache)>=32:
-                    self.cache.clear()
-                self.cache[key] = cached
+        cached = self.forecasts.obtain(city, now, self.fetch)
+        return self.forecast_advice(city, p, now, cached)
+
+    def forecast_advice(self, city, p, now, cached, *, generated=None):
+        """Same packing path for personal ranges and read-only featured views."""
+        start, end = p['start'], p['end']
+        w = window(now)
         data, acquired, version = cached
-        generated = self.clock().astimezone(BERLIN)
+        generated = generated or self.clock().astimezone(BERLIN)
         if generated.date()!=now.date() or generated<acquired:
             raise Unavailable('数据日期已变化，请重新查询。')
         hours = [(d,v) for d,v in parse_hours(data, generated) if start<=d.date().isoformat()<=end and d>=generated]
@@ -268,4 +267,4 @@ class Service:
         caveat = '仅依据气温的备衣参考，未评估雨、雪、风或个人舒适度；出发前请复查。'
         if end> (now.date()+timedelta(days=6)).isoformat():
             caveat += '第8–14天预报不确定性更大，偏冷偏暖日期也可能改变。'
-        return dict(city=public_city(city), start=start, end=end, preference=p['preference'], view='trip', mode='forecast', headline=headline, layers=layers, notices=notes, reference_temperature_c=ref, warmth_indicator_level=main, packing_variation_notice=notice, packing_variation_summary=summary, weather_fetched_at=acquired.isoformat(timespec='seconds'), advice_generated_at=generated.isoformat(timespec='seconds'), source='Open-Meteo（气温预报）；GeoNames（城市）', data_status='fresh', data_version='temperature-v1-'+version, caveat=caveat, fixture=False)
+        return dict(city=public_city(city), start=start, end=end, preference=p['preference'], view=p.get('view', 'trip'), mode='forecast', headline=headline, layers=layers, notices=notes, reference_temperature_c=ref, warmth_indicator_level=main, packing_variation_notice=notice, packing_variation_summary=summary, weather_fetched_at=acquired.isoformat(timespec='seconds'), advice_generated_at=generated.isoformat(timespec='seconds'), source='Open-Meteo（气温预报）；GeoNames（城市）', data_status='fresh', data_version='temperature-v1-'+version, caveat=caveat, fixture=False)
