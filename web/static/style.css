@@ -20,13 +20,11 @@
     .variation-banner strong{display:block;font-size:14px;margin-bottom:3px}
     .variation-banner span:not(.variation-icon){font-size:13px;line-height:1.55;display:block;color:#60483E}
     .city-card .card-variation{color:#91512F;font-size:12px;font-weight:690;margin:5px 0 0;line-height:1.4}
-    /* Temporary warmth indicator; designed to be swapped for a future mascot component. */
+    /* Existing warmth artwork; text survives missing images. */
     .warmth-mark{--mark-ink:#27677B;--mark-bg:#E6F0F4;display:inline-flex;align-items:center;justify-content:flex-start;gap:7px;width:max-content;max-width:100%;min-height:31px;border-radius:999px;padding:5px 10px 5px 8px;background:var(--mark-bg);color:var(--mark-ink);box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--mark-ink) 15%,transparent);font-size:12px;font-weight:760;line-height:1.2;white-space:nowrap;letter-spacing:.01em}
-    .warmth-mark svg{width:30px;height:17px;display:block;flex:none;overflow:visible}
     .warmth-mark .warmth-name{white-space:nowrap}
     .city-card .warmth-host{display:flex;margin-top:12px;margin-bottom:1px}
     .city-card .warmth-mark{font-size:11.5px;padding:5px 9px 5px 7px;gap:5px}
-    .city-card .warmth-mark svg{width:25px;height:15px}
     .answer-label{justify-content:space-between;flex-wrap:wrap;gap:10px}
     .answer-label .answer-label-identity{display:inline-flex;align-items:center;gap:9px}
     @media(max-width:420px){.city-card{min-height:183px}.city-card .warmth-mark{font-size:11px}}
@@ -59,3 +57,11 @@ body{overflow-wrap:anywhere}.warmth-mark,.warmth-mark .warmth-name{white-space:n
 /* Keep the result announcement focus without the browser default blue box. */
 #resultCity:focus{outline:none}
 #resultCity:focus-visible{outline:2px solid var(--action);outline-offset:6px;border-radius:4px}
+
+.warmth-icon{display:block;width:56px;height:56px;flex:none}
+.warmth-icon img{display:block;width:100%;height:100%;object-fit:contain}
+.warmth-icon[hidden]{display:none}
+.city-card .warmth-icon{width:48px;height:48px}
+.variation-icon{width:48px;height:48px;background:transparent}
+.variation-icon .warmth-icon{width:48px;height:48px}
+.variation-banner>div{min-width:0}

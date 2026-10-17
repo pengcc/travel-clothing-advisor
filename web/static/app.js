@@ -1,4 +1,4 @@
-import { WarmthIndicator, CityCard, text, formatAdviceCopy } from './components.js';
+import { WarmthIcon, WarmthIndicator, CityCard, text, formatAdviceCopy } from './components.js';
 const $ = id => document.getElementById(id);
 const feelings = { cold: '怕冷', normal: '正常', hot: '怕热' };
 // Personal form stays in its own DOM; history snapshots preserve it on reload without storage.
@@ -187,9 +187,10 @@ async function showResult(params) {
     $('resultStatus').classList.add('hidden'); $('resultContent').classList.remove('hidden');
     $('coatLabel').textContent = historical && data.warmth_indicator_level !== null ? '通常准备的外套' : '外套建议';
     $('resultHeadline').textContent = data.headline;
-    $('resultWarmthMark').replaceChildren(data.warmth_indicator_level === null && !data.packing_variation_notice ? text('span', '暂无白天参考', 'warmth-mark') : WarmthIndicator(data.warmth_indicator_level));
+    $('resultWarmthMark').replaceChildren(WarmthIndicator(data.warmth_indicator_level, Boolean(data.packing_variation_notice)));
     $('spanRemind').classList.toggle('hidden', !data.packing_variation_notice);
     $('spanText').textContent = data.packing_variation_notice || '';
+    document.querySelector('#spanRemind .variation-icon').replaceChildren(...(data.packing_variation_notice ? [WarmthIcon('alert-variation')] : []));
     $('resultLayers').textContent = data.layers;
     const guidance = data.packing_copy?.guidance;
     $('resultGuidance').replaceChildren(...['alternative', 'personal_layer', 'trousers_shoes']

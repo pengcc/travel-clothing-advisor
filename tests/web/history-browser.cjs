@@ -68,7 +68,7 @@ print(json.dumps(dict(advice=split,near13=case.advice(),context=dict(window(NOW)
   await page.goto(base+'/?view=trip&city_id=berlin&start=2026-11-02&end=2026-11-05&preference=normal');
   await page.waitForSelector('#resultContent:not(.hidden)');
   check(!(await page.locator('#resultHeadline').textContent()).includes('冬季保暖外套'),'typical headline separated from winter risk');
-  check(await page.locator('#resultWarmthMark svg').count()>0,'near-13 majority retains main indicator');
+  check(await page.locator('#resultWarmthMark img[src*="warmth-l"]').count()>0,'near-13 majority retains main indicator');
   check((await page.locator('#tempText').textContent()).includes('13.2'),'near-13 observed representative temperature');
   check((await page.locator('#spanText').textContent()).includes('冬季保暖外套'),'near-13 variation retains winter requirement');
   await page.locator('#copyAdvice').click();
