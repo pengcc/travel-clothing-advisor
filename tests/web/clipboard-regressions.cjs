@@ -10,7 +10,8 @@ sys.path.insert(0,'tests/web')
 from test_history import HistoryTests
 from test_live import Fake,NOW
 from web.live import Service
-from web.fixtures import advice
+from web.fixtures import advice,BERLIN
+from datetime import datetime
 c=HistoryTests();c.setUp();c.provider.value=lambda d:0 if d.year==2021 else 8
 c.worker().fill(c.jobs())
 history=[c.advice(preference=p) for p in ('cold','normal','hot')]
@@ -24,8 +25,14 @@ c.worker().fill(c.jobs());edge=c.advice()
 long=f.advice(dict(p,end='2026-10-29'))
 warm=Service(Fake(values=[14,24,14]+[14]*11),lambda:NOW).advice(p)
 stable=Service(Fake(values=[14]*14),lambda:NOW).advice(p)
+summer=Service(Fake(values=[29,24,29]+[29]*11),lambda:NOW).advice(p)
+evening_fake=Fake(values=[29]*14)
+for i,t in enumerate(evening_fake.data['hourly']['time']):
+    if datetime.fromtimestamp(t,BERLIN).strftime('%Y-%m-%d %H')=='2026-10-16 20':
+        evening_fake.data['hourly']['temperature_2m'][i]=24
+evening=Service(evening_fake,lambda:NOW).advice(p)
 fixture=advice(p,now=NOW)
-print(json.dumps(dict(history=history,forecast=forecast,split=split,edge=edge,long=long,warm=warm,stable=stable,fixture=fixture)))
+print(json.dumps(dict(history=history,forecast=forecast,split=split,edge=edge,long=long,warm=warm,stable=stable,summer=summer,evening=evening,fixture=fixture)))
 `],{encoding:'utf8'}));
 (async()=>{
  const browser=await chromium.launch({channel:'chrome',headless:true});
@@ -87,6 +94,27 @@ print(json.dumps(dict(history=history,forecast=forecast,split=split,edge=edge,lo
   check(!warm.includes('偏冷'),'warm-only forecast invents no cold risk');
   const stable=await copy(samples.stable);
   check(!stable.includes('【冷暖提醒】'),'stable forecast invents no risk section');
+  for(const [key,risk] of [
+   ['summer','2026-10-17偏冷：另备薄长袖。'],
+   ['evening','10月16日 20时前后较凉：另备薄长袖。'],
+  ]) {
+   const copied=await copy(samples[key]);
+   const expected=[
+    '【德国旅行备衣建议】','城市：柏林 · Berlin','日期：2026-10-16—2026-10-18',
+    '冷热偏好：正常','资料：所选日期气温预报','',
+    '【通常准备】','外套：不必带厚外套。','内搭：短袖、轻薄透气下装。','',
+    '【冷暖提醒】',risk,'',
+    '个人调整：冷热感受因人而异，请按体感调整。',
+    '白天气温参考：约 29°C，不是最高或最低气温。',
+    '提醒：仅按气温，未评估雨、雪、风；出发前请复查。',
+    '来源：Open-Meteo（CC BY 4.0）；GeoNames。',
+   ].join('\n');
+   assert.equal(copied,expected,key+' full L1/L2 clipboard');checks++;
+   check(samples[key].warmth_indicator_level===1,'original L1 decision retained: '+key);
+   check(key==='summer' ? samples[key].packing_variation_notice.includes('2026-10-17偏冷') : samples[key].notices.some(n=>n.includes('20时')&&n.includes('较凉')),'original cold/edge warning retained: '+key);
+   check(!copied.includes('另备不必带')&&copied.split('薄长袖').length===2,'only positive additional clothing: '+key);
+   if(process.argv.includes('--capture')) captures.push(copied);
+  }
   const fixture=await copy(samples.fixture);
   check(fixture.startsWith('【演示数据，非真实天气】'),'fixture copy explicit');
   check(fixture.includes('未获取真实天气或历史资料')&&!fixture.includes('CC BY 4.0'),'fixture never claims provider data');
