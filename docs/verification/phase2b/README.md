@@ -38,3 +38,11 @@ One local in-memory run: five November blocks prefetched in **4.57 ms**; median 
 Start `python3 -m web.server --fixtures --port 8001` for fixture/browser suites. The deterministic Phase 2A server command is in `web/README.md`. `history-browser.cjs --capture` refreshes this screenshot; other suites accept `--check-only` to preserve older verification images.
 
 The local history library must be explicitly initialized from operator-managed German city metadata and approved, bounded downloads before real historical answers can appear. Initialization commands, per-run limits, source attribution and the storage/coordination contract are documented in [web/README.md](../../../web/README.md). Web requests are read-only by default; missing/corrupt storage fails clearly. Shared object storage, distributed coordination, real data seeding and live latency/quota checks are owned by Phase 2D. Real featured snapshots/shared forecast updates remain Phase 2C.
+
+## Review #5548463677 regression — 2026-10-17
+
+The 13°C headline override now leaves an existing meaningful cold-outlier outerwear headline intact. It still emits the boundary note; stable samples, minor boundary noise and warm-only variation retain the original tolerance headline. The forecast implementation is unchanged.
+
+Regression tests first reproduced the winter-outlier failure. Coverage now includes three 13.2°C (L4) annual windows plus two 0°C (L6) windows, a colder L5 requirement, and a 12.8°C (L5) majority with L6 outliers, across normal/cold/hot preferences. They verify the headline, notice, summary, representative level/temperature and date-free historical wording. Stable 12.8/13.2°C, tiny boundary fluctuations and warm-only variation verify that the tolerance behavior remains available. Browser coverage checks the actual Python-derived 13.2°C/L6 result and copied headline.
+
+Revalidated: **45 web/service tests, 122 clothing-rule tests, 160 browser checks** (27 historical, 63 fixture, 10 featured regressions, 25 Phase 2A live-path, 35 Phase 2A review regressions) all pass. The existing HTTP route test now freezes its fixture clock alongside its forecast clock, so its October 16 inputs remain deterministic on later dates. All providers remained synthetic; no live archive data, infrastructure, deployment or merge was involved.

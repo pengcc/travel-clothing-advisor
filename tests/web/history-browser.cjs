@@ -14,7 +14,11 @@ from web.fixtures import featured,window
 case=HistoryTests();case.setUp()
 case.provider.value=lambda d:24 if d.day%2 else 0
 case.worker().fill(case.jobs())
-print(json.dumps(dict(advice=case.advice(),context=dict(window(NOW),fixture_mode=False),featured=featured(now=NOW))))
+split=case.advice()
+case.setUp()
+case.provider.value=lambda d:0 if d.year in (2021,2022) else 13.2
+case.worker().fill(case.jobs())
+print(json.dumps(dict(advice=split,near13=case.advice(),context=dict(window(NOW),fixture_mode=False),featured=featured(now=NOW))))
 `],{cwd:root,encoding:'utf8'}));
 (async()=>{
  const browser=await chromium.launch({channel:'chrome',headless:true});
@@ -24,7 +28,8 @@ print(json.dumps(dict(advice=case.advice(),context=dict(window(NOW),fixture_mode
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.route('**/api/context?*',r=>r.fulfill({json:data.context}));
   await page.route('**/api/featured?*',r=>r.fulfill({json:data.featured}));
-  await page.route('**/api/advice?*',r=>r.fulfill({json:data.advice}));
+  let response=data.advice;
+  await page.route('**/api/advice?*',r=>r.fulfill({json:response}));
   await page.goto(base+'/?view=trip&city_id=berlin&start=2026-11-02&end=2026-11-05&preference=normal');
   await page.waitForSelector('#resultContent:not(.hidden)');
   check((await page.locator('#resultMode').textContent())==='过去五年同期气温参考','five-year historical mode');
@@ -59,6 +64,15 @@ print(json.dumps(dict(advice=case.advice(),context=dict(window(NOW),fixture_mode
   check(await page.locator('#end').getAttribute('max')==='2026-11-14','live form supports thirty calendar days');
   check(await page.locator('#start').inputValue()==='2026-11-02','return restores historical dates');
   check(!await page.locator('#demo').isChecked(),'historical path is live by default');
+  response=data.near13;
+  await page.goto(base+'/?view=trip&city_id=berlin&start=2026-11-02&end=2026-11-05&preference=normal');
+  await page.waitForSelector('#resultContent:not(.hidden)');
+  check((await page.locator('#resultHeadline').textContent()).includes('冬季保暖外套'),'13°C headline preserves winter outlier');
+  check(await page.locator('#resultWarmthMark svg').count()>0,'near-13 majority retains main indicator');
+  check((await page.locator('#tempText').textContent()).includes('13.2'),'near-13 observed representative temperature');
+  check((await page.locator('#spanText').textContent()).includes('冬季保暖外套'),'near-13 variation retains winter requirement');
+  await page.locator('#copyAdvice').click();
+  check((await page.evaluate(()=>navigator.clipboard.readText())).split('\n').includes(response.headline),'copied near-13 headline retains cold outlier');
   check(errors.length===0,'no JS errors');
   console.log(`${checks} historical browser checks passed`);
  } finally {await browser.close()}

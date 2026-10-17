@@ -245,6 +245,39 @@ class HistoryTests(unittest.TestCase):
             self.assertIn('冬季保暖外套',d[field])
         self.assertIn('保暖内搭',d['layers'])
         self.assertIn('短袖',d['layers'])
+    def test_near_13_headline_preserves_cold_outlier_outerwear(self):
+        for typical, main, outlier, outer in (
+            (13.2,4,0,'冬季保暖外套'),
+            (13.2,4,8,'保暖夹克或轻羽绒'),
+            (12.8,5,0,'冬季保暖外套'),
+        ):
+            for preference in ('normal','cold','hot'):
+                with self.subTest(typical=typical,outlier=outlier,preference=preference):
+                    self.setUp()
+                    self.provider.value=lambda d: outlier if d.year in (2021,2022) else typical
+                    self.worker().fill(self.jobs())
+                    d=self.advice(preference=preference)
+                    self.assertEqual(d['warmth_indicator_level'],main)
+                    self.assertEqual(d['reference_temperature_c'],typical)
+                    for field in ('headline','packing_variation_notice','packing_variation_summary'):
+                        self.assertIn(outer,d[field])
+                    self.assertIn('历史偏冷情况另备',d['layers'])
+                    self.assertTrue(any('13°C' in n for n in d['notices']))
+                    self.assertEqual(d['mode'],'historical_reference')
+                    self.assertNotIn('2026-11',d['headline']+d['packing_variation_notice'])
+
+    def test_near_13_override_without_meaningful_cold_outlier(self):
+        # Stable, tiny boundary noise, and warm-only variation retain tolerance copy.
+        for typical, other in ((13.2,13.2),(12.8,12.8),(13.2,12.8),(13.2,24)):
+            with self.subTest(typical=typical,other=other):
+                self.setUp()
+                self.provider.value=lambda d: other if d.year in (2021,2022) else typical
+                self.worker().fill(self.jobs())
+                d=self.advice()
+                self.assertEqual(d['headline'],'建议带保暖程度适中的外套；怕冷可用轻羽绒替代')
+                self.assertTrue(any('13°C' in n for n in d['notices']))
+                self.assertEqual(bool(d['packing_variation_notice']),other==24)
+
     def test_historical_edges_and_tolerance(self):
         self.provider.edge=0
         self.worker().fill(self.jobs())

@@ -29,7 +29,9 @@ def advise(library, city, p, now, clock, downloader=None, max_missing=0):
             layers += f'历史偏冷情况另备：{INNER[cold]}'
     notes = []
     if ref is not None and main in (4,5) and abs(ref-13)<=0.75:
-        headline = '建议带保暖程度适中的外套；怕冷可用轻羽绒替代'
+        # Boundary wording must not erase an observed colder packing requirement.
+        if not (variation and cold > main):
+            headline = '建议带保暖程度适中的外套；怕冷可用轻羽绒替代'
         notes.append('历史气温接近13°C厚度分界，长袖搭配薄毛衣或抓绒，按体感增减。')
     by_day = dict(days)
     cooler = [(d,v) for d,v in edges if by_day[d]-v > 1.5 and level(v)>level(by_day[d])]

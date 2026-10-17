@@ -5,6 +5,7 @@ from http.server import ThreadingHTTPServer
 import json
 import threading
 import unittest
+from unittest.mock import patch
 from urllib.error import HTTPError
 from urllib.request import urlopen
 from urllib.parse import urlencode
@@ -258,7 +259,8 @@ class APITests(unittest.TestCase):
         finally:
             self.fake.search = original
 
-    def test_routes(self):
+    @patch('web.fixtures.now_berlin', return_value=NOW)
+    def test_routes(self, _clock):
         p=dict(view='trip',city_id='berlin',start='2026-10-16',end='2026-10-18',preference='normal')
         code,d=self.request('/api/advice?'+urlencode(p));self.assertEqual(code,200);self.assertFalse(d['fixture'])
         for extra in ['&city_id=munich','&latitude=1','&fixture=']:
