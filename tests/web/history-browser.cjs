@@ -32,10 +32,10 @@ print(json.dumps(dict(advice=split,near13=case.advice(),context=dict(window(NOW)
   await page.route('**/api/advice?*',r=>r.fulfill({json:response}));
   await page.goto(base+'/?view=trip&city_id=berlin&start=2026-11-02&end=2026-11-05&preference=normal');
   await page.waitForSelector('#resultContent:not(.hidden)');
-  check((await page.locator('#resultMode').textContent())==='过去五年同期气温参考','five-year historical mode');
+  check((await page.locator('#resultMode').textContent())==='过去五年同期参考，不是本次旅行预报','five-year historical mode');
   check(!(await page.locator('#source').textContent()).includes('模拟'),'historical source not demo');
   check((await page.locator('#source').textContent()).includes('历史资料获取时间（最早）'),'historical acquisition label');
-  check((await page.locator('#source').textContent()).includes('各月块实际获取时间'),'block acquisition times');
+  check((await page.locator('#source').textContent()).includes('历史资料各月获取时间'),'block acquisition times');
   check((await page.locator('#source').textContent()).includes('建议生成时间'),'separate generation time');
   check((await page.locator('#resultHeadline').textContent()).includes('冬季保暖外套'),'winter coverage in main decision');
   check((await page.locator('#resultLayers').textContent()).includes('保暖内搭'),'winter inner layers');
@@ -43,7 +43,7 @@ print(json.dumps(dict(advice=split,near13=case.advice(),context=dict(window(NOW)
   check(notice.includes('过去五年')&&!notice.includes('2026-11'),'no future cold date');
   check((await page.locator('#resultNotice').textContent()).includes('非这趟行程的预报'),'reference caveat');
   check(await page.locator('#resultWarmthMark svg').count()===0,'no fabricated main warmth bars');
-  check((await page.locator('#tempText').textContent()).includes('无单一代表气温'),'no fabricated temperature');
+  check((await page.locator('#tempText').textContent()).includes('白天冷暖差异较大'),'no fabricated temperature');
   await page.locator('#copyAdvice').click();
   const copied=await page.evaluate(()=>navigator.clipboard.readText());
   check(copied.includes('五年')&&copied.includes('非这趟行程的预报'),'copied advice keeps caveat');
@@ -67,12 +67,12 @@ print(json.dumps(dict(advice=split,near13=case.advice(),context=dict(window(NOW)
   response=data.near13;
   await page.goto(base+'/?view=trip&city_id=berlin&start=2026-11-02&end=2026-11-05&preference=normal');
   await page.waitForSelector('#resultContent:not(.hidden)');
-  check((await page.locator('#resultHeadline').textContent()).includes('冬季保暖外套'),'13°C headline preserves winter outlier');
+  check(!(await page.locator('#resultHeadline').textContent()).includes('冬季保暖外套'),'typical headline separated from winter risk');
   check(await page.locator('#resultWarmthMark svg').count()>0,'near-13 majority retains main indicator');
   check((await page.locator('#tempText').textContent()).includes('13.2'),'near-13 observed representative temperature');
   check((await page.locator('#spanText').textContent()).includes('冬季保暖外套'),'near-13 variation retains winter requirement');
   await page.locator('#copyAdvice').click();
-  check((await page.evaluate(()=>navigator.clipboard.readText())).split('\n').includes(response.headline),'copied near-13 headline retains cold outlier');
+  check((await page.evaluate(()=>navigator.clipboard.readText())).includes('外套：适中外套。') && (await page.evaluate(()=>navigator.clipboard.readText())).includes('冬季保暖外套'),'copied near-13 summary separates usual coat from cold risk');
   check(errors.length===0,'no JS errors');
   console.log(`${checks} historical browser checks passed`);
  } finally {await browser.close()}

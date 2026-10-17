@@ -1,6 +1,6 @@
-import { WarmthIndicator, CityCard, text } from './components.js';
+import { WarmthIndicator, CityCard, text, formatAdviceCopy } from './components.js';
 const $ = id => document.getElementById(id);
-const feelings = { cold: '怕冷', normal: '一般', hot: '怕热' };
+const feelings = { cold: '怕冷', normal: '正常', hot: '怕热' };
 // Personal form stays in its own DOM; history snapshots preserve it on reload without storage.
 let personal = { city: null, preference: 'normal' };
 let cities = [], snapshot = null, page = 0, current = null, requestVersion = 0, searchVersion = 0;
@@ -12,8 +12,11 @@ const scenario = () => $('demo').checked ? $('fixture').value : 'live';
 const featuredScenario = () => context?.fixture_mode && scenario() === 'live' ? 'default' : scenario();
 const cityParams = q => ({ q, ...(scenario() === 'live' ? {} : { fixture: scenario() }) });
 async function api(path, params = {}) {
-  const response = await fetch(path + '?' + new URLSearchParams(params));
-  const data = await response.json();
+  let response, data;
+  try {
+    response = await fetch(path + '?' + new URLSearchParams(params));
+    data = await response.json();
+  } catch { throw new Error('暂时无法连接服务，请检查网络后重试。'); }
   if (!response.ok) throw new Error(data.error || '数据暂不可用，请重试。');
   return data;
 }
@@ -76,7 +79,7 @@ document.querySelectorAll('[data-feeling]').forEach(b => b.addEventListener('cli
 async function refreshContext() {
   context = await api('/api/context');
   for (const id of ['start', 'end']) { $(id).min = context.today; $(id).max = context.max_date; }
-  $('dateHint').textContent = `可选 ${short(context.today)} 至 ${short(context.max_date)}（德国当地日期；14天内使用预报，超出则参考过去五年同期资料）`;
+  $('dateHint').textContent = `可选 ${short(context.today)} 至 ${short(context.max_date)}（德国当地日期）`;
 }
 function renderFeatured() {
   const grid = $('featuredGrid'); grid.replaceChildren();
@@ -89,7 +92,7 @@ function renderFeatured() {
     card.addEventListener('click', e => { if (e.button === 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey) { e.preventDefault(); navigate(params); } });
     grid.append(card);
   }
-  $('featuredDates').textContent = `${range(snapshot.today, snapshot.forecast_end)} · 一般体感 · ${snapshot.fixture ? '模拟数据，未获取真实天气' : '真实气温预报 · Open-Meteo / GeoNames；各城市获取时间见卡片'}`;
+  $('featuredDates').textContent = `${range(snapshot.today, snapshot.forecast_end)}${snapshot.fixture ? ' · 模拟数据，非真实天气' : ''}`;
   $('pageDisplay').textContent = `${page + 1} / 3`; $('prevPage').disabled = page === 0; $('nextPage').disabled = page === 2;
 }
 function validFeaturedSnapshot(data) {
@@ -99,7 +102,7 @@ function validFeaturedSnapshot(data) {
       city?.data_status === 'fresh' && city.start === context.today && city.end === context.forecast_end);
 }
 function featuredStatus(message) {
-  snapshot = null; $('prevPage').disabled = true; $('nextPage').disabled = true;
+  snapshot = null; $('retryFeatured').classList.toggle('hidden', message === '正在加载城市参考…'); $('prevPage').disabled = true; $('nextPage').disabled = true;
   $('featuredDates').textContent = '暂无可用的完整城市参考'; $('pageDisplay').textContent = '';
   $('featuredGrid').replaceChildren(text('p', message));
 }
@@ -114,12 +117,13 @@ async function loadFeatured() {
     if (!validFeaturedSnapshot(data)) {
       featuredStatus('城市数据已过期或日期不匹配，暂无可用城市建议。'); return;
     }
-    snapshot = data; renderFeatured();
+    snapshot = data; $('retryFeatured').classList.add('hidden'); renderFeatured();
   } catch (error) {
     if (version !== featuredRequestVersion || selected !== featuredScenario()) return;
     featuredStatus(error.message);
   }
 }
+$('retryFeatured').onclick = loadFeatured;
 $('prevPage').addEventListener('click', () => { page = Math.max(0, page - 1); renderFeatured(); saveForm(); });
 $('nextPage').addEventListener('click', () => { page = Math.min(2, page + 1); renderFeatured(); saveForm(); });
 function resultStatus(message, error = false) {
@@ -145,29 +149,40 @@ async function showResult(params) {
     current = data;
     const historical = data.mode === 'historical_reference';
     $('resultKind').textContent = `${isCity ? '城市穿衣参考' : '行程穿衣建议'} · ${data.fixture ? '模拟数据' : '真实气温参考'}`;
-    document.querySelector('#spanRemind strong').textContent = data.fixture ? '冷热变化提醒 · 示例' : '冷热变化提醒';
+    document.querySelector('#spanRemind strong').textContent = data.fixture ? '冷热变化提醒 · 示例' : historical ? '历史冷暖风险 · 非本次预报' : '冷热变化提醒';
     $('resultCity').textContent = `${data.city.zh} · ${data.city.name}`;
-    $('resultDates').textContent = `${range(data.start, data.end)} · ${isCity ? '今起14天 · ' : ''}${feelings[data.preference]}体感`;
-    $('resultMode').textContent = historical ? `过去五年同期气温参考${data.fixture ? ' · 模拟' : ''}` : `${isCity ? '今起14天' : '所选日期'}气温预报${data.fixture ? ' · 模拟' : ''}`;
+    $('resultDates').textContent = `${range(data.start, data.end)}${isCity ? ' · 今起14天' : ''}`;
+    if (!isCity) $('resultDates').append(text('span', '冷热偏好：' + feelings[data.preference], 'trip-preference'));
+    $('resultMode').textContent = historical ? `过去五年同期参考，不是本次旅行预报${data.fixture ? ' · 模拟' : ''}` : `${isCity ? '今起14天' : '所选日期'}气温预报${data.fixture ? ' · 模拟' : ''}`;
     document.title = `${isCity ? '城市穿衣参考' : '行程穿衣建议'} · ${data.city.zh}${data.fixture ? ' · 演示' : ''}`;
     if (data.data_status === 'stale') { current = null; resultStatus(`数据已过期，暂无有效建议。查询日期：${range(data.start, data.end)}；天气获取时间：${data.weather_fetched_at || '未获取（模拟数据）'}。`, true); return; }
     $('resultStatus').classList.add('hidden'); $('resultContent').classList.remove('hidden');
+    $('coatLabel').textContent = historical && data.warmth_indicator_level !== null ? '通常准备的外套' : '外套建议';
     $('resultHeadline').textContent = data.headline;
     $('resultWarmthMark').replaceChildren(data.warmth_indicator_level === null && !data.packing_variation_notice ? text('span', '暂无白天参考', 'warmth-mark') : WarmthIndicator(data.warmth_indicator_level));
     $('spanRemind').classList.toggle('hidden', !data.packing_variation_notice);
     $('spanText').textContent = data.packing_variation_notice || '';
     $('resultLayers').textContent = data.layers;
-    $('tempTitle').textContent = historical ? '往年同期白天气温参考' : (data.fixture ? '白天的示例气温' : '有效白天时段气温参考');
-    $('tempText').textContent = data.reference_temperature_c === null ? '无单一代表气温，请看备衣说明。' : (data.fixture ? `模拟数值约 ${data.reference_temperature_c}°C，不代表真实气温。` : `${historical ? '过去五年同期样本' : '所选日期有效白天时段'}的代表气温约 ${data.reference_temperature_c}°C。`);
-    $('edgeText').textContent = data.notices.join(' ');
+    $('preferenceNote').classList.toggle('hidden', !isCity);
+    $('preferenceNote').textContent = isCity ? '默认按正常冷热偏好推荐。每个人对冷热的感受不同，怕冷可多备一层，怕热可适当减薄。' : '';
+    $('tempTitle').textContent = historical ? '往年同期白天气温参考' : (data.fixture ? '白天的示例气温' : '白天气温参考');
+    $('tempText').textContent = data.reference_temperature_c === null ? (data.packing_variation_notice ? '白天冷暖差异较大，请按上方建议备衣。' : '今天白天已过，请参考剩余晚间的备衣建议。') : (data.fixture ? `模拟数值约 ${data.reference_temperature_c}°C，不代表真实气温。` : `${historical ? '过去五年同期样本' : '所选日期白天'}气温中间水平约 ${data.reference_temperature_c}°C。`);
+    const notes = data.notices.filter(note => !note.includes('今天仅使用查询时刻之后') && !note.includes('保暖需求接近'));
+    // General thickness-boundary advice is not evidence of cooler mornings/evenings.
+    const onlyEdgeGuidance = notes.every(note => note.includes('较凉') || note.startsWith('早晚示例：'));
+    $('edgeTitle').textContent = onlyEdgeGuidance ? '早晚注意分层' : '分层与厚度提示';
+    $('edgeIcon').textContent = onlyEdgeGuidance ? '🌙' : '＋';
+    $('edgeText').textContent = notes.join(' ');
+    $('edgeNotice').classList.toggle('hidden', !notes.length);
+    $('temperatureNotice').before($('edgeNotice'));
     $('noticeTitle').textContent = historical ? '这是往年参考，不是这次旅行的预报' : '出发前再确认';
     $('resultNotice').textContent = data.caveat;
-    $('source').textContent = `来源：${data.source}。天气获取时间：未获取。模拟建议生成：${new Date(data.advice_generated_at).toLocaleString('zh-CN', { timeZone: 'Europe/Berlin', hour12: false })}（德国当地时间）。状态：模拟响应可用；非真实天气新鲜度。临时保暖标记，尚未接入真实服务。`;
+    $('source').textContent = `来源：${data.source}。天气获取时间：未获取。模拟建议生成：${new Date(data.advice_generated_at).toLocaleString('zh-CN', { timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })}（德国当地时间）。非真实天气。`;
     if (!data.fixture) {
-      const stamp = value => new Date(value).toLocaleString('zh-CN', { timeZone: 'Europe/Berlin', hour12: false });
+      const stamp = value => new Date(value).toLocaleString('zh-CN', { timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false });
       $('source').textContent = `来源：${data.source}。${historical ? '历史资料获取时间（最早）' : '天气获取时间'}：${stamp(data.weather_fetched_at)}；建议生成时间：${stamp(data.advice_generated_at)}（德国当地时间）。获取时间不代表提供方模型更新时间。`;
-      if (historical) $('source').append(` 各月块实际获取时间：${data.history_fetched_at.map(stamp).join('；')}。历史资料长期复用，无需每日刷新。`);
-      const attribution = text('a', historical ? 'Open-Meteo ERA5 / CC BY 4.0 / GeoNames' : 'Open-Meteo / GeoNames'); attribution.href = 'https://open-meteo.com/'; $('source').append(' ', attribution);
+      if (historical) $('source').append(` 历史资料各月获取时间：${data.history_fetched_at.map(stamp).join('；')}。历史资料长期复用，无需每日刷新。`);
+      const attribution = text('a', historical ? 'Open-Meteo ERA5 / CC BY 4.0 / GeoNames' : 'Open-Meteo / CC BY 4.0 / GeoNames'); attribution.href = 'https://open-meteo.com/'; $('source').append(' ', attribution);
     }
   } catch (error) {
     if (version !== requestVersion) return;
@@ -182,7 +197,7 @@ async function route() {
   const query = new URLSearchParams(location.search);
   if (!query.size) {
     ++requestVersion; current = null; $('result').classList.add('hidden'); $('home').classList.remove('hidden');
-    document.title = '旅途穿衣 · 本地预览'; await refreshContext(); await loadFeatured(); return;
+    document.title = '旅途穿衣 · 德国旅行'; await refreshContext(); await loadFeatured(); return;
   }
   // Preserve duplicate parameters for the API's strict validation.
   const params = Object.fromEntries(query);
@@ -225,7 +240,7 @@ async function copy(value, message) {
   catch { $('toast').textContent = '浏览器未允许复制，请从地址栏复制链接。'; }
   $('toast').classList.add('show'); clearTimeout(copy.timer); copy.timer = setTimeout(() => $('toast').classList.remove('show'), 3000);
 }
-$('copyAdvice').onclick = () => { if (current) copy([current.fixture ? '【演示数据，非真实天气】' : '【气温备衣参考】', $('resultKind').textContent, $('resultCity').textContent, $('resultDates').textContent, $('resultMode').textContent, current.headline, current.packing_variation_notice, current.layers, ...current.notices, current.caveat].filter(Boolean).join('\n'), '已复制建议'); };
+$('copyAdvice').onclick = () => { if (current) copy(formatAdviceCopy(current), '已复制建议'); };
 $('shareTrip').onclick = () => { if (current) copy(location.origin + location.pathname + link({ ...current, city_id: current.city.id }), current.fixture ? '已复制链接；演示场景不随链接保存' : '已复制行程链接；打开时重新计算'); };
 // Revalidate after backgrounding or crossing German midnight; never reuse yesterday's window.
 async function revalidateDay() {
@@ -239,6 +254,7 @@ restoreForm(history.state?.form);
 try {
   await refreshContext();
   $('demo').checked = Boolean(context.fixture_mode);
+  document.querySelector('.demo-tools').classList.toggle('hidden', !context.fixture_mode);
   await refreshContext();
   cities = (await api('/api/cities', cityParams(''))).cities;
   // A directly opened personal link can be edited without entering it twice.

@@ -37,7 +37,7 @@ const base = process.env.UI_BASE_URL || 'http://127.0.0.1:8000';
   await p.locator('[data-feeling="cold"]').click();
   await p.locator('.city-card').first().click(); await waitResult();
   check('City canonical URL contains only view and city_id', p.url().endsWith('?view=city&city_id=berlin'));
-  check('City always normal, current fourteen days', (await p.locator('#resultDates').textContent()).includes('一般体感') && (await p.locator('#resultDates').textContent()).includes('今起14天'));
+  check('City always normal, current fourteen days', (await p.locator('#preferenceNote').textContent()).includes('默认按正常冷热偏好推荐') && (await p.locator('#resultDates').textContent()).includes('今起14天'));
   await shot('02-city-result-mobile');
   await p.locator('#shareTrip').click();
   check('Copied city link contains no private trip state', (await p.evaluate(()=>navigator.clipboard.readText())).endsWith('?view=city&city_id=berlin'));

@@ -50,7 +50,7 @@ print(json.dumps(dict(context=dict(window(NOW),fixture_mode=False),featured=feat
       check((await page.locator('#spanText').textContent()).includes('2026-10-23较冷'),`split ${index}: supported cold date`);
       check((await page.locator('#resultWarmthMark').textContent()).includes('冷热变化大'),`split ${index}: no invented main level`);
       check(await page.locator('#resultWarmthMark svg').count()===0,`split ${index}: no single-level bars`);
-      check((await page.locator('#tempText').textContent()).includes('无单一代表气温'),`split ${index}: no invented representative temperature`);
+      check((await page.locator('#tempText').textContent()).includes('白天冷暖差异较大'),`split ${index}: no invented representative temperature`);
       check(await page.evaluate(()=>Boolean(document.querySelector('#spanRemind').compareDocumentPosition(document.querySelector('#resultLayers'))&Node.DOCUMENT_POSITION_FOLLOWING)),`split ${index}: notice before layers`);
       for (const width of [320,390]) {
         await page.setViewportSize({width,height:844});

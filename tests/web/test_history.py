@@ -231,7 +231,7 @@ class HistoryTests(unittest.TestCase):
         d=self.advice()
         self.assertEqual(d['warmth_indicator_level'],2)
         self.assertIn('冬季保暖外套',d['packing_variation_notice'])
-        self.assertIn('保暖内搭',d['layers'])
+        self.assertIn('保暖内搭',d['layers'] + d['packing_variation_notice'])
         for field in ('headline','layers','packing_variation_notice','packing_variation_summary','notices','caveat'):
             self.assertNotIn('2026-11',str(d[field]))
         # equal observed split, including intra-year variation, has no invented median level.
@@ -243,7 +243,7 @@ class HistoryTests(unittest.TestCase):
         self.assertIsNone(d['reference_temperature_c'])
         for field in ('headline','packing_variation_notice','packing_variation_summary'):
             self.assertIn('冬季保暖外套',d[field])
-        self.assertIn('保暖内搭',d['layers'])
+        self.assertIn('保暖内搭',d['layers'] + d['packing_variation_notice'])
         self.assertIn('短袖',d['layers'])
     def test_near_13_headline_preserves_cold_outlier_outerwear(self):
         for typical, main, outlier, outer in (
@@ -259,12 +259,36 @@ class HistoryTests(unittest.TestCase):
                     d=self.advice(preference=preference)
                     self.assertEqual(d['warmth_indicator_level'],main)
                     self.assertEqual(d['reference_temperature_c'],typical)
-                    for field in ('headline','packing_variation_notice','packing_variation_summary'):
+                    for field in ('packing_variation_notice','packing_variation_summary'):
                         self.assertIn(outer,d[field])
-                    self.assertIn('历史偏冷情况另备',d['layers'])
+                    self.assertNotIn(outer,d['headline'])
+                    self.assertNotIn('偏冷情况另备',d['layers'])
+                    self.assertIn('搭配',d['packing_variation_notice'])
                     self.assertTrue(any('13°C' in n for n in d['notices']))
                     self.assertEqual(d['mode'],'historical_reference')
                     self.assertNotIn('2026-11',d['headline']+d['packing_variation_notice'])
+
+    def test_typical_l5_keeps_l6_risk_separate_for_all_preferences(self):
+        self.provider.value = lambda d: 0 if d.year == 2021 else 8
+        self.worker().fill(self.jobs())
+        requests = len(self.provider.calls)
+        for preference in ('cold', 'normal', 'hot'):
+            d = self.advice(preference=preference)
+            self.assertEqual(d['warmth_indicator_level'], 5)
+            self.assertEqual(d['reference_temperature_c'], 8)
+            self.assertEqual(d['headline'], '建议带保暖夹克或轻羽绒')
+            self.assertNotIn('冬季', d['headline'])
+            self.assertIn('冬季保暖外套', d['packing_variation_notice'])
+            self.assertIn('保暖内搭', d['packing_variation_notice'])
+            self.assertNotIn('2026-11', d['packing_variation_notice'])
+            self.assertNotIn('偏冷情况另备', d['layers'])
+            notice = d['packing_variation_notice']
+            for garment in ('冬季保暖外套', '保暖内搭', '毛衣', '抓绒'):
+                self.assertEqual(notice.count(garment), 1)
+            self.assertNotIn('保暖夹克或轻羽绒', notice)
+            self.assertIn('较暖时内搭减薄、外层方便脱下', notice)
+            self.assertIn('不是本次旅行预报', notice)
+        self.assertEqual(len(self.provider.calls), requests)
 
     def test_near_13_override_without_meaningful_cold_outlier(self):
         # Stable, tiny boundary noise, and warm-only variation retain tolerance copy.
