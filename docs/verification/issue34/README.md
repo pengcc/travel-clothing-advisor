@@ -24,3 +24,11 @@ Existing diagnostics: `web.prefetch_history` without `--download` computes the p
 - Featured and review browser regressions: 10 and 35 checks pass.
 
 All browser weather responses are synthetic. No live historical download, merge or deployment.
+
+## Review #5558542444 follow-up
+
+Featured-card navigation now uses the selected identity from the current validated featured snapshot, rather than resolving it through `/api/city`. City detail routes without a snapshot also leave identity to the existing read-only advice response, preserving zero-provider-call featured browsing. Personal links retain their separate city resolution and Issue #34 context/error behavior. No backend source, cache, download or completeness rules changed.
+
+Added browser assertions start with no personal city selected, hold the advice response to inspect the snapshot-derived loading title, and count `/api/city` requests. Featured loading, success, München failure and direct featured reload all make zero such requests; a direct personal trip still resolves metadata.
+
+Validation after this correction: 72 web unit tests pass; 40 live-browser checks, 10 featured regression cases, 27 historical browser checks and the Issue #34 error-context suite pass. All tests use offline synthetic providers; no live downloads, merge or deployment.

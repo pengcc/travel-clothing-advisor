@@ -140,7 +140,10 @@ async function showResult(params) {
   const isCity = params.view === 'city', demo = (isCity ? featuredScenario() : scenario()) !== 'live'; current = null;
   $('back').textContent = isCity ? '← 返回精选城市' : '← 修改行程';
   $('resultKind').textContent = `${isCity ? '城市穿衣参考' : '行程穿衣建议'} · ${demo ? '模拟数据' : '真实气温参考'}`;
-  const knownCity = personal.city?.id === params.city_id ? personal.city : null;
+  // Featured browsing reads published sources only; never resolve through GeoNames.
+  const featuredCity = isCity && validFeaturedSnapshot(snapshot)
+    ? snapshot.cities.find(entry => entry.city.id === params.city_id)?.city : null;
+  const knownCity = isCity ? featuredCity : personal.city?.id === params.city_id ? personal.city : null;
   const validDates = !isCity && /^\d{4}-\d{2}-\d{2}$/.test(params.start) && /^\d{4}-\d{2}-\d{2}$/.test(params.end);
   const historicalRequest = validDates && context && params.end > context.forecast_end;
   $('resultCity').textContent = knownCity ? `${knownCity.zh} · ${knownCity.name}` : '尚未确定城市';
@@ -153,7 +156,7 @@ async function showResult(params) {
   const selected = isCity ? featuredScenario() : scenario();
   if (selected === 'loading') return;
   try {
-    if (!knownCity) {
+    if (!knownCity && !isCity) {
       try {
         const city = demo ? cities.find(c => c.id === params.city_id) : (await api('/api/city', { city_id: params.city_id })).city;
         if (version !== requestVersion) return;
