@@ -60,9 +60,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send_json(200, self.service.city_advice(p) if p.get('view') == 'city' else self.service.advice(p))
             self.send_json(404, dict(error='页面不存在。'))
         except ValueError as exc:
-            self.send_json(400, dict(error=str(exc)))
+            self.send_json(400, dict(error=str(exc), code="invalid_request"))
         except LookupError as exc:
-            self.send_json(503, dict(error=str(exc)))
+            self.send_json(503, dict(error=str(exc), code=getattr(exc, "code", "temporarily_unavailable")))
 
     def send_json(self, status, data):
         self.send_bytes(status, json.dumps(data, ensure_ascii=False).encode(), 'application/json')

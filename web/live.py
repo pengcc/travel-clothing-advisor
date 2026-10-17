@@ -36,7 +36,11 @@ INNER = {
 
 
 class Unavailable(LookupError):
-    pass
+    code = "temporarily_unavailable"
+
+
+class HistoryIncomplete(Unavailable):
+    code = "history_incomplete"
 
 
 def fetch_json(url, params):
@@ -208,7 +212,7 @@ class Service:
             raise ValueError('请选择德国今天起30天内的有效日期，离开日期不能早于到达日期。')
         if end>w['forecast_end']:
             if self.history is None:
-                raise Unavailable('过去五年同期历史资料尚未齐备，暂不提供穿衣建议。')
+                raise HistoryIncomplete('这个查询的过去五年同期历史资料尚未齐备，暂不提供穿衣建议。')
             from web.historical_advice import advise
             city = self.resolve(p.get('city_id'))
             return advise(self.history, city, p, now, self.clock, self.history_downloader, self.history_max_missing)

@@ -23,7 +23,7 @@ from urllib.parse import urlencode
 from urllib.request import urlopen
 
 from web.fixtures import BERLIN
-from web.live import IDS, Unavailable, number
+from web.live import IDS, HistoryIncomplete, Unavailable, number
 
 ARCHIVE = 'https://archive-api.open-meteo.com/v1/archive'
 FORMAT = dict(schema=1, model='era5', variable='temperature_2m', unit='°C',
@@ -243,11 +243,11 @@ class Library:
                 missing = [m for m,b in blocks.items() if b is None]
                 if missing:
                     if downloader is None or len(missing) > max_missing:
-                        raise Unavailable('过去五年同期历史资料尚未齐备，请稍后重试；暂不提供穿衣建议。')
+                        raise HistoryIncomplete('这个查询的过去五年同期历史资料尚未齐备，暂不提供穿衣建议。')
                     downloader.fill_locked([(city,m) for m in missing])
                     blocks = {m:self.read(city,m) for m in needed}
                 if not all(blocks.values()):
-                    raise Unavailable('过去五年同期历史资料不完整，请稍后重试。')
+                    raise HistoryIncomplete('这个查询的过去五年同期历史资料尚未齐备。')
                 indexed = {}
                 for block in blocks.values():
                     h = block['body']['hourly']

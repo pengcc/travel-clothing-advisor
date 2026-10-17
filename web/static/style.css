@@ -55,3 +55,7 @@ body{overflow-wrap:anywhere}.warmth-mark,.warmth-mark .warmth-name{white-space:n
 .preference-note{margin-top:16px!important;font-size:13px!important;color:var(--muted)!important}.data-details{font-size:13px;color:var(--muted)}.data-details summary{cursor:pointer;padding:10px 0;min-height:44px}.featured-summary span{display:block;margin:5px 0 0}
 
 .trip-preference{display:block;margin-top:4px}
+
+/* Keep the result announcement focus without the browser default blue box. */
+#resultCity:focus{outline:none}
+#resultCity:focus-visible{outline:2px solid var(--action);outline-offset:6px;border-radius:4px}
