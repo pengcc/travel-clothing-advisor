@@ -197,3 +197,125 @@ node tests/web/clipboard-regressions.cjs
 UI_BASE_URL=http://127.0.0.1:8002 node tests/web/review-regressions.cjs
 UI_BASE_URL=http://127.0.0.1:8002 node tests/web/history-browser.cjs
 ```
+
+## Issue #36: historical operations runbook
+
+This is preparation, not evidence that München can already answer a real trip.
+Use the actual failing trip dates; the examples below are illustrative. No live
+GeoNames requests, history downloads, deployment or storage migration were run
+for this change. Existing local Berlin evidence is in
+[Issue #34 verification](../docs/verification/issue34/README.md); deployment
+configuration and coverage remain unverified.
+
+1. Identify the **actual serving process/environment** and its `--history-dir`.
+   The default `web.server` has `Service.history=None`. `--history-dir` attaches
+   `Library(DirectoryStore(...))`; relative paths resolve from that process's
+   working directory. `--forecast-dir` does not configure history. Use the same
+   absolute history path for inspection, worker and server. Local `.history-local`
+   repair does not populate a deployment. No hosted store is configured in this
+   repository; an inaccessible remote store cannot be diagnosed by a local path.
+   Do not start the server against a missing directory just to inspect it: its
+   existing directory adapter creates directories and request lock files.
+
+2. Obtain **separate approval** for city metadata requests and creation of a new
+   ignored manifest in the chosen environment. Reuse existing verified records
+   when available. After approval, for München only (one `/v1/get` request, no
+   retries, existing eight-second per-request timeout):
+
+   ```sh
+   python3 -m web.prefetch_history --resolve-cities --city-id munich \
+     --cities-file .history-local/munich-cities.json
+   ```
+
+   The parent directory must already exist and be approved for this operation.
+   The output file must not exist. Omitting `--city-id` resolves all ten featured
+   cities: Berlin 2950159, München 2867714, Hamburg 2911298, Frankfurt am Main
+   2925533, Köln 2886242, Dresden 2935022, Heidelberg 2907911, Nürnberg 2861650,
+   Düsseldorf 2934246, Leipzig 2879139 (at most ten requests; serial, no retries).
+   To prioritize München in that initialization, pass `--city-id munich` first
+   then repeat `--city-id` for each remaining alias. All records must pass the
+   existing `location()` validation and requested-ID equality before publication.
+   No coordinates are invented. The complete manifest is staged, flushed, synced
+   and closed before atomic no-overwrite publication; write failures leave no
+   partial destination and staging files are cleaned up. A destination created
+   concurrently is preserved. A failed batch creates no manifest; requests
+   already attempted still count. Keep provider records ignored and out of Git.
+   Do not merge records by copying UI fixtures or manually supplying coordinates.
+
+3. Run the **offline, read-only exact-trip report**, substituting the actual store
+   path, verified manifest and dates. This command creates no directory, worker
+   lock or ledger and makes no requests:
+
+   ```sh
+   python3 -m web.prefetch_history --check --city-id munich \
+     --cities-file .history-local/munich-cities.json --store .history-local \
+     --start 2026-11-02 --end 2026-11-05
+   ```
+
+   Exit 0 means all necessary blocks validate; exit 1 reports `incomplete`,
+   `unreadable` or `unconfigured` (omit `--store` to represent a server with no
+   history configured). Per-city months are `valid`, `missing_or_invalid`, or
+   `unreadable`. Missing directories are unreadable, not empty coverage. Corrupt
+   objects are misses by the existing `Library.read()` contract. Storage outages
+   never prove absence. Reports observe atomic objects without locking; rerun
+   after maintenance. Exact coordinates participate in identity, so the manifest
+   must match server-resolved metadata. `--today` aggregate plans are not proof
+   of a particular trip's coverage. Coverage alone does not validate the API's
+   Germany-today…today+29 admission window.
+
+4. Request **separate approval** naming cities, actual environment/store, dates,
+   missing months and total equivalent-call estimate from the report. For the
+   illustrative November trip with no München blocks: five November 2021–2025
+   blocks, at most five archive HTTP attempts / 30 conservative equivalent calls.
+   Ten entirely missing cities would require 50 blocks / 300 equivalent calls,
+   over multiple approved batches and days under existing limits. Cross-month
+   trips may need ten blocks per city; use the report rather than that example.
+   Approval must also cover writes to the selected store and its quota ledger.
+   After approval, use the **same exact dates** for bounded filling:
+
+   ```sh
+   python3 -m web.prefetch_history --city-id munich \
+     --cities-file .history-local/munich-cities.json --store .history-local \
+     --start 2026-11-02 --end 2026-11-05 --download \
+     --max-blocks 5 --batch-calls 30 --daily-calls 60 --monthly-calls 600 --timeout 30
+   ```
+
+   This reuses the existing downloader, identity/checksum, six-day publication
+   lag, ledger and admission lock. Hits are free; failures remain charged. Exit 1
+   `paused` can mean partial progress, quota, cooldown or failure. Inspect counts,
+   rerun the offline check, and continue only within the approved total budget;
+   never delete the ledger or automatically loop. The ledger coordinates one
+   store, not all stores/hosts or other use of the provider account.
+
+5. Repeat step 3 as **read-back validation**. Require every mapped month valid.
+   Then separately approve any needed server configuration/start or deployment
+   change; attaching the store is not authorized by the data download approval.
+   For an approved local serving environment, the existing launch is:
+
+   ```sh
+   python3 -m web.server --history-dir .history-local --port 8000
+   ```
+
+   After approval for the real API check (one additional city-resolution request,
+   zero archive downloads in the default server), query the actual serving URL
+   with dates currently accepted by `/api/context`, an end beyond `forecast_end`,
+   no `fixture` parameter, and the same city/store/date coverage checked above:
+
+   ```sh
+   curl --fail --get http://127.0.0.1:8000/api/advice \
+     --data-urlencode view=trip --data-urlencode city_id=munich \
+     --data-urlencode start=2026-11-02 --data-urlencode end=2026-11-05 \
+     --data-urlencode preference=normal
+   ```
+
+   Require HTTP 200, `mode=historical_reference`, `fixture=false`, correct city and
+   dates, and five-year evidence in the response. Check acquisition/version
+   fields against that environment's library. A 503 is not successful repair.
+   Do not publish trip URLs or raw responses containing personal inputs. A
+   successful synthetic test or merged PR is not this operational evidence.
+
+Offline validation: `python3 -m unittest discover -s tests/web -q`. Focused tests
+cover mocked GeoNames validation and ID mismatch, safe manifest publication,
+read-only valid/corrupt/missing/unreadable/unconfigured stores, leap/cross-year
+mapping, and exact-trip download job selection. Existing HTTP tests exercise
+`/api/advice` with injected providers and a complete/incomplete history library.
