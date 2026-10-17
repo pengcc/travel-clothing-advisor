@@ -4,3 +4,6 @@ __pycache__/
 
 # Local history library; raw provider data and quota ledger never belong in Git.
 .history-local/
+
+# Local daily forecast sources and operator metadata.
+.forecast-local/

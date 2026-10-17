@@ -35,6 +35,7 @@ export function CityCard(data, href) {
   const host = text('span', '', 'warmth-host'); host.append(WarmthIndicator(data.warmth_indicator_level));
   card.append(host, text('span', data.headline, 'coat'));
   if (data.packing_variation_summary) card.append(text('span', data.packing_variation_summary, 'card-variation'));
+  card.append(text('span', data.fixture ? '模拟数据 · 未获取真实天气' : `Open-Meteo · 获取于 ${new Date(data.weather_fetched_at).toLocaleString('zh-CN', { timeZone: 'Europe/Berlin', hour12: false })}（德国）`, 'card-source'));
   card.append(text('span', '查看14天建议 →', 'go'));
   return card;
 }
