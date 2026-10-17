@@ -72,7 +72,7 @@ print(json.dumps(dict(advice=split,near13=case.advice(),context=dict(window(NOW)
   check((await page.locator('#tempText').textContent()).includes('13.2'),'near-13 observed representative temperature');
   check((await page.locator('#spanText').textContent()).includes('冬季保暖外套'),'near-13 variation retains winter requirement');
   await page.locator('#copyAdvice').click();
-  check((await page.evaluate(()=>navigator.clipboard.readText())).split('\n').includes(response.headline),'copied near-13 headline retains cold outlier');
+  check((await page.evaluate(()=>navigator.clipboard.readText())).includes('外套：适中外套。') && (await page.evaluate(()=>navigator.clipboard.readText())).includes('冬季保暖外套'),'copied near-13 summary separates usual coat from cold risk');
   check(errors.length===0,'no JS errors');
   console.log(`${checks} historical browser checks passed`);
  } finally {await browser.close()}

@@ -1,6 +1,6 @@
 # Issue #27 UI and copy verification
 
-Verified 2026-10-17 from main `4e2572b`. This is a presentation-only follow-up. The sole Python production change is historical advice wording/placement: usual outerwear stays in the headline; additional historical cold inner layers move into the existing risk notice. Forecast acquisition, cache, sample selection, six clothing thresholds, variation/risk triggers and elapsed-hour exclusion are unchanged.
+Verified 2026-10-17 from main `4e2572b`. This is a presentation-only follow-up. Python production changes are limited to advice presentation: historical wording/placement and a compact clipboard plan derived from already-selected clothing levels and triggered risk events. The plan does not read temperatures or fetch weather. Usual outerwear stays in the headline; additional historical cold inner layers move into the existing risk notice. Forecast acquisition, cache, sample selection, six clothing thresholds, variation/risk triggers and elapsed-hour exclusion are unchanged.
 
 ## Reproduce
 
@@ -24,7 +24,7 @@ UI_BASE_URL=http://127.0.0.1:8002 node tests/web/copy-regressions.cjs
 node docs/verification/issue27/capture.cjs
 ```
 
-Results: 60 web tests and 122 clothing-rule tests pass; browser suites pass 63, 10, 35, 27, 33 and 57 checks/cases respectively. Restricted execution requires loopback/Chrome permission. All provider data is synthetic and injected: these results establish no live-weather acquisition, actual forecast accuracy or garment-science validity. No live weather calls, production data mutation, deployment or merge.
+Results: 60 web tests and 122 clothing-rule tests pass; browser suites pass 63, 10, 35, 27, 33 and 57 checks/cases respectively at the F1–F3 checkpoint; see the clipboard follow-up below for current totals. Restricted execution requires loopback/Chrome permission. All provider data is synthetic and injected: these results establish no live-weather acquisition, actual forecast accuracy or garment-science validity. No live weather calls, production data mutation, deployment or merge.
 
 ## Output comparison
 
@@ -63,3 +63,17 @@ Addressed all three P2 findings on the same delivery branch:
 - **F3:** The historical risk composes cold outerwear plus concise inner layers once and omits the usual jacket as a redundant warmer option. The 4×8°C + 1×0°C test checks each winter garment appears exactly once, warmer/removable-layer options and non-prediction remain, for all three preferences. Existing split/near-boundary safety tests continue passing.
 
 Re-ran all six browser suites: 225 checks/cases in total, plus 60 web and 122 clothing-rule tests. The updated historical capture was visually inspected at 375px. Data acquisition, cache and clothing/risk calculations are unchanged. Tests remain entirely synthetic; no merge or deployment.
+
+## Review #5557706623 — compact clipboard summary
+
+The copy button now exports fields explicitly instead of serializing result/source DOM text. City, ISO date range and actual personal preference have separate lines, followed by data nature, labeled outer/inner preparation and genuine cold/warm/early-evening reminders. Typical L5 and extra L6 remain separate; shared garments appear once in the matched-backend summary. Historical split results keep their full cold/warm range without a “usual” claim. An early-evening event remains visible even when its clothing has already been listed. Minimal attribution is `Open-Meteo / ERA5（CC BY 4.0）；GeoNames` for history and `Open-Meteo（CC BY 4.0）；GeoNames` for forecasts. Acquisition, per-month and generation timestamps, model-time footnotes and history-window mechanics are excluded from clipboard, retained in on-page data details.
+
+The new `packing_copy` API presentation field records the original branch's already-selected levels/date labels. It does not introduce thresholds, reread weather, or change any original headline, layer, notice, risk trigger, cache identity, sample window or acquisition path. Five focused Python tests check event collection preserves packing decisions, L5/L6 deduplication, cooler-hour needs, split coverage and evening-only/boundary meaning. Legacy/hand-authored fixtures retain their original safety copy with explicit simulated provenance; tests do not infer real provider data from fixture values.
+
+A new browser suite compares **entire clipboard strings** for historical L5 + L6 and forecast advice for each of cold/normal/hot. It checks date/preference line separation, required attribution exactly once, no technical audit log, once-only winter outer/inner names, cold and warm garment coverage, early-evening risk retention, 8–14-day uncertainty, warm-only/stable forecasts, fixture provenance and continued on-page source access.
+
+```sh
+UI_BASE_URL=http://127.0.0.1:8002 node tests/web/clipboard-regressions.cjs --capture
+```
+
+Current results: **65 web tests**, **122 clothing-rule tests**, and all seven browser suites pass (**273 checks/cases**: 63 + 10 + 35 + 27 + 33 + 57 + 48). [Exact copied history and forecast examples](copied-advice.txt) are synthetic, generated from the current branch's Python backend and frontend together. This does not reproduce or validate the user's mixed-version live environment, and no live provider requests were made. F1–F3 on-page fixes remain intact. No merge or deployment.

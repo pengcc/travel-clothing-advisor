@@ -19,8 +19,13 @@ def advise(library, city, p, now, clock, downloader=None, max_missing=0):
     usual_coat = {**OUTER, 4: '建议带适中外套', 5: '建议带保暖夹克或轻羽绒', 6: '建议带冬季保暖外套'}
     headline = usual_coat[main] if main is not None else f'历史冷暖分化，冷时{OUTER[cold]}，暖时减薄'
     layers = INNER[main] if main is not None else f'较冷时：{INNER[cold]}较暖时：{INNER[warm]}'
+    copy_events = []
+    copy_boundary = False
+    copy_boundary_note = False
     notice = summary = None
     if variation:
+        copy_events = [dict(kind='cold', level=cold, when='历史同期'),
+                       dict(kind='warm', level=warm, when='历史同期')]
         # Deliberately discard dated forecast copy, keep the shared packing decision.
         # Presentation-only garment copy: name cold outer and inner coverage once.
         cold_layers = {
@@ -34,14 +39,17 @@ def advise(library, city, p, now, clock, downloader=None, max_missing=0):
         summary = f'过去五年同期有冷暖差异，冷时{OUTER[cold]}，暖时减薄。'
     notes = []
     if ref is not None and main in (4,5) and abs(ref-13)<=0.75:
+        copy_boundary_note = True
         # Boundary wording must not erase an observed colder packing requirement.
         if not (variation and cold > main):
+            copy_boundary = True
             headline = '建议带保暖程度适中的外套；怕冷可用轻羽绒替代'
         notes.append('历史气温接近13°C厚度分界，长袖搭配薄毛衣或抓绒，按体感增减。')
     by_day = dict(days)
     cooler = [(d,v) for d,v in edges if by_day[d]-v > 1.5 and level(v)>level(by_day[d])]
     if cooler:
         _,v = min(cooler,key=lambda x:x[1])
+        copy_events.append(dict(kind='edge', level=level(v), when='历史同期早晚'))
         notes.append(f'过去五年同期的早晚样本曾较凉：{OUTER[level(v)]}，外出可带可脱保暖层。')
     else:
         notes.append('过去五年同期早晚样本与白天保暖需求接近，按体感增减。')
@@ -54,7 +62,11 @@ def advise(library, city, p, now, clock, downloader=None, max_missing=0):
                    key=lambda t: datetime.fromisoformat(t).timestamp())
     if any(datetime.fromisoformat(t)>generated for t in times):
         raise Unavailable('历史资料时间无效，请重试。')
-    return dict(city=public_city(city), start=p['start'], end=p['end'], preference=p['preference'],
+    from web.advice_copy import packing_copy
+    clipboard = packing_copy(main, copy_events, split=(cold, warm) if main is None else None, boundary=copy_boundary)
+    if copy_boundary_note:
+        clipboard['boundary'] = '接近13°C厚度分界，按体感增减中间层。'
+    return dict(packing_copy=clipboard, city=public_city(city), start=p['start'], end=p['end'], preference=p['preference'],
                 view='trip', mode='historical_reference', headline=headline, layers=layers,
                 notices=notes, reference_temperature_c=ref, warmth_indicator_level=main,
                 packing_variation_notice=notice, packing_variation_summary=summary,

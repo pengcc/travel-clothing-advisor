@@ -98,8 +98,9 @@ def parse_hours(data, now):
         raise Unavailable('气温数据不完整、日期已过期或时区无效，暂不提供穿衣建议。') from exc
 
 
-def packing(days):
+def packing(days, presentation_events=None):
     """Modal observed level, independent range test; suppress <=1.5°C boundary noise."""
+    events = presentation_events if presentation_events is not None else []
     values = [v for _,v in days]
     levels = [level(v) for v in values]
     counts = Counter(levels)
@@ -113,6 +114,8 @@ def packing(days):
             coldest, warmest = max(levels), min(levels)
             notice = (f'{days[values.index(min(values))][0]}较冷：{OUTER[coldest]}；'
                       f'{days[values.index(max(values))][0]}较暖：{OUTER[warmest]}，按当天增减。')
+            events.extend([dict(kind='cold', level=coldest, when=days[values.index(min(values))][0]),
+                           dict(kind='warm', level=warmest, when=days[values.index(max(values))][0])])
             summary = f'冷暖分化，冷时{OUTER[coldest]}，暖时减薄。'
         else:
             colder = [(d,v) for d,v in days if level(v)>main and median(values)-v>1.5]
@@ -121,10 +124,12 @@ def packing(days):
             if colder:
                 d,v = min(colder, key=lambda x:x[1])
                 when = f'{d}等{len(colder)}天' if len(colder)>1 else d
+                events.append(dict(kind='cold', level=level(v), when=when))
                 parts.append(f'{when}偏冷：{OUTER[level(v)]}，按时段增减保暖层')
             if warmer:
                 d,v = max(warmer, key=lambda x:x[1])
                 when = f'{d}等{len(warmer)}天' if len(warmer)>1 else d
+                events.append(dict(kind='warm', level=level(v), when=when))
                 parts.append(f'{when}偏暖：内搭轻薄、外套方便脱下')
             notice = '；'.join(parts) + '。' if parts else None
             summary = ('有冷暖变化，备轻薄内搭和可增减保暖层。' if colder and warmer else '有偏冷日，另备外套或可叠穿保暖层。' if colder else '有偏暖日，内搭轻薄、外套方便脱下。') if parts else None
@@ -230,7 +235,11 @@ class Service:
                 days.append((day.isoformat(), median(daytime)))
         if not days and not edges:
             raise Unavailable('今天可用的白天及早晚时段均已过去，请选择明天起的日期。')
-        main, notice, summary = packing(days) if days else (None,None,None)
+        copy_events = []
+        main, notice, summary = packing(days, copy_events) if days else (None,None,None)
+        copy_split = (level(min(v for _,v in days)), level(max(v for _,v in days))) if days and main is None else None
+        copy_level = main if days else level(min(v for _,v in edges))
+        copy_boundary = False
         ref = round(median(v for _,v in days),1) if days and main is not None else None
         if main is not None:
             headline = OUTER[main]
@@ -240,6 +249,7 @@ class Service:
             headline = '今天白天已过，仅参考剩余晚间时段备衣'
         notes = []
         if ref is not None and main in (4,5) and abs(ref-13)<=0.75:
+            copy_boundary = True
             headline = '建议带保暖程度适中的外套；怕冷可用轻羽绒替代'
             notes.append('气温接近13°C厚度分界，长袖搭配薄毛衣或抓绒，按体感增减。')
         if edges:
@@ -248,6 +258,7 @@ class Service:
                       (by_day[d.date().isoformat()]-v>1.5 and level(v)>level(by_day[d.date().isoformat()]))]
             if cooler:
                 d,v = min(cooler,key=lambda x:x[1])
+                copy_events.append(dict(kind='edge', level=level(v), when=f'{d:%m月%d日 %H时}前后'))
                 notes.append(f'{d:%m月%d日 %H时}前后较凉：{OUTER[level(v)]}，外出可随身携带。')
             else:
                 notes.append('有效早晚时段与当天白天保暖需求接近，按实际体感增减。')
@@ -267,4 +278,6 @@ class Service:
         caveat = '仅依据气温的备衣参考，未评估雨、雪、风或个人舒适度；出发前请复查。'
         if end> (now.date()+timedelta(days=6)).isoformat():
             caveat += '第8–14天预报不确定性更大，偏冷偏暖日期也可能改变。'
-        return dict(city=public_city(city), start=start, end=end, preference=p['preference'], view=p.get('view', 'trip'), mode='forecast', headline=headline, layers=layers, notices=notes, reference_temperature_c=ref, warmth_indicator_level=main, packing_variation_notice=notice, packing_variation_summary=summary, weather_fetched_at=acquired.isoformat(timespec='seconds'), advice_generated_at=generated.isoformat(timespec='seconds'), source='Open-Meteo（气温预报）；GeoNames（城市）', data_status='fresh', data_version='temperature-v1-'+version, caveat=caveat, fixture=False)
+        from web.advice_copy import packing_copy
+        clipboard = packing_copy(copy_level, copy_events, split=copy_split, evening_only=not days, boundary=copy_boundary)
+        return dict(packing_copy=clipboard, city=public_city(city), start=start, end=end, preference=p['preference'], view=p.get('view', 'trip'), mode='forecast', headline=headline, layers=layers, notices=notes, reference_temperature_c=ref, warmth_indicator_level=main, packing_variation_notice=notice, packing_variation_summary=summary, weather_fetched_at=acquired.isoformat(timespec='seconds'), advice_generated_at=generated.isoformat(timespec='seconds'), source='Open-Meteo（气温预报）；GeoNames（城市）', data_status='fresh', data_version='temperature-v1-'+version, caveat=caveat, fixture=False)

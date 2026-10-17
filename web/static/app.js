@@ -1,4 +1,4 @@
-import { WarmthIndicator, CityCard, text } from './components.js';
+import { WarmthIndicator, CityCard, text, formatAdviceCopy } from './components.js';
 const $ = id => document.getElementById(id);
 const feelings = { cold: '怕冷', normal: '正常', hot: '怕热' };
 // Personal form stays in its own DOM; history snapshots preserve it on reload without storage.
@@ -240,7 +240,7 @@ async function copy(value, message) {
   catch { $('toast').textContent = '浏览器未允许复制，请从地址栏复制链接。'; }
   $('toast').classList.add('show'); clearTimeout(copy.timer); copy.timer = setTimeout(() => $('toast').classList.remove('show'), 3000);
 }
-$('copyAdvice').onclick = () => { if (current) copy([current.fixture ? '【演示数据，非真实天气】' : '【气温备衣参考】', $('resultKind').textContent, $('resultCity').textContent, $('resultDates').textContent, $('resultMode').textContent, $('preferenceNote').textContent, current.headline, current.packing_variation_notice, current.layers, $('edgeText').textContent, $('tempText').textContent, current.caveat, $('source').textContent].filter(Boolean).join('\n'), '已复制建议'); };
+$('copyAdvice').onclick = () => { if (current) copy(formatAdviceCopy(current), '已复制建议'); };
 $('shareTrip').onclick = () => { if (current) copy(location.origin + location.pathname + link({ ...current, city_id: current.city.id }), current.fixture ? '已复制链接；演示场景不随链接保存' : '已复制行程链接；打开时重新计算'); };
 // Revalidate after backgrounding or crossing German midnight; never reuse yesterday's window.
 async function revalidateDay() {
