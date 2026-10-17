@@ -32,7 +32,9 @@ for i,t in enumerate(evening_fake.data['hourly']['time']):
         evening_fake.data['hourly']['temperature_2m'][i]=24
 evening=Service(evening_fake,lambda:NOW).advice(p)
 fixture=advice(p,now=NOW)
-print(json.dumps(dict(history=history,forecast=forecast,split=split,edge=edge,long=long,warm=warm,stable=stable,summer=summer,evening=evening,fixture=fixture)))
+l5=[Service(Fake(values=[8]*14),lambda:NOW).advice(dict(p,preference=pref)) for pref in ('normal','cold','hot')]
+
+print(json.dumps(dict(history=history,forecast=forecast,split=split,edge=edge,long=long,warm=warm,stable=stable,summer=summer,evening=evening,fixture=fixture,l5=l5)))
 `],{encoding:'utf8'}));
 (async()=>{
  const browser=await chromium.launch({channel:'chrome',headless:true});
@@ -51,7 +53,6 @@ print(json.dumps(dict(history=history,forecast=forecast,split=split,edge=edge,lo
    return page.evaluate(()=>navigator.clipboard.readText());
   }
   const labels=['怕冷','正常','怕热'];
-  const adjustment=['怕冷可多备一层。','冷热感受因人而异，请按体感调整。','怕热可减薄内搭，中间层方便脱下。'];
   for(const mode of ['history','forecast']) for(let i=0;i<3;i++) {
    const historical=mode==='history';
    const copied=await copy(samples[mode][i]);
@@ -61,10 +62,10 @@ print(json.dumps(dict(history=history,forecast=forecast,split=split,edge=edge,lo
     `冷热偏好：${labels[i]}`,
     historical ? '资料：过去五年同期参考，非这趟行程的预报' : '资料：所选日期气温预报', '',
     '【通常准备】', historical ? '外套：保暖夹克或轻羽绒。' : '外套：不必带厚外套。',
-    historical ? '内搭：长袖、毛衣或抓绒。' : '内搭：短袖或薄长袖。', '',
+    historical ? '内搭：长袖、毛衣或抓绒。' : '内搭：短袖或薄长袖。',
+    ...Object.values(samples[mode][i].packing_copy.guidance).filter(Boolean), '',
     '【冷暖提醒】',
     ...(historical ? ['历史同期偏冷：另备冬季保暖外套、保暖内搭。','历史同期偏暖：减薄内搭、脱下外层。'] : ['2026-10-17偏冷：另备适中外套、薄毛衣。']), '',
-    `个人调整：${historical&&i===2 ? '怕热时可按上述偏暖方式调整。' : adjustment[i]}`,
     historical ? '白天气温参考：约 8°C（历史样本），不是最高或最低气温。' : '白天气温参考：约 24°C，不是最高或最低气温。',
     `提醒：${historical ? '历史冷暖不能预测此次旅行的具体日期。' : ''}仅按气温，未评估雨、雪、风；出发前请复查。`,
     historical ? '来源：Open-Meteo / ERA5（CC BY 4.0）；GeoNames。' : '来源：Open-Meteo（CC BY 4.0）；GeoNames。',
@@ -79,6 +80,23 @@ print(json.dumps(dict(history=history,forecast=forecast,split=split,edge=edge,lo
    // Full provenance remains available on page, including monthly times for history.
    await page.locator('.data-details summary').click();
    check((await page.locator('#source').innerText()).includes(historical?'历史资料各月获取时间':'天气获取时间'),'on-page provenance preserved');
+  }
+  for (const data of [...samples.l5, ...samples.history, samples.split]) {
+   const copied=await copy(data);
+   const guidance=data.packing_copy.guidance;
+   const visible=await page.locator('#resultGuidance p').allTextContents();
+   assert.deepEqual(visible,Object.values(guidance).filter(Boolean));checks++;
+   for(const value of visible) check(copied.split(value).length===2,'guidance appears once in full copy');
+   check(visible.length<=3,'at most three guidance paragraphs');
+   check(!copied.includes('个人调整：'),'no duplicate legacy preference sentence');
+   if(samples.l5.includes(data)) {
+    check(copied.includes('可替代主外套方案，不必再多带一套'),'conditional mutually exclusive alternative');
+    check(copied.includes('实际保暖能力适合预计活动'),'no unconditional performance promise');
+   } else check(!guidance.alternative,'winter risk suppresses L5 alternative');
+   for(const width of [320,375,390]) {
+    await page.setViewportSize({width,height:844});
+    check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'guidance wraps '+width);
+   }
   }
   const edge=await copy(samples.edge);
   check(edge.includes('历史同期早晚较凉：外出带上已备的保暖层。'),'evening event retained without duplicate clothes');
@@ -104,7 +122,6 @@ print(json.dumps(dict(history=history,forecast=forecast,split=split,edge=edge,lo
     '冷热偏好：正常','资料：所选日期气温预报','',
     '【通常准备】','外套：不必带厚外套。','内搭：短袖、轻薄透气下装。','',
     '【冷暖提醒】',risk,'',
-    '个人调整：冷热感受因人而异，请按体感调整。',
     '白天气温参考：约 29°C，不是最高或最低气温。',
     '提醒：仅按气温，未评估雨、雪、风；出发前请复查。',
     '来源：Open-Meteo（CC BY 4.0）；GeoNames。',

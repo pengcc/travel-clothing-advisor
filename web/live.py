@@ -271,13 +271,9 @@ class Service:
             layers = f'较冷时：{INNER[coldest]}较暖时：{INNER[warmest]}'
         else:
             layers = INNER[main if days else level(min(v for _,v in edges))]
-        if p['preference'] == 'cold':
-            layers += '怕冷：较凉时可多备一层薄长袖或薄毛衣。'
-        elif p['preference'] == 'hot':
-            layers += '怕热：内搭可减薄，中间层方便脱下。'
         caveat = '仅依据气温的备衣参考，未评估雨、雪、风或个人舒适度；出发前请复查。'
         if end> (now.date()+timedelta(days=6)).isoformat():
             caveat += '第8–14天预报不确定性更大，偏冷偏暖日期也可能改变。'
         from web.advice_copy import packing_copy
-        clipboard = packing_copy(copy_level, copy_events, split=copy_split, evening_only=not days, boundary=copy_boundary)
+        clipboard = packing_copy(copy_level, copy_events, split=copy_split, evening_only=not days, boundary=copy_boundary, preference=p['preference'])
         return dict(packing_copy=clipboard, city=public_city(city), start=start, end=end, preference=p['preference'], view=p.get('view', 'trip'), mode='forecast', headline=headline, layers=layers, notices=notes, reference_temperature_c=ref, warmth_indicator_level=main, packing_variation_notice=notice, packing_variation_summary=summary, weather_fetched_at=acquired.isoformat(timespec='seconds'), advice_generated_at=generated.isoformat(timespec='seconds'), source='Open-Meteo（气温预报）；GeoNames（城市）', data_status='fresh', data_version='temperature-v1-'+version, caveat=caveat, fixture=False)

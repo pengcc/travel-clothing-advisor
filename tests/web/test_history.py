@@ -74,7 +74,7 @@ class HistoryTests(unittest.TestCase):
         self.assertEqual(d['data_version'],other['data_version'])
         self.assertEqual(d['weather_fetched_at'],other['weather_fetched_at'])
         self.assertNotEqual(d['advice_generated_at'],other['advice_generated_at'])
-        self.assertNotEqual(d['layers'],other['layers'])
+        self.assertNotEqual(d['packing_copy']['guidance'],other['packing_copy']['guidance'])
         worker.fill(self.jobs('2026-11-03','2026-11-06'))
         self.assertEqual(worker.stats['http_requests'],0)
         worker.fill(self.jobs('2026-11-29','2026-12-03'))

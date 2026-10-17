@@ -174,3 +174,26 @@ The checksummed object contains the raw provider response, exact identity, fixed
 Personal queries resolve a trusted city, read the same source, and recompute advice for their dates/preference and remaining hours; no per-user advice, trip, preference or user identifier is stored. Weather version/acquisition remain attached to the source while `advice_generated_at` reflects calculation, not model-update time. Cards and details use the same backend variation decision and nullable indicator/summary contract. As in Phase 2A, advice can change when elapsed hours are excluded even when its source version stays unchanged. Day 8–14 uncertainty and all historical garment rules remain unchanged.
 
 Reproducible offline commands, counts, screenshots and evidence limits: [Phase 2C verification](../docs/verification/phase2c/README.md).
+
+
+### Clothing-choice guidance
+
+Forecast and historical results share `packing_copy.guidance` (`alternative`,
+`personal_layer`, `trousers_shoes`) between the detailed page and clipboard export.
+These are presentation choices from already selected levels/events and preference;
+thresholds, dates, risk triggers, weather requests and caches are unchanged. L5 may
+suggest an existing three-in-one plus fleece as a conditional replacement, suppressed
+when L6 coverage is required. Trouser/footwear copy keeps rain, snow and ice conditional
+on separately checked forecasts. Featured cards retain their short outerwear summaries.
+Older/fixture responses keep their existing export fallback without invented guidance.
+
+Offline regression commands (Chrome and local Playwright required for browser checks):
+
+```sh
+python3 tests/web/serve_forecasts.py --port 8002
+# In another terminal:
+node tests/web/copy-regressions.cjs
+node tests/web/clipboard-regressions.cjs
+UI_BASE_URL=http://127.0.0.1:8002 node tests/web/review-regressions.cjs
+UI_BASE_URL=http://127.0.0.1:8002 node tests/web/history-browser.cjs
+```

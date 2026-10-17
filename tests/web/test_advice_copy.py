@@ -68,6 +68,34 @@ class CopyPresentationTests(unittest.TestCase):
         self.assertIn('13°C', boundary['boundary'])
         self.assertEqual(boundary['risks'], [])
 
+    def test_guidance_preferences_and_winter_coverage(self):
+        for pref in ('normal', 'cold', 'hot'):
+            plain = packing_copy(5, [], preference=pref)['guidance']
+            self.assertIn('如果已有', plain['alternative'])
+            self.assertIn('实际保暖能力适合预计活动', plain['alternative'])
+            self.assertIn('替代', plain['alternative'])
+            self.assertIn('不必再多带', plain['alternative'])
+            self.assertTrue(plain['personal_layer'])
+            for kind in ('cold', 'edge'):
+                winter = packing_copy(5, [dict(kind=kind, level=6, when='偏冷时')], preference=pref)
+                self.assertEqual(winter['guidance']['alternative'], '')
+                self.assertIn('冬季保暖外套、保暖内搭', winter['risks'][0])
+                self.assertIn('需保暖下装覆盖', winter['guidance']['trousers_shoes'])
+            self.assertNotIn('多备一层', plain['personal_layer'])
+
+    def test_guidance_does_not_invent_usual_level_or_weather(self):
+        for main, options in [(None, dict(split=(6, 2))), (6, dict(evening_only=True)),
+                              (4, dict(boundary=True)), (1, {}), (2, {}), (3, {})]:
+            result = packing_copy(main, [], **options)
+            self.assertEqual(result['guidance']['alternative'], '')
+            if main in (1, 2, 3):
+                self.assertEqual(result['guidance']['trousers_shoes'], '')
+            text = result['guidance']['trousers_shoes']
+            if text:
+                self.assertIn('如另查预报提示雨雪', text)
+                self.assertIn('如有结冰风险', text)
+            self.assertNotIn('通常', ' '.join(result['guidance'].values()))
+
 
 if __name__ == '__main__':
     unittest.main()

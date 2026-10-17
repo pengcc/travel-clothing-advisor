@@ -53,6 +53,7 @@ export function formatAdviceCopy(data) {
     `资料：${historical ? '过去五年同期参考，非这趟行程的预报' : '所选日期气温预报'}${data.fixture ? ' · 模拟示例' : ''}`, ''];
   if (plan) {
     lines.push(`【${plan.title}】`, `外套：${plan.outer}。`, `内搭：${plan.inner}。`);
+    if (plan.guidance) lines.push(...['alternative', 'personal_layer', 'trousers_shoes'].map(key => plan.guidance[key]).filter(Boolean));
     if (plan.risks.length) lines.push('', '【冷暖提醒】', ...plan.risks);
     if (plan.boundary) lines.push(`厚度提示：${plan.boundary}`);
   } else {
@@ -64,7 +65,8 @@ export function formatAdviceCopy(data) {
   }
   const adjustment = { cold: '怕冷可多备一层。', normal: '冷热感受因人而异，请按体感调整。', hot: '怕热可减薄内搭，中间层方便脱下。' };
   const adjust = data.preference === 'hot' && plan?.risks.some(risk => risk.includes('减薄内搭')) ? '怕热时可按上述偏暖方式调整。' : adjustment[data.preference];
-  lines.push('', `个人调整：${adjust}`);
+  if (!plan?.guidance) lines.push('', `个人调整：${adjust}`);
+  else lines.push('');
   if (data.reference_temperature_c !== null) lines.push(`白天气温参考：约 ${data.reference_temperature_c}°C${historical ? '（历史样本）' : ''}，不是最高或最低气温。`);
   let caveat = '仅按气温，未评估雨、雪、风；出发前请复查。';
   if (historical) caveat = '历史冷暖不能预测此次旅行的具体日期。' + caveat;
