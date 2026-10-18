@@ -67,6 +67,7 @@ class HistoryTests(unittest.TestCase):
         self.assertIn('ERA5',d['source'])
         self.assertIn('五年',d['caveat'])
         self.assertIsNone(d['packing_variation_notice'])
+        self.assertIsNone(d['packing_variation_kind'])
         self.assertEqual(d['warmth_indicator_level'],4)
         self.assertEqual(d['weather_fetched_at'],NOW.isoformat(timespec='seconds'))
         self.now+=timedelta(minutes=1)
@@ -231,6 +232,7 @@ class HistoryTests(unittest.TestCase):
         d=self.advice()
         self.assertEqual(d['warmth_indicator_level'],2)
         self.assertIn('冬季保暖外套',d['packing_variation_notice'])
+        self.assertEqual(d['packing_variation_kind'],'mixed')
         self.assertIn('保暖内搭',d['layers'] + d['packing_variation_notice'])
         for field in ('headline','layers','packing_variation_notice','packing_variation_summary','notices','caveat'):
             self.assertNotIn('2026-11',str(d[field]))
@@ -241,6 +243,7 @@ class HistoryTests(unittest.TestCase):
         d=self.advice()
         self.assertIsNone(d['warmth_indicator_level'])
         self.assertIsNone(d['reference_temperature_c'])
+        self.assertEqual(d['packing_variation_kind'],'mixed')
         for field in ('headline','packing_variation_notice','packing_variation_summary'):
             self.assertIn('冬季保暖外套',d[field])
         self.assertIn('保暖内搭',d['layers'] + d['packing_variation_notice'])
@@ -301,6 +304,7 @@ class HistoryTests(unittest.TestCase):
                 self.assertEqual(d['headline'],'建议带保暖程度适中的外套；怕冷可用轻羽绒替代')
                 self.assertTrue(any('13°C' in n for n in d['notices']))
                 self.assertEqual(bool(d['packing_variation_notice']),other==24)
+                self.assertEqual(d['packing_variation_kind'],'mixed' if other==24 else None)
 
     def test_historical_edges_and_tolerance(self):
         self.provider.edge=0
