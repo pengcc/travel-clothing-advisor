@@ -47,10 +47,10 @@ export function CityCard(data, href) {
   card.append(host, text('span', data.headline, 'coat'));
   if (data.packing_variation_summary) {
     const warning = text('span', '', 'card-variation');
-    warning.append(WarmthIcon('alert-variation'), text('span', data.packing_variation_summary));
+    warning.append(text('span', data.packing_variation_summary));
     card.append(warning);
   }
-  if (data.fixture) card.append(text('span', '模拟数据 · 非真实天气', 'card-source'));
+  // The featured section identifies fixtures once next to its shared date range.
   card.append(text('span', '查看14天建议 →', 'go'));
   return card;
 }
