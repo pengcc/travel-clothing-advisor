@@ -4,9 +4,9 @@ This repository owns its own product context, research evidence, decisions, and 
 
 ## Current phase
 
-The project is currently in **Product Discovery / Problem Validation**.
+Product discovery and problem validation continue where needed. The repository also has an **implemented local MVP and active MVP delivery work**; implementation experiments do not establish product-validation success.
 
-The default work boundary is research and product clarification, not implementation. Prioritize:
+For Issue, Plan, Review, Approval, Implementation, PR Review, Fix and Merge requests, read [the Workflow Contract](docs/collaboration.md) first. It is the sole workflow authority. Resolve the current task stage and its authority before acting; approved implementation does not require repeating completed discovery. For unresolved product questions, prioritize:
 
 - evidence-first community research;
 - focused product framing;
@@ -14,14 +14,14 @@ The default work boundary is research and product clarification, not implementat
 - competitor and adjacent-product research;
 - explicit separation of verified facts, current hypotheses, accepted decisions, and open questions.
 
-Do not select an application framework, weather provider, AI/ML approach, persistence layer, deployment platform, or other implementation architecture unless a later target-owned decision establishes the need and scope.
+Do not select an application framework, weather provider, AI/ML approach, persistence layer, deployment platform, or other implementation architecture unless a target-owned decision establishes the need and scope; verify current accepted decisions and implementation before changing them.
 
 ## Required repository context
 
 For repository-aware work:
 
 1. read this file from current `main`;
-2. read `.codex/chatgpt/project-instructions.md` when ChatGPT is the acting environment;
+2. read `.codex/chatgpt/project-instructions.md` when ChatGPT is the acting environment, and `docs/collaboration.md` for workflow-stage requests;
 3. read `docs/product-blueprint.md` when product purpose, scope, users, success, or non-goals matter;
 4. inspect any newer target-owned research or decision artifact that is directly relevant to the task;
 5. verify current repository reality before relying on historical conversation, donor-repository behavior, or remembered project state.
@@ -54,7 +54,7 @@ This repository currently owns a deliberately small, discovery-only agent capabi
   - use when a material conclusion depends on externally variable or authoritative facts;
   - apply `.codex/rules/docs-first-policy.md` for source precedence and claim boundaries.
 
-These capabilities are target-owned adaptations. No Project Memory system, role router, implementation planner, execution workflow, review workflow, publication workflow, hooks, or repository tooling is installed. Do not infer those capabilities from donor repositories or from terminology retained inside historical evidence.
+These capabilities are target-owned adaptations for discovery and intent. `docs/collaboration.md` governs the mandatory collaboration workflow; it is not a Skill or a second Task Baseline. Planning, Execution and Review Skills, a role router, Project Memory, hooks and dedicated workflow tooling remain deferred. Do not infer their installation from donor repositories or historical terminology.
 
 ## Donor repository boundary
 
@@ -87,14 +87,12 @@ These are current product hypotheses, not an implementation contract.
 
 ## Change and delivery boundary
 
-The initial root bootstrap was allowed directly on `main`. After bootstrap, ordinary Git-visible product, research, tooling, or implementation changes should use a dedicated branch unless the user explicitly authorizes another path.
+Follow [docs/collaboration.md](docs/collaboration.md) for Issue-first stage locations, planning and approval gates, one delivery branch/PR, independent exact-target review, same-PR fixes and closeout. A planning-only proposal never creates a PR; an authorized documentation implementation does. Small bounded changes may skip formal planning, never independent PR review or separate merge authority.
 
-For an ordinary requested repository change, completing the bounded change normally includes publishing or updating **one review-ready pull request** from that dedicated branch once the requested change is coherently represented. Do not insert a separate permission checkpoint merely to ask whether to open the PR. An explicit `keep local`, `no push`, `no PR`, or equivalent constraint opts out.
+Ordinary requested repository changes normally include one review-ready delivery PR once coherently implemented. An explicit `keep local`, `no push`, `no PR`, or equivalent constraint opts out of publication; it does not waive review or authorize merge. Use a dedicated branch unless the user explicitly authorizes another path. The initial root bootstrap on `main` was a historical exception.
 
-Review should evaluate the published PR state. If review finds an actionable issue, remediate the same delivery branch/PR and re-review rather than creating parallel delivery artifacts. Creating or updating the PR does not authorize merge.
+**Merge remains a separate explicit user action.** Deployment, release, repository visibility/settings changes, retained external-data mutation and other material external effects also remain separately authorized.
 
-**Merge remains a separate explicit user action.** Deployment, release, repository visibility/settings changes, retained external-data mutation, and other material external effects also remain separately authorized.
+The Workflow Contract is documentation, not installed publication machinery. No dedicated PR publication Skill, hooks or `.repo-tools` are installed; use available GitHub capabilities directly within the contract.
 
-This delivery convention is semantic only. No dedicated PR publication skill, hooks, `.repo-tools`, or other publication machinery is installed yet; use the available GitHub capability directly while preserving the same branch, exact-target, review, and merge-authority boundaries.
-
-Do not create application code, dependencies, CI, deployment, release machinery, repository publication tooling, worktree automation, hooks, Project Memory, or a broader agent skill tree without a demonstrated target-owned need.
+Do not create application code, dependencies, CI, deployment, release machinery, repository publication tooling, worktree automation, hooks, Project Memory or a broader agent skill tree without a demonstrated target-owned need and the applicable execution authority.
