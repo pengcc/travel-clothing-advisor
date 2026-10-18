@@ -60,7 +60,7 @@ const base = process.env.UI_BASE_URL || 'http://127.0.0.1:8000';
   await p.goto(`${base}/?view=city&city_id=berlin&start=invalid&preference=hot`); await waitResult();
   check('City deep link discards injected trip values', p.url().endsWith('?view=city&city_id=berlin'));
   await p.locator('.demo-tools summary').click();
-  for (const [fixture, label, notice] of [['stable','适中保暖',false],['colder','轻薄',true],['warmer','适中保暖',true],['split','冷热变化大',true]]) {
+  for (const [fixture, label, notice] of [['stable','中等厚度',false],['colder','轻薄衣物',true],['warmer','中等厚度',true],['split','冷热变化大',true]]) {
     await p.locator('#fixture').selectOption(fixture); await waitResult();
     check(`${fixture} marker comes from response`, (await p.locator('#resultWarmthMark').textContent()).includes(label));
     check(`${fixture} notice visibility`, await p.locator('#spanRemind').isVisible() === notice);
