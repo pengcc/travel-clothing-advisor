@@ -206,3 +206,19 @@ body{overflow-wrap:anywhere}.warmth-mark,.warmth-mark .warmth-name{white-space:n
 
 /* The split-condition art has a wider composition; keep its subjects legible. */
 .city-card .warmth-variation .warmth-icon { width: 96px; height: 76px; }
+
+/* Scheme A (confirmed): gentle direction-specific packing reminders. */
+.city-card .card-variation--cold { background:#EDF5FB; border-left-color:#78A6CA; color:#355B75; }
+.city-card .card-variation--cold::before { background:#D3E7F5; color:#35668B; }
+.city-card .card-variation--warm { background:#FFF4E5; border-left-color:#D6A45D; color:#85571F; }
+.city-card .card-variation--warm::before { background:#F7E5C9; color:#925E25; }
+.city-card .card-variation--mixed {
+  padding-left:13px;
+  border-left:0;
+  background-image:linear-gradient(to bottom,#5F99C1 0 50%,#D99A59 50% 100%),linear-gradient(110deg,#EDF4F9 0%,#F6F2EF 52%,#FFF2E8 100%);
+  background-size:3px 100%,100% 100%;
+  background-repeat:no-repeat;
+  background-position:left top;
+  color:#5C4C4C;
+}
+.city-card .card-variation--mixed::before { background:linear-gradient(135deg,#D3E7F5 0 50%,#F8E2C9 50% 100%); color:#686171; }
