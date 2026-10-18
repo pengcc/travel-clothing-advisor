@@ -1,6 +1,6 @@
 # Issue #50 / PR #51 warmth labels
 
-Scope: featured-card labels only. Original artwork dimensions and responsive placement, shared label copy and result-page indicator remain unchanged. L4 stays `适中保暖`; changing it to `中等厚度` is pending a separate shared-copy decision. Classes consume the server-selected level and existing variation flags; no temperature classification is added.
+Scope: featured-card shapes/colors, plus the now-approved shared human-readable L1–L6 label names. The result-page marker retains its existing layout and icons, but its visible text matches the featured-card labels. Card-only `null` variation uses the existing wide paired-mascot asset; null/no-daytime remains a neutral, text-only state. Classes consume the server-selected level and existing variation flags; no temperature classification is added.
 
 Input PR revisions verified on 2026-10-18: base `f90cbfda2411b00d9d6a6b51c3212e12036e92a8`, head `09b7d787b6bb424d2a104116aa542513eaf95de7`, branch `ui/issue-50-featured-city-cards`.
 
@@ -22,3 +22,9 @@ Browser checks use the existing optional Playwright install and local Chrome wit
 - [390px 200% label font](labels-390-large.png), [390px missing images](labels-390-missing.png), [390px large font and missing images](labels-390-large-missing.png)
 
 Ready for the next independent review at the updated PR head; no self-approval, merge or deployment.
+
+## Follow-up: confirmed design applied in the same PR (2026-10-18)
+
+The user confirmed the complete six-level animal-and-label preview, after earlier requesting visual confirmation before code changes. Labels now read L1 清爽透气, L2 轻薄衣物, L3 薄外套, L4 中等厚度, L5 保暖外套, L6 厚实保暖. Fill/stroke/text colors match that preview, retaining asymmetric shapes. The L2 preview's softer yellow-green replaces the brighter previous version. "冷热变化大" uses pastel apricot and the existing wide illustration only on featured cards. Lack of a daytime indicator is presented as neutral text, not a graded color.
+
+**Evidence freshness:** The existing screenshots above and historical passing browser results predate this new palette and label mapping. At the new implementation, JavaScript syntax, a lightweight simulated-DOM smoke check of labels and image paths, CSS token checks, and calculated foreground/background contrast (minimum 5.24:1 across seven colored states) have been completed; these are not full browser renders or a new make test run. Before independent review, rerun the local fixture browser checks, icon regression, browser check, make test, and regenerate actual desktop/mobile screenshots. Safari remains unverified. The fixture server and optional browser dependencies are described in web/README.md.
