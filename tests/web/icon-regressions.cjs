@@ -43,14 +43,14 @@ const base = process.env.UI_BASE_URL || 'http://127.0.0.1:8001';
         const primary=card.locator('.warmth-host img');
         assert.equal(await primary.count(),1,'primary indicator preserved');
         assert.ok((await primary.getAttribute('src')).includes(level===null?'alert-variation':`warmth-l${level}`));
+        assert.ok(await primary.evaluate(img => img.getBoundingClientRect().width >= 64),'featured illustration remains legible');
         if (scenario==='stable') {
           assert.equal(await warning.count(),0,'no warning without backend variation');
           assert.equal(await card.locator('img[src*="alert-variation"]').count(),0);
         } else {
-          assert.equal(await warning.locator('img[src*="alert-variation"]').count(),1,'separate generic warning icon');
+          assert.equal(await warning.locator('img').count(),0,'card warning uses no miniature mascot');
           assert.equal(await warning.textContent(),fixture.cities[i].packing_variation_summary,'backend summary preserved');
-          assert.equal(await warning.locator('picture').getAttribute('aria-hidden'),'true');
-          await warning.locator('img').evaluate(img => img.decode());
+          assert.equal(await warning.evaluate(el => getComputedStyle(el,'::before').content),'"!"','clear CSS warning sign');
         }
       }
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
