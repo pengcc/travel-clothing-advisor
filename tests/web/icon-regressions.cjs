@@ -32,7 +32,7 @@ const base = process.env.UI_BASE_URL || 'http://127.0.0.1:8001';
       await page.close();
     }
     // Review #5561693950: warnings must coexist with a representative level.
-    for (const width of [320,390,1280]) for (const [scenario,level] of [['colder',2],['warmer',4],['stable',4],['split',null]]) {
+    for (const width of [320,390,1280]) for (const [scenario,level,kind] of [['colder',2,'cold'],['warmer',4,'warm'],['stable',4,null],['split',null,'mixed']]) {
       const page = await browser.newPage({viewport:{width,height:844}});
       const fixture = await (await page.request.get(`${base}/api/featured?fixture=${scenario}`)).json();
       await page.route('**/api/featured?*', route => route.fulfill({json:fixture}));
@@ -50,6 +50,12 @@ const base = process.env.UI_BASE_URL || 'http://127.0.0.1:8001';
         } else {
           assert.equal(await warning.locator('img').count(),0,'card warning uses no miniature mascot');
           assert.equal(await warning.textContent(),fixture.cities[i].packing_variation_summary,'backend summary preserved');
+          assert.equal(fixture.cities[i].packing_variation_kind,kind,'backend direction matches fixture');
+          assert.equal(await warning.evaluate((el,k) => el.classList.contains('card-variation--'+k),kind),true,'notice style driven by backend direction');
+          const bg=await warning.evaluate(el => getComputedStyle(el).backgroundColor);
+          if(kind==='cold') assert.equal(bg,'rgb(237, 245, 251)','Scheme A cold blue');
+          if(kind==='warm') assert.equal(bg,'rgb(255, 244, 229)','Scheme A warm amber');
+          if(kind==='mixed') assert.notEqual(await warning.evaluate(el => getComputedStyle(el).backgroundImage),'none','Scheme A mixed gradient');
           assert.equal(await warning.evaluate(el => getComputedStyle(el,'::before').content),'"!"','clear CSS warning sign');
         }
       }
