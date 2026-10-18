@@ -24,16 +24,16 @@ CITIES = [
 ]
 SCENARIOS = {
     'stable': dict(warmth_indicator_level=4, headline='建议带适中厚度的夹克，里面备一件薄毛衣',
-                   packing_variation_notice=None, packing_variation_summary=None, reference_temperature_c=14),
+                   packing_variation_notice=None, packing_variation_summary=None, packing_variation_kind=None, reference_temperature_c=14),
     'colder': dict(warmth_indicator_level=2, headline='通常轻薄即可，另备一件适中厚度的外套',
                    packing_variation_notice='假设第2天明显偏冷，建议额外备一件适中外套或可叠穿的保暖层；其他日子轻薄即可。',
-                   packing_variation_summary='有一天偏冷，建议多备一件外套或保暖层。', reference_temperature_c=24),
+                   packing_variation_summary='有一天偏冷，建议多备一件外套或保暖层。', packing_variation_kind='cold', reference_temperature_c=24),
     'warmer': dict(warmth_indicator_level=4, headline='通常穿适中厚度的外套，内搭方便减薄',
                    packing_variation_notice='假设第2天明显偏暖，内搭可以更轻薄，外套要方便脱下；其他日子仍需适中保暖。',
-                   packing_variation_summary='有一天偏暖，内搭轻薄、外套方便脱下。', reference_temperature_c=14),
+                   packing_variation_summary='有一天偏暖，内搭轻薄、外套方便脱下。', packing_variation_kind='warm', reference_temperature_c=14),
     'split': dict(warmth_indicator_level=None, headline='轻薄与适中保暖都要准备，衣物方便增减',
                   packing_variation_notice='假设七天轻薄、七天需要适中保暖，没有单一穿法适合多数日子；请备轻薄内搭和可叠穿的外套。',
-                  packing_variation_summary='冷热分化明显，请备轻薄内搭和可叠穿外套。', reference_temperature_c=None),
+                  packing_variation_summary='冷热分化明显，请备轻薄内搭和可叠穿外套。', packing_variation_kind='mixed', reference_temperature_c=None),
 }
 DEFAULTS = ['colder', 'stable', 'warmer', 'split'] + ['stable'] * 6
 
@@ -98,7 +98,7 @@ def advice(params, scenario='default', now=None):
               'hot': '怕热示例：内搭选轻薄长袖，外套方便脱下。'}
     if historical:
         data.update(warmth_indicator_level=4, headline='提前备一件适中外套和可叠穿的薄毛衣',
-                    packing_variation_notice=None, packing_variation_summary=None,
+                    packing_variation_notice=None, packing_variation_summary=None, packing_variation_kind=None,
                     reference_temperature_c=14)
     data.update(p, mode='historical_reference' if historical else 'forecast', layers=layers[p['preference']],
                 notices=['早晚示例：可随身带一层，按实际体感增减。'],
