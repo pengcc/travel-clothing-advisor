@@ -1,0 +1,24 @@
+# Issue #50 / PR #51 warmth labels
+
+Scope: featured-card labels only. Original artwork dimensions and responsive placement, shared label copy and result-page indicator remain unchanged. L4 stays `适中保暖`; changing it to `中等厚度` is pending a separate shared-copy decision. Classes consume the server-selected level and existing variation flags; no temperature classification is added.
+
+Input PR revisions verified on 2026-10-18: base `f90cbfda2411b00d9d6a6b51c3212e12036e92a8`, head `09b7d787b6bb424d2a104116aa542513eaf95de7`, branch `ui/issue-50-featured-city-cards`.
+
+## Checks actually run
+
+- `make test`: 92 tests passed. Initial sandbox attempt could not bind local test ports; the permitted rerun passed.
+- `node tests/web/icon-regressions.cjs`: passed 320/390/1280px, 1x/2x WebP, PNG retry, all-image failures, variation coexistence and detail rendering.
+- `node tests/web/warmth-label-regressions.cjs`: 12 combinations passed (320/390/1280px × normal/200% root font × loaded/missing images). Six levels plus variation-null and unavailable-null retain complete text within labels and cards, with no page overflow; all six level backgrounds differ. Reduced-motion mode has no label transition.
+- `git diff --check`: passed.
+
+Browser checks use the existing optional Playwright install and local Chrome with `python3 -m web.server --fixtures --port 8001`. No live weather, cache writes, deployment or independent review was performed. Safari remains unverified. The wavy variation silhouette uses CSS `shape()` with an asymmetric rounded fallback in browsers without support; text is never clipped. Labels add no hover effect or animation.
+
+## Actual browser screenshots
+
+`home-*.png` shows the existing fixture homepage section. `labels-*.png` shows an explicitly synthetic eight-state matrix rendered with the actual CityCard component and stylesheet; it does not claim live city weather coverage. Normal and 200% label-font screenshots plus missing-image cases were visually inspected. Existing mobile stacking is preserved; long labels wrap at large font sizes.
+
+- [Desktop homepage](home-1280.png), [390px homepage](home-390.png), [320px homepage](home-320.png)
+- [Desktop all states](labels-1280.png), [390px all states](labels-390.png), [320px all states](labels-320.png)
+- [390px 200% label font](labels-390-large.png), [390px missing images](labels-390-missing.png), [390px large font and missing images](labels-390-large-missing.png)
+
+Ready for the next independent review at the updated PR head; no self-approval, merge or deployment.

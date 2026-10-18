@@ -44,6 +44,10 @@ export function CityCard(data, href) {
   const c = data.city, card = text('a', '', 'city-card'); card.href = href;
   card.append(text('span', c.name, 'eng'), text('span', c.zh, 'city-name'));
   const host = text('span', '', 'warmth-host'); host.append(WarmthIndicator(data.warmth_indicator_level, Boolean(data.packing_variation_summary || data.packing_variation_notice)));
+  // Style only the server-selected state; shared detail labels remain unchanged.
+  host.firstElementChild.classList.add(data.warmth_indicator_level === null
+    ? (data.packing_variation_summary || data.packing_variation_notice ? 'warmth-variation' : 'warmth-unavailable')
+    : `warmth-level-${data.warmth_indicator_level}`);
   card.append(host, text('span', data.headline, 'coat'));
   if (data.packing_variation_summary) {
     const warning = text('span', '', 'card-variation');
