@@ -1,11 +1,11 @@
 ---
 name: execute-plan
-description: Implement a directly authorized bounded Travel change or an explicitly approved current Issue Plan, validate the affected behavior and deliver one code PR without re-planning.
+description: Implement a directly authorized bounded Travel change or an explicitly approved current Issue Plan, validate the affected behavior and deliver one change PR without re-planning.
 ---
 
 # Travel Execute Plan
 
-Use for **authorized implementation** or same-PR remediation, not a request merely to discuss, author a Plan, review, merge or deploy. Adapted from Badminton execute-plan. docs/collaboration.md is the sole stage/approval/publication authority.
+Use for **authorized implementation**, including documentation and Skills changes, or same-PR remediation, not a request merely to discuss, author a Plan, review, merge or deploy. Adapted from Badminton execute-plan. docs/collaboration.md is the sole stage/approval/publication authority.
 
 ## Select exactly one execution input
 
@@ -21,6 +21,6 @@ Inspect affected modules and focused tests; implement the smallest complete beha
 
 Stop if work would require unapproved product/architecture scope, destructive data changes, a materially changed approved Plan, unsafe secrets, external effects or a different validation boundary. Report the exact blocker instead of silently rewriting the Plan.
 
-After a coherent authorized change, record actual checks and outcomes; commit on a dedicated delivery branch and create/update **one code PR** linked to the Issue, as already governed by docs/collaboration.md. A normal authorized implementation includes that PR under the target convention unless the user requests local-only/no PR. No Plan-only PR, duplicate review PR, publication helper, donor Task Workspace or second approval prompt for the same bounded PR delivery.
+After a coherent authorized change, record actual checks and outcomes. For initial implementation, commit on a dedicated delivery branch and create **one change PR** linked to the Issue. For remediation of an existing PR, resolve its current base/head, continue on that **same delivery branch**, and update the **same PR**; do not create a replacement branch or another PR. Both paths follow docs/collaboration.md. A normal authorized implementation includes that PR under the target convention unless the user requests local-only/no PR. No Plan-only PR, duplicate review PR, publication helper, donor Task Workspace or second approval prompt for the same bounded PR delivery.
 
 Provide a concise result, exact PR and evidence limitations. Do not self-perform the independent Implementation Review, merge, deploy, or close the Issue without applicable separate authority. If required local or remote validation is unavailable, distinguish unverified from failed; do not claim review readiness from a blocked required check.

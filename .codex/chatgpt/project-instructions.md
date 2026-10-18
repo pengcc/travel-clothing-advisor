@@ -13,9 +13,9 @@ For project work:
 6. use current `pengcc/travel-clothing-advisor` repository truth for repository-aware claims and actions;
 7. select the target-owned capability matching the **current task**, always under docs/collaboration.md for stage authority:
    - Discovery: .codex/project-collaboration/task-alignment.md, .codex/skills/meta/product-framing-review/SKILL.md, .codex/skills/meta/grilling/SKILL.md, and .codex/skills/meta/docs-first-research/SKILL.md with .codex/rules/docs-first-policy.md only on their actual triggers;
-   - Plan authoring or independently requested Formal Plan Review: .codex/skills/meta/plan-with-context/SKILL.md with its target-owned planning quality contract;
-   - Authorized direct or approved-plan implementation: .codex/skills/core/execute-plan/SKILL.md and the applicable input reference;
-   - Exact implementation PR review or re-review: .codex/skills/core/implementation-review/SKILL.md with the target-owned review contract;
+   - Plan authoring or independently requested Formal Plan Review: .agents/skills/plan-with-context/SKILL.md with its target-owned planning quality contract;
+   - Authorized direct or approved-plan implementation: .agents/skills/execute-plan/SKILL.md and the applicable input reference;
+   - Exact implementation PR review or re-review: .agents/skills/implementation-review/SKILL.md with the target-owned review contract;
    - No invocation automatically starts another stage or grants merge/deployment authority;
 8. do not depend on `pengcc/badminton-club-app`, `pengcc/large-file-upload`, or another product repository for this project's current product, architecture, runtime, deployment, decisions, or workflow truth; donor repositories are method/provenance evidence only after a capability has been adapted into this repository;
 9. distinguish continuing product discovery/problem validation from the implemented local MVP and active MVP delivery; use discovery resources for unresolved product meaning and the Workflow Contract for authorized delivery;

@@ -60,13 +60,15 @@ These discovery capabilities remain available for genuinely unresolved product o
 
 The following target-adapted repository Skills may be called for the **specific task requested**. They consume the **existing sole Workflow Contract** in docs/collaboration.md; they do not install another Issue lifecycle or automatically chain stages:
 
-- **Plan Authoring / Formal Plan Review** — .codex/skills/meta/plan-with-context/SKILL.md. Author a versioned Issue plan and stop, or independently review an existing version when asked. Plan quality is supported by .codex/project-collaboration/contracts/implementation-planning.md.
-- **Execute Plan / direct bounded delivery** — .codex/skills/core/execute-plan/SKILL.md. Distinguish a current reviewed-and-approved Plan from a directly authorized bounded task; use the relevant input reference, target validation and one authorized code PR.
-- **Implementation Review / Re-review** — .codex/skills/core/implementation-review/SKILL.md. Review the exact actual PR with .codex/project-collaboration/contracts/implementation-review.md; actionable fixes belong to the same PR and require a separate implementation request.
+- **Plan Authoring / Formal Plan Review** — .agents/skills/plan-with-context/SKILL.md. Author a versioned Issue plan and stop, or independently review an existing version when asked. Plan quality is supported by .codex/project-collaboration/contracts/implementation-planning.md.
+- **Execute Plan / direct bounded delivery** — .agents/skills/execute-plan/SKILL.md. Distinguish a current reviewed-and-approved Plan from a directly authorized bounded task; use the relevant input reference, target validation and one authorized change PR.
+- **Implementation Review / Re-review** — .agents/skills/implementation-review/SKILL.md. Review the exact actual PR with .codex/project-collaboration/contracts/implementation-review.md; actionable fixes belong to the same PR and require a separate implementation request.
 
 For engineering changes, apply the focused target-owned quality principles in .codex/rules/engineering-quality-principles.md; actual validation commands and stage permissions still come from the target repository and its Workflow Contract.
 
-These Skills have discovery metadata, but file presence does **not** prove they were loaded or exercised by a fresh Codex session. Do not claim an unrun invocation or validation passed. Do not require the full Skill set for a single small task. No role router, Project Memory, Task State, publication scripts, hooks or dedicated CI is added by this adoption.
+The three delivery Skills live directly under `.agents/skills/`, the repository discovery location documented in [OpenAI Build skills](https://learn.chatgpt.com/docs/build-skills#where-codex-loads-local-skills) (checked 2026-10-18). Existing discovery capability files remain at their established `.codex/skills/meta/` paths and are selected through the explicit routing above. No installer or registration framework is required.
+
+These delivery Skills have discovery metadata, but file presence does **not** prove they were loaded or exercised by a fresh Codex session. Do not claim an unrun invocation or validation passed. Do not require the full Skill set for a single small task. No role router, Project Memory, Task State, publication scripts, hooks or dedicated CI is added by this adoption.
 
 **Selected donor provenance:** Badminton main cf90c34d3b62c66cfc8865e861c11d2481cd1185, adapted under Travel ownership for Issue #48. Donor files and the open donor adoption guide are not Travel runtime authorities.
 
