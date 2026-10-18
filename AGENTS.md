@@ -54,7 +54,19 @@ This repository currently owns a deliberately small, discovery-only agent capabi
   - use when a material conclusion depends on externally variable or authoritative facts;
   - apply `.codex/rules/docs-first-policy.md` for source precedence and claim boundaries.
 
-These capabilities serve discovery and Task Alignment, not implementation-stage routing. Planning/Execution/Review Skills, role router, Project Memory, hooks and dedicated workflow tooling are not installed.
+These discovery capabilities remain available for genuinely unresolved product or external-fact questions. They do not own delivery stage or authorization.
+
+## Delivery capability adapters
+
+The following target-adapted repository Skills may be called for the **specific task requested**. They consume the **existing sole Workflow Contract** in docs/collaboration.md; they do not install another Issue lifecycle or automatically chain stages:
+
+- **Plan Authoring / Formal Plan Review** — .codex/skills/meta/plan-with-context/SKILL.md. Author a versioned Issue plan and stop, or independently review an existing version when asked. Plan quality is supported by .codex/project-collaboration/contracts/implementation-planning.md.
+- **Execute Plan / direct bounded delivery** — .codex/skills/core/execute-plan/SKILL.md. Distinguish a current reviewed-and-approved Plan from a directly authorized bounded task; use the relevant input reference, target validation and one authorized code PR.
+- **Implementation Review / Re-review** — .codex/skills/core/implementation-review/SKILL.md. Review the exact actual PR with .codex/project-collaboration/contracts/implementation-review.md; actionable fixes belong to the same PR and require a separate implementation request.
+
+These Skills have discovery metadata, but file presence does **not** prove they were loaded or exercised by a fresh Codex session. Do not claim an unrun invocation or validation passed. Do not require the full Skill set for a single small task. No role router, Project Memory, Task State, publication scripts, hooks or dedicated CI is added by this adoption.
+
+**Selected donor provenance:** Badminton main cf90c34d3b62c66cfc8865e861c11d2481cd1185, adapted under Travel ownership for Issue #48. Donor files and the open donor adoption guide are not Travel runtime authorities.
 
 ## Donor repository boundary
 
