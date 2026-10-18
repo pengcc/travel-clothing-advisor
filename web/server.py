@@ -14,6 +14,14 @@ STATIC = {'/static/style.css': ('style.css', 'text/css'),
           '/static/app.js': ('app.js', 'text/javascript'),
           '/static/components.js': ('components.js', 'text/javascript')}
 
+ICON_NAMES = {*(f'warmth-l{level}' for level in range(1, 7)),
+              'alert-cold', 'alert-hot', 'alert-variation', 'alert-variation-landscape'}
+for density in ('1x', '2x'):
+    for name in ICON_NAMES:
+        for extension in ('png', 'webp'):
+            relative = f'icons/warmth/{density}/{name}.{extension}'
+            STATIC[f'/static/{relative}'] = (relative, f'image/{extension}')
+
 
 class Handler(BaseHTTPRequestHandler):
     fixtures_only = False
@@ -33,7 +41,11 @@ class Handler(BaseHTTPRequestHandler):
             p = {k: v[0] for k, v in query.items()}
             if url.path in STATIC:
                 name, mime = STATIC[url.path]
-                return self.send_bytes(200, (ROOT / 'static' / name).read_bytes(), mime)
+                try:
+                    body = (ROOT / 'static' / name).read_bytes()
+                except FileNotFoundError:
+                    return self.send_json(404, dict(error='图片或文件不存在。'))
+                return self.send_bytes(200, body, mime)
             if url.path == '/api/context':
                 return self.send_json(200, dict(window(self.service.clock()), fixture_mode=self.fixtures_only))
             if url.path == '/api/cities':
@@ -69,7 +81,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def send_bytes(self, status, body, mime):
         self.send_response(status)
-        self.send_header('Content-Type', mime + '; charset=utf-8')
+        self.send_header('Content-Type', mime if mime.startswith('image/') else mime + '; charset=utf-8')
         self.send_header('Content-Length', str(len(body)))
         self.send_header('Cache-Control', 'no-store')
         self.send_header('X-Content-Type-Options', 'nosniff')

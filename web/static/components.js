@@ -5,36 +5,51 @@ export function text(tag, value, className = '') {
   node.className = className;
   return node;
 }
-export function WarmthIndicator(level) {
-  const meta = {
-    1: ['轻薄', 1, '#9A4C39', '#FBEDE3'], 2: ['轻薄', 1, '#9A4C39', '#FBEDE3'],
-    3: ['薄外层', 2, '#8B5F20', '#FCF0DA'], 4: ['适中保暖', 3, '#586B40', '#EDF2E7'],
-    5: ['加强保暖', 4, '#27677B', '#E6F0F4'], 6: ['冬季保暖', 5, '#36547D', '#E9EFF8'],
-  };
-  if (level === null) return text('span', '冷热变化大', 'warmth-mark');
-  const m = meta[level];
-  if (!m) throw new Error('无效保暖标记');
+// Images are decorative: the adjacent text remains the accessible fallback.
+export function WarmthIcon(name) {
+  const picture = document.createElement('picture');
+  picture.className = 'warmth-icon';
+  picture.setAttribute('aria-hidden', 'true');
+  const path = density => `/static/icons/warmth/${density}/${name}`;
+  const source = document.createElement('source');
+  source.type = 'image/webp';
+  source.srcset = `${path('1x')}.webp 1x, ${path('2x')}.webp 2x`;
+  const img = document.createElement('img');
+  img.alt = ''; img.width = 64; img.height = 64;
+  img.addEventListener('error', () => {
+    // Retry PNG if the selected WebP is missing; keep text if PNG also fails.
+    if (picture.contains(source)) {
+      source.remove();
+      img.srcset = `${path('1x')}.png 1x, ${path('2x')}.png 2x`;
+      img.src = `${path('1x')}.png`;
+    } else picture.hidden = true;
+  });
+  // Attach the picture before assigning URLs so only the selected format loads.
+  picture.append(source, img);
+  img.srcset = `${path('1x')}.png 1x, ${path('2x')}.png 2x`;
+  img.src = `${path('1x')}.png`;
+  return picture;
+}
+export function WarmthIndicator(level, hasVariation = true) {
+  const names = {1: '轻薄', 2: '轻薄', 3: '薄外层', 4: '适中保暖', 5: '加强保暖', 6: '冬季保暖'};
+  const label = level === null ? (hasVariation ? '冷热变化大' : '暂无白天参考') : names[level];
+  if (!label) throw new Error('无效保暖标记');
   const chip = text('span', '', 'warmth-mark');
-  chip.setAttribute('aria-label', `保暖程度：${m[0]}`);
-  chip.style.setProperty('--mark-ink', m[2]); chip.style.setProperty('--mark-bg', m[3]);
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.setAttribute('viewBox', '0 0 30 17'); svg.setAttribute('aria-hidden', 'true');
-  for (let i = 0; i < 5; i++) {
-    const bar = document.createElementNS(svg.namespaceURI, 'rect');
-    Object.entries({ x: 1 + i * 6, y: 11 - i * 2.5, width: 4, height: 6 + i * 2.5, rx: 1.8,
-      fill: i < m[1] ? m[2] : '#CABFB6', 'fill-opacity': i < m[1] ? 1 : .45 })
-      .forEach(([k, v]) => bar.setAttribute(k, String(v)));
-    svg.append(bar);
-  }
-  chip.append(svg, text('span', m[0], 'warmth-name'));
+  if (level !== null) chip.setAttribute('aria-label', `保暖程度：${label}`);
+  if (level !== null || hasVariation) chip.append(WarmthIcon(level === null ? 'alert-variation' : `warmth-l${level}`));
+  chip.append(text('span', label, 'warmth-name'));
   return chip;
 }
 export function CityCard(data, href) {
   const c = data.city, card = text('a', '', 'city-card'); card.href = href;
   card.append(text('span', c.name, 'eng'), text('span', c.zh, 'city-name'));
-  const host = text('span', '', 'warmth-host'); host.append(WarmthIndicator(data.warmth_indicator_level));
+  const host = text('span', '', 'warmth-host'); host.append(WarmthIndicator(data.warmth_indicator_level, Boolean(data.packing_variation_summary || data.packing_variation_notice)));
   card.append(host, text('span', data.headline, 'coat'));
-  if (data.packing_variation_summary) card.append(text('span', data.packing_variation_summary, 'card-variation'));
+  if (data.packing_variation_summary) {
+    const warning = text('span', '', 'card-variation');
+    warning.append(WarmthIcon('alert-variation'), text('span', data.packing_variation_summary));
+    card.append(warning);
+  }
   if (data.fixture) card.append(text('span', '模拟数据 · 非真实天气', 'card-source'));
   card.append(text('span', '查看14天建议 →', 'go'));
   return card;

@@ -79,7 +79,7 @@ const base = process.env.UI_BASE_URL || 'http://127.0.0.1:8000';
     await shot(`fixture-${fixture}`);
   }
   await p.goto(`${base}/?view=trip&city_id=berlin&start=2026-02-30&end=${shift(2)}&preference=normal`);
-  await p.waitForSelector('#resultStatus button'); check('Invalid deep link renders understandable error', (await p.locator('#resultStatus').textContent()).includes('有效日期'));
+  await p.waitForFunction(()=>document.querySelector('#resultStatus')?.textContent.includes('有效日期')); check('Invalid deep link renders understandable error', (await p.locator('#resultStatus').textContent()).includes('有效日期'));
   await shot('fixture-invalid');
   await p.goto(`${base}/?view=city&city_id=berlin&city_id=munich`); await p.waitForSelector('#resultStatus:not(.hidden)');
   check('Duplicate query rejected', (await p.locator('#resultStatus').textContent()).includes('重复'));
