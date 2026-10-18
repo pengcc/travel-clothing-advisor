@@ -64,6 +64,8 @@ The following target-adapted repository Skills may be called for the **specific 
 - **Execute Plan / direct bounded delivery** — .codex/skills/core/execute-plan/SKILL.md. Distinguish a current reviewed-and-approved Plan from a directly authorized bounded task; use the relevant input reference, target validation and one authorized code PR.
 - **Implementation Review / Re-review** — .codex/skills/core/implementation-review/SKILL.md. Review the exact actual PR with .codex/project-collaboration/contracts/implementation-review.md; actionable fixes belong to the same PR and require a separate implementation request.
 
+For engineering changes, apply the focused target-owned quality principles in .codex/rules/engineering-quality-principles.md; actual validation commands and stage permissions still come from the target repository and its Workflow Contract.
+
 These Skills have discovery metadata, but file presence does **not** prove they were loaded or exercised by a fresh Codex session. Do not claim an unrun invocation or validation passed. Do not require the full Skill set for a single small task. No role router, Project Memory, Task State, publication scripts, hooks or dedicated CI is added by this adoption.
 
 **Selected donor provenance:** Badminton main cf90c34d3b62c66cfc8865e861c11d2481cd1185, adapted under Travel ownership for Issue #48. Donor files and the open donor adoption guide are not Travel runtime authorities.
