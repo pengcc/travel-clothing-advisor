@@ -17,8 +17,11 @@ development store adapter. Empty or stale caches do not prevent `/` and
 `/api/context` from loading; unavailable featured/history data returns a clear
 503 without fixture clothing defaults. Startup performs no provider downloads,
 creates no fake publication and does not initialize or reset quota ledgers.
-Invalid paths (for example, a file instead of a directory), denied directory
-creation and other actual startup configuration errors still fail explicitly.
+Before listening, explicitly configured stores are checked for directory listing
+and traversal access. Invalid paths (for example, a file instead of a directory),
+denied directory creation, inaccessible existing directories and other actual
+startup configuration errors fail explicitly. This is an access check, not a
+weather completeness check.
 Existing valid cache objects and quota counts are reused.
 
 `make check-dev` separately checks directory access, history block presence and

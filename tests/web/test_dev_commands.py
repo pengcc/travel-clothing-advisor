@@ -150,9 +150,18 @@ class DevCommandTests(unittest.TestCase):
                                  stderr=subprocess.STDOUT, text=True, start_new_session=True)
 
         def stop():
-            if child.poll() is None:
+            try:
                 os.killpg(child.pid, signal.SIGTERM)
-            output, _ = child.communicate(timeout=5)
+            except ProcessLookupError:
+                pass
+            try:
+                output, _ = child.communicate(timeout=5)
+            except subprocess.TimeoutExpired:
+                try:
+                    os.killpg(child.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+                output, _ = child.communicate(timeout=5)
             self.assertFalse(marker.exists(), output)
         self.addCleanup(stop)
         self.stop_child = stop
@@ -213,21 +222,70 @@ class DevCommandTests(unittest.TestCase):
         self.assertTrue(self.history.is_dir())
         self.assertTrue(self.forecasts.is_dir())
 
+    def command_until_exit(self, args, *, env=None, timeout=5):
+        child = subprocess.Popen(args, cwd=ROOT, env=env, stdout=subprocess.PIPE,
+                                 stderr=subprocess.STDOUT, text=True, start_new_session=True)
+        try:
+            output, _ = child.communicate(timeout=timeout)
+            return child.returncode, output
+        finally:
+            # Kill the entire group even if make already exited. On timeout,
+            # this also reaps a server that unexpectedly started successfully.
+            try:
+                os.killpg(child.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            child.communicate(timeout=5)
+
     @unittest.skipUnless(shutil.which('make'), 'make required')
-    def test_actual_invalid_path_and_permission_errors_fail(self):
+    def test_actual_invalid_path_fails(self):
         invalid = self.root / 'file'
         invalid.write_text('not a directory')
-        denied = self.root / 'denied'
-        denied.mkdir(mode=0o500)
-        self.addCleanup(denied.chmod, 0o700)
-        for path, error in ((invalid, 'FileExistsError'),
-                            (denied / 'child', 'PermissionError')):
-            with self.subTest(path=path):
-                result = subprocess.run(['make', 'dev', f'HISTORY_DIR={path}',
-                                         f'FORECAST_DIR={self.forecasts}'], cwd=ROOT,
-                                        capture_output=True, text=True, timeout=5)
-                self.assertNotEqual(result.returncode, 0)
-                self.assertIn(error, result.stderr)
+        code, output = self.command_until_exit(
+            ['make', 'dev', f'HISTORY_DIR={invalid}', f'FORECAST_DIR={self.forecasts}'])
+        self.assertNotEqual(code, 0)
+        self.assertIn('FileExistsError', output)
+
+    @unittest.skipUnless(shutil.which('make'), 'make required')
+    def test_existing_inaccessible_directories_fail_before_listening(self):
+        # Simulate OS denial in the child; chmod is ineffective under root.
+        # Exercise both configured stores and both directory access operations.
+        guard = self.root / 'guard'
+        guard.mkdir()
+        for directory in (self.history, self.forecasts):
+            for operation in ('scandir', 'stat'):
+                with self.subTest(directory=directory, operation=operation):
+                    (guard / 'sitecustomize.py').write_text(
+                        'import os\n'
+                        f'original = os.{operation}\n'
+                        'def denied(path, *args, **kwargs):\n'
+                        f'    if str(path) == {str(directory) + ("/." if operation == "stat" else "")!r}:\n'
+                        '        raise PermissionError("Injected inaccessible directory")\n'
+                        '    return original(path, *args, **kwargs)\n'
+                        f'os.{operation} = denied\n')
+                    # Avoid stale bytecode when switching guards quickly.
+                    shutil.rmtree(guard / '__pycache__', ignore_errors=True)
+                    env = dict(os.environ, PYTHONPATH=os.pathsep.join([str(guard), str(ROOT)]))
+                    code, output = self.command_until_exit(
+                        ['make', 'dev', f'PYTHON={sys.executable}',
+                         f'HISTORY_DIR={self.history}', f'FORECAST_DIR={self.forecasts}'], env=env)
+                    self.assertNotEqual(code, 0)
+                    self.assertIn('PermissionError: Injected inaccessible directory', output)
+                    self.assertNotIn('Local travel UI:', output)
+        self.assertEqual(self.snapshot(), {})
+
+    def test_timeout_reaps_unexpected_running_process(self):
+        # A real timeout must kill/reap a child rather than leaving a listener.
+        child_pid = self.root / 'child.pid'
+        with self.assertRaises(subprocess.TimeoutExpired):
+            self.command_until_exit(
+                [sys.executable, '-c',
+                 'import os, time; from pathlib import Path; '
+                 f'Path({str(child_pid)!r}).write_text(str(os.getpid())); time.sleep(60)'],
+                timeout=1)
+        pid = int(child_pid.read_text())
+        with self.assertRaises(ProcessLookupError):
+            os.kill(pid, 0)
 
 
 class FixtureRouteContractTests(unittest.TestCase):
