@@ -21,10 +21,21 @@ const assert=require('node:assert/strict');
  await page.waitForFunction(missing=>[...document.querySelectorAll('.city-card picture')].every(p=>missing?p.hidden:p.querySelector('img').complete&&p.querySelector('img').naturalWidth),missing);
  const checks=await page.locator('.city-card .warmth-name').evaluateAll(nodes=>nodes.map(n=>{
  const r=n.getBoundingClientRect(),c=n.closest('.city-card').getBoundingClientRect(),range=document.createRange();range.selectNodeContents(n); const t=range.getBoundingClientRect();
- return {text:n.textContent,font:getComputedStyle(n).fontSize,ink:getComputedStyle(n).color,bg:getComputedStyle(n).getPropertyValue('--tag-bg'),fits:r.left>=c.left&&r.right<=c.right&&t.left>=r.left&&t.right<=r.right&&t.bottom<=r.bottom&&t.top>=r.top};
+ return {text:n.textContent,font:getComputedStyle(n).fontSize,ink:getComputedStyle(n).getPropertyValue('--tag-ink').trim(),bg:getComputedStyle(n).getPropertyValue('--tag-bg').trim(),fits:r.left>=c.left&&r.right<=c.right&&t.left>=r.left&&t.right<=r.right&&t.bottom<=r.bottom&&t.top>=r.top};
  }));
  assert.ok(checks.every(c=>c.fits),JSON.stringify({width,large,missing,checks}));
  assert.equal(new Set(checks.slice(0,6).map(c=>c.bg)).size,6);
+ // Distinct hex values alone cannot catch nearly identical colors (Issue #50).
+ const rgb=hex=>[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16));
+ const distance=(a,b)=>Math.hypot(...rgb(a).map((v,i)=>v-rgb(b)[i]));
+ const luminance=hex=>rgb(hex).map(v=>v/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4)
+   .reduce((sum,v,i)=>sum+v*[.2126,.7152,.0722][i],0);
+ const contrast=(a,b)=>(Math.max(luminance(a),luminance(b))+.05)/(Math.min(luminance(a),luminance(b))+.05);
+ assert.ok(distance(checks[3].bg,checks[6].bg)>=60,'L4 and large-variation backgrounds must be visibly different');
+ assert.ok(rgb(checks[3].bg)[2]>rgb(checks[3].bg)[0]+25,'L4 reads as cool blue');
+ assert.ok(rgb(checks[6].bg)[0]>rgb(checks[6].bg)[2]+25,'variation reads as warm orange');
+ assert.ok(checks.every(c=>contrast(c.bg,c.ink)>=4.5),'tag text must meet AA contrast');
+
  assert.equal(checks[3].text,'适中保暖');
  assert.equal(checks[6].text,'冷热变化大');assert.equal(checks[7].text,'暂无白天参考');
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
