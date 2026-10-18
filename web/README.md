@@ -91,7 +91,7 @@ Examples with injected complete hourly data:
 | Seven 24°C + seven 14°C days | null | Both ranges need coverage; no fabricated 19°C representative |
 | Stable 14°C or 12.9/13.1/13.2°C | observed level | No extra variation notice for boundary noise |
 
-Result JSON keeps `city,start,end,preference,mode,headline,layers,notices,reference_temperature_c,warmth_indicator_level,packing_variation_notice,packing_variation_summary,weather_fetched_at,advice_generated_at,source,data_status,data_version,caveat`. Nulls are explicit. Both variation fields come from the same service decision. The UI never computes temperatures or levels; `WarmthIndicator` remains replaceable. Featured cards use the same backend rules; explicitly selected fixture cards keep their authored contract.
+Result JSON keeps `city,start,end,preference,mode,headline,layers,notices,reference_temperature_c,warmth_indicator_level,packing_variation_notice,packing_variation_summary,packing_variation_kind,weather_fetched_at,advice_generated_at,source,data_status,data_version,caveat`. Nulls are explicit. Both variation text fields come from the same service decision. `packing_variation_kind` is `cold`, `warm`, `mixed`, or `null` and is derived from those existing server-side packing events: it is `null` with no cross-day variation, and `mixed` for historical reference notices which explicitly cover both colder and warmer sample conditions. The client never parses Chinese text or treats this direction as a new warmth level. The UI never computes temperatures or levels; `WarmthIndicator` remains replaceable. Featured cards use the same backend rules; explicitly selected fixture cards keep their authored contract.
 
 ## Verification
 
