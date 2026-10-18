@@ -5,7 +5,7 @@ FORECAST_DIR ?= .forecast-local
 
 .PHONY: dev check-dev test demo
 
-dev: check-dev
+dev:
 	$(PYTHON) -m web.server --history-dir "$(HISTORY_DIR)" --forecast-dir "$(FORECAST_DIR)" --port "$(PORT)"
 
 check-dev:
