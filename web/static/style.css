@@ -111,15 +111,15 @@ body{overflow-wrap:anywhere}.warmth-mark,.warmth-mark .warmth-name{white-space:n
   font-weight: 750;
 }
 /* Soft asymmetric silhouettes progress from airy leaves to fuller winter shapes. */
-.city-card .warmth-level-1 .warmth-name { --tag-bg: #EEF5DF; --tag-ink: #465B30; --tag-line: #BFCF9C; --tag-curve: 42% 18% 38% 22% / 46% 30% 48% 32%; }
-.city-card .warmth-level-2 .warmth-name { --tag-bg: #E5F2E9; --tag-ink: #315F4C; --tag-line: #ACCEBA; --tag-curve: 30% 20% 39% 24% / 35% 46% 32% 48%; }
-.city-card .warmth-level-3 .warmth-name { --tag-bg: #E8F1F4; --tag-ink: #355F70; --tag-line: #B5CED8; --tag-curve: 23% 32% 20% 35% / 42% 30% 46% 32%; }
-.city-card .warmth-level-4 .warmth-name { --tag-bg: #F7EEDC; --tag-ink: #73572C; --tag-line: #DCC69E; --tag-curve: 28% 22% 32% 20% / 34% 42% 30% 44%; }
-.city-card .warmth-level-5 .warmth-name { --tag-bg: #F6E8DE; --tag-ink: #7B513C; --tag-line: #DDBAA5; --tag-curve: 23% 29% 25% 33% / 44% 36% 46% 32%; }
-.city-card .warmth-level-6 .warmth-name { --tag-bg: #EEE8F4; --tag-ink: #624D76; --tag-line: #C9B8D8; --tag-curve: 32% 26% 35% 22% / 46% 38% 32% 44%; }
+.city-card .warmth-level-1 .warmth-name { --tag-bg: #FFF0BC; --tag-ink: #795112; --tag-line: #D7AA47; --tag-curve: 42% 18% 38% 22% / 46% 30% 48% 32%; }
+.city-card .warmth-level-2 .warmth-name { --tag-bg: #D3EFC7; --tag-ink: #285638; --tag-line: #80B46C; --tag-curve: 30% 20% 39% 24% / 35% 46% 32% 48%; }
+.city-card .warmth-level-3 .warmth-name { --tag-bg: #CDEEF3; --tag-ink: #205C70; --tag-line: #72B6C4; --tag-curve: 23% 32% 20% 35% / 42% 30% 46% 32%; }
+.city-card .warmth-level-4 .warmth-name { --tag-bg: #D5DEFE; --tag-ink: #344480; --tag-line: #879EDC; --tag-curve: 28% 22% 32% 20% / 34% 42% 30% 44%; }
+.city-card .warmth-level-5 .warmth-name { --tag-bg: #EBDCF8; --tag-ink: #63407D; --tag-line: #B18ACD; --tag-curve: 23% 29% 25% 33% / 44% 36% 46% 32%; }
+.city-card .warmth-level-6 .warmth-name { --tag-bg: #CAD8EC; --tag-ink: #293F70; --tag-line: #718FBD; --tag-curve: 32% 26% 35% 22% / 46% 38% 32% 44%; }
 .city-card .warmth-unavailable .warmth-name { border-style: dashed; }
 .city-card .warmth-variation .warmth-name {
-  --tag-bg: #F5EBD7; --tag-ink: #72562E; --tag-line: #D7BE91;
+  --tag-bg: #FFE0CC; --tag-ink: #7B381C; --tag-line: #D98453;
   --tag-curve: 34% 20% 38% 18% / 48% 36% 50% 34%;
   /* Keep the text upright while the background has a more expressive contour. */
   border-radius: 0;
