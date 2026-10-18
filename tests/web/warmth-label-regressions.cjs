@@ -36,7 +36,11 @@ const assert=require('node:assert/strict');
  assert.ok(rgb(checks[6].bg)[0]>rgb(checks[6].bg)[2]+25,'variation reads as warm orange');
  assert.ok(checks.every(c=>contrast(c.bg,c.ink)>=4.5),'tag text must meet AA contrast');
 
- assert.equal(checks[3].text,'适中保暖');
+ assert.deepEqual(checks.slice(0,6).map(c=>c.text), ['清爽透气','轻薄衣物','薄外套','中等厚度','保暖外套','厚实保暖']);
+ assert.deepEqual(checks.slice(0,6).map(c=>c.bg), ['#FFE0A0','#D9EDBC','#B1E3DA','#ADD8F2','#B9C6F1','#CEB9ED']);
+ assert.equal(checks[6].bg, '#FBE9DD', 'variation matches approved pastel apricot');
+ assert.ok(await page.locator('.city-card .warmth-variation img').evaluate(img => img.getAttribute('src').includes('alert-variation-landscape')), 'featured variation uses existing wide illustration');
+ assert.ok(await page.locator('.city-card .warmth-unavailable .warmth-name').evaluate(el => getComputedStyle(el).backgroundColor === 'rgba(0, 0, 0, 0)'), 'no-data/reference state is text-only');
  assert.equal(checks[6].text,'冷热变化大');assert.equal(checks[7].text,'暂无白天参考');
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
  if(!missing&&!large || width===390&&large || width===390&&missing&&!large) {
