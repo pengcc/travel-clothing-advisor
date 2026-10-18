@@ -111,16 +111,16 @@ body{overflow-wrap:anywhere}.warmth-mark,.warmth-mark .warmth-name{white-space:n
   font-weight: 750;
 }
 /* Soft asymmetric silhouettes progress from airy leaves to fuller winter shapes. */
-.city-card .warmth-level-1 .warmth-name { --tag-bg: #FFF0BC; --tag-ink: #795112; --tag-line: #D7AA47; --tag-curve: 42% 18% 38% 22% / 46% 30% 48% 32%; }
-.city-card .warmth-level-2 .warmth-name { --tag-bg: #D3EFC7; --tag-ink: #285638; --tag-line: #80B46C; --tag-curve: 30% 20% 39% 24% / 35% 46% 32% 48%; }
-.city-card .warmth-level-3 .warmth-name { --tag-bg: #CDEEF3; --tag-ink: #205C70; --tag-line: #72B6C4; --tag-curve: 23% 32% 20% 35% / 42% 30% 46% 32%; }
-.city-card .warmth-level-4 .warmth-name { --tag-bg: #D5DEFE; --tag-ink: #344480; --tag-line: #879EDC; --tag-curve: 28% 22% 32% 20% / 34% 42% 30% 44%; }
-.city-card .warmth-level-5 .warmth-name { --tag-bg: #EBDCF8; --tag-ink: #63407D; --tag-line: #B18ACD; --tag-curve: 23% 29% 25% 33% / 44% 36% 46% 32%; }
-.city-card .warmth-level-6 .warmth-name { --tag-bg: #CAD8EC; --tag-ink: #293F70; --tag-line: #718FBD; --tag-curve: 32% 26% 35% 22% / 46% 38% 32% 44%; }
-.city-card .warmth-unavailable .warmth-name { border-style: dashed; }
+.city-card .warmth-level-1 .warmth-name { --tag-bg: #FFE0A0; --tag-ink: #704813; --tag-line: #D9A54B; --tag-curve: 44% 18% 37% 22% / 45% 28% 50% 30%; }
+.city-card .warmth-level-2 .warmth-name { --tag-bg: #D9EDBC; --tag-ink: #3C6025; --tag-line: #91B96B; --tag-curve: 34% 22% 42% 24% / 40% 46% 32% 46%; }
+.city-card .warmth-level-3 .warmth-name { --tag-bg: #B1E3DA; --tag-ink: #205F58; --tag-line: #65B6AA; --tag-curve: 26% 38% 19% 33% / 45% 28% 50% 34%; }
+.city-card .warmth-level-4 .warmth-name { --tag-bg: #ADD8F2; --tag-ink: #214E70; --tag-line: #659EC7; --tag-curve: 33% 23% 35% 19% / 37% 45% 31% 44%; }
+.city-card .warmth-level-5 .warmth-name { --tag-bg: #B9C6F1; --tag-ink: #303F7E; --tag-line: #7B90CB; --tag-curve: 25% 32% 24% 34% / 47% 36% 46% 30%; }
+.city-card .warmth-level-6 .warmth-name { --tag-bg: #CEB9ED; --tag-ink: #523477; --tag-line: #9574BE; --tag-curve: 37% 25% 36% 20% / 48% 40% 35% 46%; }
+.city-card .warmth-unavailable .warmth-name { border: 0; border-radius: 0; background: transparent; padding-left: 0; color: #645F5A; font-weight: 500; }
 .city-card .warmth-variation .warmth-name {
-  --tag-bg: #FFE0CC; --tag-ink: #7B381C; --tag-line: #D98453;
-  --tag-curve: 34% 20% 38% 18% / 48% 36% 50% 34%;
+  --tag-bg: #FBE9DD; --tag-ink: #845037; --tag-line: #D9A98C;
+  --tag-curve: 38% 24% 42% 20% / 45% 36% 50% 34%;
   /* Keep the text upright while the background has a more expressive contour. */
   border-radius: 0;
   border: 0;
@@ -203,3 +203,6 @@ body{overflow-wrap:anywhere}.warmth-mark,.warmth-mark .warmth-name{white-space:n
   .featured-grid { grid-template-columns: 1fr; }
   .city-card .warmth-mark { flex-direction: row; align-items: center; }
 }
+
+/* The split-condition art has a wider composition; keep its subjects legible. */
+.city-card .warmth-variation .warmth-icon { width: 96px; height: 76px; }
