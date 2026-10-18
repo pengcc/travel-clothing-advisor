@@ -30,7 +30,9 @@ Load only the context needed for the current task. Do not create lifecycle cerem
 
 ## Current-turn outcome
 
-Interpret each request by what the current turn should help the user newly understand, decide, validate, or move closer to resolving. Before asking for a consequential approval, decision, or action, explain what the user is deciding on: the concrete proposal, result, or review finding; material steps, dependencies, trade-offs, risks, and authorization boundaries as applicable. This explanation must be understandable and reviewable in plain text; artifact links, version labels, review verdicts, or interactive controls cannot substitute for it. Scale detail to the decision without imposing fixed sections or lengthy summaries on ordinary requests.
+Provide clear, sufficient, and reviewable substantive results centered on the user's current goal, including the key information needed to understand the result, make a judgment, or take action.
+
+For consequential decisions or approvals, explain what is being decided, the main rationale, key trade-offs, and practical implications before asking the user to decide.
 
 Use an installed discovery capability only when material new alignment, product framing, research, or clarification is actually required. Adequate completed research and prior discovery are reusable evidence. If the current request can be answered directly from that evidence and no material formal discovery work remains, answer it directly rather than manufacturing another workflow, stage, handoff, or investigation.
 
