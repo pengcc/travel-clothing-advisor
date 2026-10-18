@@ -65,13 +65,44 @@ const base = process.env.UI_BASE_URL || 'http://127.0.0.1:8000';
     check(`${fixture} marker comes from response`, (await p.locator('#resultWarmthMark').textContent()).includes(label));
     check(`${fixture} notice visibility`, await p.locator('#spanRemind').isVisible() === notice);
     if (fixture === 'split') check('Split state has no invented bars', await p.locator('#resultWarmthMark svg').count() === 0);
-    if (notice) check(`${fixture} notice before inner layers`, await p.evaluate(()=>Boolean(document.querySelector('#spanRemind').compareDocumentPosition(document.querySelector('#resultLayers')) & Node.DOCUMENT_POSITION_FOLLOWING)));
+    const expectedDirection = {stable:null, colder:'cold', warmer:'warm', split:'mixed'}[fixture];
+    const banner = p.locator('#spanRemind');
+    if (notice) {
+      check(`${fixture} notice before inner layers`, await p.evaluate(()=>Boolean(document.querySelector('#spanRemind').compareDocumentPosition(document.querySelector('#resultLayers')) & Node.DOCUMENT_POSITION_FOLLOWING)));
+      check(`${fixture} direction class`, await banner.evaluate((el,k)=>el.classList.contains('variation-banner--'+k), expectedDirection));
+      const art = {cold:'alert-cold', warm:'alert-hot', mixed:'alert-variation'}[expectedDirection];
+      check(`${fixture} correct illustration`, (await banner.locator('img').first().getAttribute('src')).includes(art));
+      const title = {cold:'偏冷提醒',warm:'偏暖提醒',mixed:'冷热变化提醒'}[expectedDirection];
+      check(`${fixture} direction heading`, (await banner.locator('strong').textContent()).includes(title));
+      const appearance = await banner.evaluate(el => ({fill:getComputedStyle(el).backgroundColor, image:getComputedStyle(el).backgroundImage}));
+      if (expectedDirection==='cold') check('Cold detail tint matches Scheme A',appearance.fill==='rgb(237, 245, 251)');
+      if (expectedDirection==='warm') check('Warm detail tint matches Scheme A',appearance.fill==='rgb(255, 244, 229)');
+      if (expectedDirection==='mixed') check('Mixed detail has two-tone gradient',appearance.image.includes('linear-gradient'));
+    } else {
+      check('No detail reminder carries stale direction', await banner.evaluate(el=>!['cold','warm','mixed'].some(k=>el.classList.contains('variation-banner--'+k))));
+    }
     for (const width of [320,375,390,430,1280]) {
       await p.setViewportSize({width,height:844});
       check(`${fixture} ${width}px no horizontal overflow`, await p.evaluate(()=>document.documentElement.scrollWidth <= innerWidth));
     }
     await p.setViewportSize({width:390,height:844}); await shot(`fixture-${fixture}`);
   }
+  // Returning from a mixed result to a stable one must clear any stale CSS state.
+  await p.locator('#fixture').selectOption('stable'); await waitResult();
+  check('Mixed-to-stable clears reminder state', await p.locator('#spanRemind').evaluate(el =>
+    el.classList.contains('hidden') && !['cold','warm','mixed'].some(k => el.classList.contains('variation-banner--'+k))));
+  // Older API payloads without direction retain readable original copy and default styling.
+  await p.route('**/api/advice?*', async route => {
+    const response=await route.fetch(), data=await response.json();
+    delete data.packing_variation_kind;
+    await route.fulfill({json:data});
+  });
+  await p.locator('#fixture').selectOption('warmer'); await waitResult();
+  check('Missing direction keeps variation visible', await p.locator('#spanRemind').isVisible());
+  check('Missing direction retains original illustration', (await p.locator('#spanRemind img').first().getAttribute('src')).includes('alert-variation'));
+  check('Missing direction does not invent a colored variant', await p.locator('#spanRemind').evaluate(el =>
+    !['cold','warm','mixed'].some(k=>el.classList.contains('variation-banner--'+k))));
+  await p.unroute('**/api/advice?*');
   for (const fixture of ['loading','unavailable','stale']) {
     await p.locator('#fixture').selectOption(fixture); await p.waitForSelector('#resultStatus:not(.hidden)');
     if (fixture !== 'loading') await p.waitForFunction(()=>document.querySelector('#result').getAttribute('aria-busy') === 'false');
