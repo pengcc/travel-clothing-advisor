@@ -1,4 +1,4 @@
-"""Read-only local launch preflight; never prepares stores or calls providers."""
+"""Optional read-only local data diagnostic; never prepares stores or calls providers."""
 import argparse
 import os
 from contextlib import nullcontext
@@ -30,7 +30,7 @@ def check(history_dir, forecast_dir, emit=print):
             emit(f'{label} directory missing or unreadable. See web/README.md local preparation; no directory was created.')
             ready = False
     if not ready:
-        emit('Local server was not started. Prepare stores explicitly; no downloads or writes were performed. For fixture advice/search/featured use make demo; /api/city may use GeoNames.')
+        emit('Data is not ready; this diagnostic does not start or block the server. Run make dev to serve with available data. No downloads or writes were performed. For fixture advice/search/featured use make demo; /api/city may use GeoNames.')
         return False
 
     try:
@@ -56,7 +56,7 @@ def check(history_dir, forecast_dir, emit=print):
         emit('Forecast publication missing, stale, incomplete, invalid or unreadable. Prepare today explicitly with web.prefetch_forecasts; see web/README.md.')
         ready = False
     if not ready:
-        emit('Local server was not started. No downloads or cache writes were performed. For fixture advice/search/featured use make demo; /api/city may use GeoNames.')
+        emit('Data is not ready; this diagnostic does not start or block the server. Run make dev to serve with available data. No downloads or cache writes were performed. For fixture advice/search/featured use make demo; /api/city may use GeoNames.')
     return ready
 
 

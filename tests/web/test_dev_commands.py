@@ -3,12 +3,19 @@ from contextlib import redirect_stdout
 from datetime import timedelta
 import io
 import json
+import os
 from pathlib import Path
 import shutil
+import signal
+import socket
 import subprocess
+import sys
 import tempfile
+import time
 import unittest
 from unittest.mock import Mock, patch
+from urllib.error import HTTPError, URLError
+from urllib.request import urlopen
 
 from test_forecasts import RECORDS
 from test_live import NOW, forecast, geo
@@ -49,7 +56,7 @@ class DevCommandTests(unittest.TestCase):
 
     def snapshot(self):
         return {str(p.relative_to(self.root)): p.read_bytes()
-                for p in self.root.rglob('*') if p.is_file()}
+                for p in self.root.rglob('*') if p.is_file() and 'guard' not in p.relative_to(self.root).parts}
 
     def run_check(self):
         with patch('web.check_dev.Cache', side_effect=lambda store: Cache(store, lambda: NOW)), \
@@ -104,19 +111,123 @@ class DevCommandTests(unittest.TestCase):
                                    '--forecast-dir', str(self.forecasts)]), 1)
 
     @unittest.skipUnless(shutil.which('make'), 'make required')
-    def test_make_expansion_and_failed_preflight_blocks_server(self):
+    def test_make_expansion_without_preflight_dependency(self):
         result = subprocess.run(['make', '-n', 'dev', 'test', 'demo'], cwd=ROOT,
                                 capture_output=True, text=True, check=True)
         self.assertIn('-m web.server --history-dir ".history-local" --forecast-dir ".forecast-local" --port "8000"', result.stdout)
         self.assertIn('-m unittest discover -s tests/web -v', result.stdout)
         self.assertIn('-m web.server --fixtures --port "8000"', result.stdout)
-        result = subprocess.run(['make', 'dev', f'HISTORY_DIR={self.root / "absent history"}',
-                                 f'FORECAST_DIR={self.root / "absent forecast"}'],
-                                cwd=ROOT, capture_output=True, text=True)
-        self.assertNotEqual(result.returncode, 0)
-        self.assertNotIn('-m web.server', result.stdout)
-        self.assertIn('History directory missing', result.stdout)
-        self.assertIn('Forecast directory missing', result.stdout)
+        self.assertNotIn('-m web.check_dev', result.stdout)
+
+    def launch(self, *, direct=False):
+        # Installed only in the child interpreter. Freeze the German day to
+        # match synthetic publications and fail/record every provider attempt.
+        guard = self.root / 'guard'
+        guard.mkdir(exist_ok=True)
+        marker = self.root / 'provider-attempt'
+        (guard / 'sitecustomize.py').write_text(
+            'import datetime, sys\n'
+            'from pathlib import Path\n'
+            'class Frozen(datetime.datetime):\n'
+            '    @classmethod\n'
+            '    def now(cls, tz=None):\n'
+            f'        return cls.fromisoformat({NOW.isoformat()!r}).astimezone(tz)\n'
+            'datetime.datetime = Frozen\n'
+            'def deny(event, args):\n'
+            '    if event == "urllib.Request":\n'
+            f'        Path({str(marker)!r}).write_text("attempted")\n'
+            '        raise AssertionError("Provider forbidden")\n'
+            'sys.addaudithook(deny)\n')
+        with socket.socket() as probe:
+            probe.bind(('127.0.0.1', 0))
+            port = probe.getsockname()[1]
+        args = ([sys.executable, '-m', 'web.server', '--history-dir', str(self.history),
+                 '--forecast-dir', str(self.forecasts), '--port', str(port)] if direct else
+                ['make', 'dev', f'PYTHON={sys.executable}', f'HISTORY_DIR={self.history}',
+                 f'FORECAST_DIR={self.forecasts}', f'PORT={port}'])
+        env = dict(os.environ, PYTHONPATH=os.pathsep.join([str(guard), str(ROOT)]))
+        child = subprocess.Popen(args, cwd=ROOT, env=env, stdout=subprocess.PIPE,
+                                 stderr=subprocess.STDOUT, text=True, start_new_session=True)
+
+        def stop():
+            if child.poll() is None:
+                os.killpg(child.pid, signal.SIGTERM)
+            output, _ = child.communicate(timeout=5)
+            self.assertFalse(marker.exists(), output)
+        self.addCleanup(stop)
+        self.stop_child = stop
+        base = f'http://127.0.0.1:{port}'
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            if child.poll() is not None:
+                self.fail(child.communicate()[0])
+            try:
+                with urlopen(base + '/api/context', timeout=.2) as response:
+                    self.assertFalse(json.load(response)['fixture_mode'])
+                return base
+            except (URLError, TimeoutError):
+                time.sleep(.02)
+        self.fail('Local server did not start within five seconds')
+
+    @unittest.skipUnless(shutil.which('make'), 'make required')
+    def test_actual_startup_missing_empty_stale_and_prepared_stores(self):
+        for state in ('missing', 'empty', 'yesterday', 'prepared'):
+            with self.subTest(state=state):
+                self.history = self.root / (state + ' history')
+                self.forecasts = self.root / (state + ' forecast')
+                if state != 'missing':
+                    self.history.mkdir()
+                    self.forecasts.mkdir()
+                if state in ('yesterday', 'prepared'):
+                    self.prepared()
+                    if state == 'yesterday':
+                        manifest = next(self.forecasts.glob('forecast/featured-v1/*.json'))
+                        manifest.rename(manifest.with_name((NOW.date() - timedelta(days=1)).isoformat() + '.json'))
+                before = self.snapshot()
+                base = self.launch()
+                with urlopen(base + '/', timeout=2) as response:
+                    self.assertEqual(response.status, 200)
+                    self.assertIn(b'html', response.read())
+                # Startup and context/page reads leave all file bytes intact.
+                after = self.snapshot()
+                self.assertEqual(before, {k: v for k, v in after.items() if not k.startswith('guard/')})
+                try:
+                    with urlopen(base + '/api/featured', timeout=2) as response:
+                        self.assertEqual(state, 'prepared')
+                        self.assertFalse(json.load(response)['fixture'])
+                except HTTPError as exc:
+                    self.assertNotEqual(state, 'prepared')
+                    self.assertEqual(exc.code, 503)
+                    body = json.load(exc)
+                    self.assertTrue(body['error'])
+                    self.assertNotIn('headline', body)
+                # Reads may create the existing worker lock, never ledger/data.
+                self.assertEqual({k: v for k, v in before.items() if not k.endswith('.worker.lock')},
+                                 {k: v for k, v in self.snapshot().items() if not k.endswith('.worker.lock')})
+                self.stop_child()
+
+    def test_direct_server_cli_starts_with_missing_stores(self):
+        self.history.rmdir()
+        self.forecasts.rmdir()
+        self.launch(direct=True)
+        self.assertTrue(self.history.is_dir())
+        self.assertTrue(self.forecasts.is_dir())
+
+    @unittest.skipUnless(shutil.which('make'), 'make required')
+    def test_actual_invalid_path_and_permission_errors_fail(self):
+        invalid = self.root / 'file'
+        invalid.write_text('not a directory')
+        denied = self.root / 'denied'
+        denied.mkdir(mode=0o500)
+        self.addCleanup(denied.chmod, 0o700)
+        for path, error in ((invalid, 'FileExistsError'),
+                            (denied / 'child', 'PermissionError')):
+            with self.subTest(path=path):
+                result = subprocess.run(['make', 'dev', f'HISTORY_DIR={path}',
+                                         f'FORECAST_DIR={self.forecasts}'], cwd=ROOT,
+                                        capture_output=True, text=True, timeout=5)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(error, result.stderr)
 
 
 class FixtureRouteContractTests(unittest.TestCase):
