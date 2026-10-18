@@ -2,9 +2,60 @@
 
 Python 3.9+ with `Europe/Berlin` zone data; standard library only:
 
+From the repository root:
+
+```sh
+make dev    # Check both prepared stores, then serve http://127.0.0.1:8000
+make test   # Existing offline web unittest suite; no provider requests
+make demo   # Fixture advice/search/featured; /api/city may use GeoNames
+```
+
+`make dev` attaches **both** `.history-local` and `.forecast-local`. Before
+starting it checks directory access, the presence of history month blocks, and
+validates the complete Germany-today featured forecast publication using the
+existing cache checks. Missing directories, empty history, or missing/stale/invalid
+featured forecasts stop startup with preparation guidance. Preflight is read-only:
+it creates no directories, locks or ledgers and makes no provider calls. Its
+observations can change before the server reads the data.
+
+History block presence does **not** certify validity or coverage for a specific
+city/trip. Use the existing read-only exact-trip check described below:
+
+```sh
+python3 -m web.prefetch_history --check --city-id berlin --store .history-local \
+  --cities-file .history-local/cities.json --start YYYY-MM-DD --end YYYY-MM-DD
+```
+
+Replace `berlin` with the chosen supported city alias and use the same city,
+verified manifest, history store and exact dates as the serving environment.
+Without `--city-id`, the command checks **every city in the manifest**; missing
+Hamburg months can then fail a check even when Berlin's trip is complete.
+
+`make demo` needs no cache directories. Its `/api/advice`, `/api/cities` search
+and `/api/featured` routes use authored fixtures without provider requests;
+`/api/context` also works without a provider. This is **not full offline
+isolation**: `/api/city?city_id=...` still resolves via live GeoNames, including
+when a shared trip link needs a city absent from client state. Such a link can
+make a provider request or fail when offline. For offline demonstrations, stay
+within fixture advice/search/featured flows rather than opening those links.
+Full offline city resolution is a separate server change requiring authorization,
+tracked as follow-up to [review #5561695127](https://github.com/pengcc/travel-clothing-advisor/pull/45#pullrequestreview-5561695127);
+Issue #43 does not change `web/server.py` or this route's behavior.
+
+Daily featured snapshots still require the **separate explicit manual worker**
+preparation described under Phase 2C; `make dev` never refreshes or downloads data.
+History preparation also remains a separate explicit operator action. Do not
+create empty directories to bypass preparation. Once running, live personal
+queries retain their existing provider calls and cache behavior.
+
+Optional overrides: `make dev PORT=8001 HISTORY_DIR=.history-local
+FORECAST_DIR=.forecast-local PYTHON=python3`. `make check-dev` runs only the
+read-only preflight. Stop a running server with Ctrl-C. If you intentionally need
+to run without one of the stores, the existing direct CLI remains supported:
+
 ```sh
 python3 -m web.server
-# http://127.0.0.1:8000
+python3 -m web.server --history-dir .history-local --forecast-dir .forecast-local --port 8000
 ```
 
 Personal trips now use real Open-Meteo temperature forecasts and server-resolved German GeoNames locations. Choose dates wholly within Germany-today…today+13 and cold/normal/hot sensitivity. Chinese names for the existing cities remain available; other German places use their provider names and federal states. A numeric location ID in a shared URL is resolved through Open-Meteo `/v1/get`; client coordinates are rejected. Search results are filtered to German populated places. Individually incomplete/invalid candidates are skipped; usable matches retain their verified state and coordinates. A nonempty response with no usable candidate returns 503, while a genuinely empty search returns an empty list. Direct ID resolution still rejects incomplete metadata. Requests go to fixed provider URLs with an eight-second timeout per call and no automatic retries. No trip URLs, headers or provider errors are logged.
@@ -17,7 +68,7 @@ This is a loopback-only local development server, not a production server. No de
 - **Featured cities, default:** real advice derived from a complete daily forecast publication (see Phase 2C below). Missing, corrupt or yesterday-only publications return 503; no fixtures are substituted. Cards and independent city views keep their own Germany-today…today+13 dates and normal sensitivity without reading or changing the personal form. Browsing makes zero provider calls.
 - **15–30-day personal trips:** use the five-year local history library when configured and complete; otherwise return 503 without clothing defaults. The form accepts the full 30-day window. Historical fixture examples remain explicitly simulated. See Phase 2B below.
 - **Demo control:** expand 模拟状态测试 and check 使用演示数据, or select a fixture scenario. Uncheck to restore live personal queries. `fixture=default|stable|colder|warmer|split|loading|stale|unavailable` explicitly selects authored API fixtures. Fixture weather acquisition time is null. Fixture overrides are never included in share links; ordinary live mode reopens personal links against real data. A demo result never claims to be real weather.
-- **Phase 1 regression mode:** `python3 -m web.server --fixtures --port 8001` explicitly disables live advice/search for the existing offline browser suite. The response still identifies itself as a fixture even if the client asks otherwise. Do not use this runner to test provider integration.
+- **Phase 1 regression mode:** `python3 -m web.server --fixtures --port 8001` explicitly disables live advice/search for the existing offline browser suite. The response still identifies itself as a fixture even if the client asks otherwise. The `/api/city` exception described above still applies; this flag does not block all provider access. Do not use this runner to test provider integration.
 
 Loading, stale and unavailable states hide clothing results. Stale presentation retains the trip dates and acquisition time. Browser history retains form values only within that entry; no cookies, local storage, server sessions or analytics are added. Independent trip and city share URLs remain unchanged. The additional read-only `/api/city?city_id=` route resolves non-featured direct-link locations for return-to-form editing.
 
