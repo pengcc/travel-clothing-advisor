@@ -1,6 +1,7 @@
 """Local-only travel UI server. Run: python3 -m web.server"""
 import argparse
 import json
+import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
@@ -13,6 +14,18 @@ ROOT = Path(__file__).parent
 STATIC = {'/static/style.css': ('style.css', 'text/css'),
           '/static/app.js': ('app.js', 'text/javascript'),
           '/static/components.js': ('components.js', 'text/javascript')}
+
+
+def local_store(root):
+    """Validate configured directory access, independently of weather readiness."""
+    from web.history import DirectoryStore
+    store = DirectoryStore(root)
+    # Listing requires read permission; resolving '.' inside requires search
+    # permission too. Neither operation writes or inspects weather contents.
+    with os.scandir(store.root) as entries:
+        next(entries, None)
+    os.stat(str(store.root) + '/.')
+    return store
 
 ICON_NAMES = {*(f'warmth-l{level}' for level in range(1, 7)),
               'alert-cold', 'alert-hot', 'alert-variation', 'alert-variation-landscape'}
@@ -97,11 +110,11 @@ if __name__ == '__main__':
     parser.add_argument('--port', type=int, default=8000)
     args = parser.parse_args()
     Handler.fixtures_only = args.fixtures
-    from web.history import DirectoryStore, Library
+    from web.history import Library
     from web.forecasts import Cache
     Handler.service = Service(
-        history=Library(DirectoryStore(args.history_dir)) if args.history_dir else None,
-        forecast_cache=Cache(DirectoryStore(args.forecast_dir)) if args.forecast_dir else None)
+        history=Library(local_store(args.history_dir)) if args.history_dir else None,
+        forecast_cache=Cache(local_store(args.forecast_dir)) if args.forecast_dir else None)
     server = ThreadingHTTPServer(('127.0.0.1', args.port), Handler)
     print(f'Local travel UI: http://127.0.0.1:{args.port}', flush=True)
     server.serve_forever()

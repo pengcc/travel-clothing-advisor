@@ -5,18 +5,30 @@ Python 3.9+ with `Europe/Berlin` zone data; standard library only:
 From the repository root:
 
 ```sh
-make dev    # Check both prepared stores, then serve http://127.0.0.1:8000
+make dev    # Serve http://127.0.0.1:8000, even with empty/stale caches
+make check-dev # Optional read-only data readiness diagnostic (may exit 1)
 make test   # Existing offline web unittest suite; no provider requests
 make demo   # Fixture advice/search/featured; /api/city may use GeoNames
 ```
 
-`make dev` attaches **both** `.history-local` and `.forecast-local`. Before
-starting it checks directory access, the presence of history month blocks, and
-validates the complete Germany-today featured forecast publication using the
-existing cache checks. Missing directories, empty history, or missing/stale/invalid
-featured forecasts stop startup with preparation guidance. Preflight is read-only:
-it creates no directories, locks or ledgers and makes no provider calls. Its
-observations can change before the server reads the data.
+`make dev` attaches **both** `.history-local` and `.forecast-local` without
+requiring prepared data. Missing local directories are created by the existing
+development store adapter. Empty or stale caches do not prevent `/` and
+`/api/context` from loading; unavailable featured/history data returns a clear
+503 without fixture clothing defaults. Startup performs no provider downloads,
+creates no fake publication and does not initialize or reset quota ledgers.
+Before listening, explicitly configured stores are checked for directory listing
+and traversal access. Invalid paths (for example, a file instead of a directory),
+denied directory creation, inaccessible existing directories and other actual
+startup configuration errors fail explicitly. This is an access check, not a
+weather completeness check.
+Existing valid cache objects and quota counts are reused.
+
+`make check-dev` separately checks directory access, history block presence and
+the complete Germany-today featured forecast publication. It exits nonzero for
+unprepared data, but is not a prerequisite of `make dev`. This diagnostic is
+read-only: it creates no directories, locks or ledgers and calls no providers.
+Its observations can change before the server reads the data.
 
 History block presence does **not** certify validity or coverage for a specific
 city/trip. Use the existing read-only exact-trip check described below:
@@ -45,12 +57,12 @@ Issue #43 does not change `web/server.py` or this route's behavior.
 Daily featured snapshots still require the **separate explicit manual worker**
 preparation described under Phase 2C; `make dev` never refreshes or downloads data.
 History preparation also remains a separate explicit operator action. Do not
-create empty directories to bypass preparation. Once running, live personal
+treat successful startup as proof of data readiness. Once running, live personal
 queries retain their existing provider calls and cache behavior.
 
 Optional overrides: `make dev PORT=8001 HISTORY_DIR=.history-local
 FORECAST_DIR=.forecast-local PYTHON=python3`. `make check-dev` runs only the
-read-only preflight. Stop a running server with Ctrl-C. If you intentionally need
+read-only diagnostic. Stop a running server with Ctrl-C. If you intentionally need
 to run without one of the stores, the existing direct CLI remains supported:
 
 ```sh
