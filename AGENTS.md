@@ -6,7 +6,7 @@ This repository owns its own product context, research evidence, decisions, and 
 
 Product discovery and problem validation continue where needed. The repository also has an **implemented local MVP and active MVP delivery work**; implementation experiments do not establish product-validation success.
 
-For Issue, Plan, Review, Approval, Implementation, PR Review, Fix and Merge requests, read [the Workflow Contract](docs/collaboration.md) first. It is the sole workflow authority. Resolve the current task stage and its authority before acting; approved implementation does not require repeating completed discovery. For unresolved product questions, prioritize:
+For repository workflow requests, follow [the Workflow Contract](docs/collaboration.md) for stage ownership and authorization. Do not repeat completed discovery before authorized implementation. For unresolved product questions, prioritize:
 
 - evidence-first community research;
 - focused product framing;
@@ -21,7 +21,7 @@ Do not select an application framework, weather provider, AI/ML approach, persis
 For repository-aware work:
 
 1. read this file from current `main`;
-2. read `.codex/chatgpt/project-instructions.md` when ChatGPT is the acting environment, and `docs/collaboration.md` for workflow-stage requests;
+2. read `.codex/chatgpt/project-instructions.md` when ChatGPT is the acting environment;
 3. read `docs/product-blueprint.md` when product purpose, scope, users, success, or non-goals matter;
 4. inspect any newer target-owned research or decision artifact that is directly relevant to the task;
 5. verify current repository reality before relying on historical conversation, donor-repository behavior, or remembered project state.
@@ -54,15 +54,13 @@ This repository currently owns a deliberately small, discovery-only agent capabi
   - use when a material conclusion depends on externally variable or authoritative facts;
   - apply `.codex/rules/docs-first-policy.md` for source precedence and claim boundaries.
 
-These capabilities are target-owned adaptations for discovery and intent. `docs/collaboration.md` governs the mandatory collaboration workflow; it is not a Skill or a second Task Baseline. Planning, Execution and Review Skills, a role router, Project Memory, hooks and dedicated workflow tooling remain deferred. Do not infer their installation from donor repositories or historical terminology.
+These capabilities serve discovery and Task Alignment, not implementation-stage routing. Planning/Execution/Review Skills, role router, Project Memory, hooks and dedicated workflow tooling are not installed.
 
 ## Donor repository boundary
 
 `pengcc/badminton-club-app`, `pengcc/large-file-upload`, and other projects may be inspected as evidence for reusable working methods or tooling patterns.
 
 They are **not** authorities for this project's product requirements, runtime, architecture, deployment, repository workflow, Project Memory, or implementation choices. Any adopted capability must become target-owned and must justify its own current consumer here.
-
-The initial discovery capability set was adapted from `pengcc/badminton-club-app` revision `56d6251bda1d9a63799267f2300f24e9ac192c50`, with dependencies not installed in this repository intentionally removed. The Task Alignment real-outcome check and the current-turn outcome principle were subsequently refreshed from donor revision `a7e4743e471209c294214ff6617bb7980606f263` without adopting its role router or operating-contract system.
 
 ## Research boundary
 
@@ -72,27 +70,8 @@ Community posts and user discussions are evidence of user questions, language, a
 
 For product ambiguity, test the smallest representative real travel scenario that exposes the decision. Do not expand clear questions into an unbounded questionnaire or speculative feature list.
 
-## Current product direction
-
-The working hypothesis is that travelers unfamiliar with German weather mainly need protection from packing mistakes rather than fashion styling or a more detailed weather forecast.
-
-Current discovery should test whether useful guidance can be organized around concepts such as:
-
-- what must be covered for the trip;
-- what can safely be omitted from limited luggage;
-- what should be worn versus carried as a removable layer;
-- where forecast or climate uncertainty prevents a precise answer.
-
-These are current product hypotheses, not an implementation contract.
-
 ## Change and delivery boundary
 
-Follow [docs/collaboration.md](docs/collaboration.md) for Issue-first stage locations, planning and approval gates, one delivery branch/PR, independent exact-target review, same-PR fixes and closeout. A planning-only proposal never creates a PR; an authorized documentation implementation does. Small bounded changes may skip formal planning, never independent PR review or separate merge authority.
+An explicit `keep local`, `no push`, or `no PR` instruction limits publication; it does not waive independent review or grant merge permission. **Merge, deployment, release, repository visibility/settings changes, retained external-data mutation and other material external effects require separate explicit user authorization.**
 
-Ordinary requested repository changes normally include one review-ready delivery PR once coherently implemented. An explicit `keep local`, `no push`, `no PR`, or equivalent constraint opts out of publication; it does not waive review or authorize merge. Use a dedicated branch unless the user explicitly authorizes another path. The initial root bootstrap on `main` was a historical exception.
-
-**Merge remains a separate explicit user action.** Deployment, release, repository visibility/settings changes, retained external-data mutation and other material external effects also remain separately authorized.
-
-The Workflow Contract is documentation, not installed publication machinery. No dedicated PR publication Skill, hooks or `.repo-tools` are installed; use available GitHub capabilities directly within the contract.
-
-Do not create application code, dependencies, CI, deployment, release machinery, repository publication tooling, worktree automation, hooks, Project Memory or a broader agent skill tree without a demonstrated target-owned need and the applicable execution authority.
+Do not add application code, dependencies, CI, deployment/release machinery, repository publication tooling, worktree automation, hooks, Project Memory or a broader Skill tree without demonstrated target-owned need and execution authority.
