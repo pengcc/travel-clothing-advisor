@@ -140,6 +140,12 @@ def packing(days, presentation_events=None):
     return main, notice, summary
 
 
+def variation_kind(events):
+    """Presentation direction of the existing significant cross-day packing events."""
+    kinds = {event['kind'] for event in events if event['kind'] in ('cold', 'warm')}
+    return 'mixed' if len(kinds) == 2 else next(iter(kinds), None)
+
+
 class Service:
     def __init__(self, fetch=fetch_json, clock=lambda: datetime.now(BERLIN), *, history=None, history_downloader=None, history_max_missing=0, forecast_cache=None):
         self.fetch, self.clock = fetch, clock
@@ -241,6 +247,8 @@ class Service:
             raise Unavailable('今天可用的白天及早晚时段均已过去，请选择明天起的日期。')
         copy_events = []
         main, notice, summary = packing(days, copy_events) if days else (None,None,None)
+        # Classify only cross-day packing events, before independent morning/evening notes.
+        notice_kind = variation_kind(copy_events) if summary else None
         copy_split = (level(min(v for _,v in days)), level(max(v for _,v in days))) if days and main is None else None
         copy_level = main if days else level(min(v for _,v in edges))
         copy_boundary = False
@@ -280,4 +288,4 @@ class Service:
             caveat += '第8–14天预报不确定性更大，偏冷偏暖日期也可能改变。'
         from web.advice_copy import packing_copy
         clipboard = packing_copy(copy_level, copy_events, split=copy_split, evening_only=not days, boundary=copy_boundary, preference=p['preference'])
-        return dict(packing_copy=clipboard, city=public_city(city), start=start, end=end, preference=p['preference'], view=p.get('view', 'trip'), mode='forecast', headline=headline, layers=layers, notices=notes, reference_temperature_c=ref, warmth_indicator_level=main, packing_variation_notice=notice, packing_variation_summary=summary, weather_fetched_at=acquired.isoformat(timespec='seconds'), advice_generated_at=generated.isoformat(timespec='seconds'), source='Open-Meteo（气温预报）；GeoNames（城市）', data_status='fresh', data_version='temperature-v1-'+version, caveat=caveat, fixture=False)
+        return dict(packing_copy=clipboard, city=public_city(city), start=start, end=end, preference=p['preference'], view=p.get('view', 'trip'), mode='forecast', headline=headline, layers=layers, notices=notes, reference_temperature_c=ref, warmth_indicator_level=main, packing_variation_notice=notice, packing_variation_summary=summary, packing_variation_kind=notice_kind, weather_fetched_at=acquired.isoformat(timespec='seconds'), advice_generated_at=generated.isoformat(timespec='seconds'), source='Open-Meteo（气温预报）；GeoNames（城市）', data_status='fresh', data_version='temperature-v1-'+version, caveat=caveat, fixture=False)
