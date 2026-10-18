@@ -2,17 +2,23 @@
 from contextlib import redirect_stdout
 from datetime import timedelta
 import io
+import json
 from pathlib import Path
 import shutil
 import subprocess
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from test_forecasts import RECORDS
-from test_live import NOW, forecast
+from test_live import NOW, forecast, geo
+from test_history import month_data
 from web.check_dev import check, main
 from web.forecasts import Cache, MemoryStore
+from web.history import DirectoryStore, Library
+from web.live import GEO, IDS, Service, location
+from web.prefetch_history import main as history_main
+from web.server import Handler
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -111,3 +117,76 @@ class DevCommandTests(unittest.TestCase):
         self.assertNotIn('-m web.server', result.stdout)
         self.assertIn('History directory missing', result.stdout)
         self.assertIn('Forecast directory missing', result.stdout)
+
+
+class FixtureRouteContractTests(unittest.TestCase):
+    def setUp(self):
+        self.provider = Mock(side_effect=OSError('Provider forbidden in offline test'))
+        # Exercise the real router without opening sockets or mutating Handler.
+        self.handler = Handler.__new__(Handler)
+        self.handler.fixtures_only = True
+        self.handler.service = Service(self.provider, lambda: NOW)
+        self.handler.send_json = Mock()
+
+    def request(self, path):
+        self.handler.path = path
+        self.handler.send_json.reset_mock()
+        with patch('web.live.urlopen', side_effect=AssertionError('Network forbidden')):
+            self.handler.do_GET()
+        self.handler.send_json.assert_called_once()
+        return self.handler.send_json.call_args.args
+
+    def test_fixture_advice_search_featured_and_context_need_no_provider(self):
+        routes = ['/api/cities?q=Berlin', '/api/cities?q=Unknown',
+                  '/api/featured',
+                  '/api/advice?view=trip&city_id=berlin&start=2026-10-17&end=2026-10-18&preference=normal',
+                  '/api/advice?view=city&city_id=berlin']
+        for route in routes:
+            with self.subTest(route=route):
+                status, body = self.request(route)
+                self.assertEqual(status, 200)
+                self.assertTrue(body['fixture'])
+        status, body = self.request('/api/context')
+        self.assertEqual(status, 200)
+        self.assertTrue(body['fixture_mode'])
+        self.provider.assert_not_called()
+
+    def test_fixture_city_resolution_remains_a_provider_dependent_exception(self):
+        # A valid non-featured shared-link ID still reaches GeoNames. The test
+        # denies the call and verifies failure; it never acquires real metadata.
+        status, body = self.request('/api/city?city_id=1234567')
+        self.provider.assert_called_once_with(GEO + 'get', {'id': '1234567'})
+        self.assertEqual(status, 503)
+        self.assertNotIn('city', body)
+
+
+class HistoryCheckSelectionTests(unittest.TestCase):
+    def test_selected_city_complete_while_manifest_wide_check_is_incomplete(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as root:
+            root = Path(root)
+            records = [geo(), geo(IDS['hamburg'], name='Hamburg', admin1='Hamburg')]
+            manifest = root / 'cities.json'
+            manifest.write_text(json.dumps(records))
+            store = root / 'store'
+            library = Library(DirectoryStore(store), lambda: NOW)
+            for year in range(2021, 2026):
+                month = f'{year}-11'
+                library.publish(location(records[0]), month, month_data(month))
+            before = {p.relative_to(root): p.read_bytes()
+                      for p in root.rglob('*') if p.is_file()}
+            args = ['--check', '--store', str(store), '--cities-file', str(manifest),
+                    '--start', '2026-11-02', '--end', '2026-11-05']
+            for selection, expected_status, expected_code, expected_cities in (
+                    (['--city-id', 'berlin'], 'complete', 0, ['berlin']),
+                    ([], 'incomplete', 1, ['berlin', 'hamburg'])):
+                with self.subTest(selection=selection), redirect_stdout(io.StringIO()) as out, \
+                        patch('web.live.urlopen', side_effect=AssertionError('Network forbidden')), \
+                        patch('web.history.urlopen', side_effect=AssertionError('Network forbidden')):
+                    self.assertEqual(history_main(args + selection), expected_code)
+                    report = json.loads(out.getvalue())
+                    self.assertEqual(report['status'], expected_status)
+                    self.assertEqual([c['city_id'] for c in report['cities']], expected_cities)
+                    self.assertEqual(report['http_requests'], 0)
+            after = {p.relative_to(root): p.read_bytes()
+                     for p in root.rglob('*') if p.is_file()}
+            self.assertEqual(before, after)

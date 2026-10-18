@@ -14,5 +14,6 @@ check-dev:
 test:
 	$(PYTHON) -m unittest discover -s tests/web -v
 
+# Fixture advice/search/featured only; /api/city can still call GeoNames (see web/README.md).
 demo:
 	$(PYTHON) -m web.server --fixtures --port "$(PORT)"

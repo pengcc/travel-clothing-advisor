@@ -30,7 +30,7 @@ def check(history_dir, forecast_dir, emit=print):
             emit(f'{label} directory missing or unreadable. See web/README.md local preparation; no directory was created.')
             ready = False
     if not ready:
-        emit('Local server was not started. Prepare stores explicitly; no downloads or writes were performed. For offline fixtures use make demo.')
+        emit('Local server was not started. Prepare stores explicitly; no downloads or writes were performed. For fixture advice/search/featured use make demo; /api/city may use GeoNames.')
         return False
 
     try:
@@ -56,7 +56,7 @@ def check(history_dir, forecast_dir, emit=print):
         emit('Forecast publication missing, stale, incomplete, invalid or unreadable. Prepare today explicitly with web.prefetch_forecasts; see web/README.md.')
         ready = False
     if not ready:
-        emit('Local server was not started. No downloads or cache writes were performed. For offline fixtures use make demo.')
+        emit('Local server was not started. No downloads or cache writes were performed. For fixture advice/search/featured use make demo; /api/city may use GeoNames.')
     return ready
 
 
