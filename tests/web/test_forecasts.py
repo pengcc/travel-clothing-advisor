@@ -70,6 +70,7 @@ class ForecastTests(unittest.TestCase):
         self.assertEqual(self.geocodes, 9)  # geocoding is not a forecast hit/miss
         for city in cards['cities']:
             self.assertEqual(bool(city['packing_variation_notice']), bool(city['packing_variation_summary']))
+            self.assertEqual(city['packing_variation_kind'] is not None, bool(city['packing_variation_summary']))
         for params in self.calls:
             self.assertEqual(params['models'], 'best_match')
             self.assertNotIn('daily', params)
@@ -321,17 +322,19 @@ except Unavailable:
             self.assertNotIn('Berlin', output.getvalue())
 
     def test_same_source_packing_outliers_split_noise(self):
-        for values, main, variation in [([24,14,24]+[24]*11,2,True),
-                ([14,24,14]+[14]*11,4,True), ([24]*7+[14]*7,None,True),
-                ([12.9,13.1,13.2]+[13.1]*11,4,False)]:
+        for values, main, expected_kind in [([24,14,24]+[24]*11,2,'cold'),
+                ([14,24,14]+[14]*11,4,'warm'), ([24]*7+[14]*7,None,'mixed'),
+                ([12.9,13.1,13.2]+[13.1]*11,4,None)]:
             cache = Cache(MemoryStore(), lambda: self.now)
             cache.prefetch(RECORDS, lambda u,p,t: forecast(self.now,values))
             service = self.service(cache)
             card = service.featured()['cities'][0]
             detail = service.city_advice(dict(city_id='berlin'))
             self.assertEqual(card['warmth_indicator_level'], main)
-            self.assertEqual(bool(card['packing_variation_summary']), variation)
-            self.assertEqual(bool(detail['packing_variation_notice']), variation)
+            self.assertEqual(bool(card['packing_variation_summary']), expected_kind is not None)
+            self.assertEqual(bool(detail['packing_variation_notice']), expected_kind is not None)
+            self.assertEqual(card['packing_variation_kind'],expected_kind)
+            self.assertEqual(detail['packing_variation_kind'],expected_kind)
             self.assertEqual(card, detail)
 
 
