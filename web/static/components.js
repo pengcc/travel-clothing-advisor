@@ -45,7 +45,11 @@ export function CityCard(data, href) {
   card.append(text('span', c.name, 'eng'), text('span', c.zh, 'city-name'));
   const host = text('span', '', 'warmth-host'); host.append(WarmthIndicator(data.warmth_indicator_level, Boolean(data.packing_variation_summary || data.packing_variation_notice)));
   card.append(host, text('span', data.headline, 'coat'));
-  if (data.packing_variation_summary) card.append(text('span', data.packing_variation_summary, 'card-variation'));
+  if (data.packing_variation_summary) {
+    const warning = text('span', '', 'card-variation');
+    warning.append(WarmthIcon('alert-variation'), text('span', data.packing_variation_summary));
+    card.append(warning);
+  }
   if (data.fixture) card.append(text('span', '模拟数据 · 非真实天气', 'card-source'));
   card.append(text('span', '查看14天建议 →', 'go'));
   return card;

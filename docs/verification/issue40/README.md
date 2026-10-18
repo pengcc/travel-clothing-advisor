@@ -30,3 +30,19 @@ the exact allowlist but are not assigned speculative meanings. Backend selection
 weather, copying and sharing remain unchanged. WebP-unsupported browser selection
 uses standard picture/PNG markup; Chrome validation directly exercised WebP
 failure to PNG and failure of both formats.
+
+## Review #5561693950 follow-up
+
+Featured cards now render a separate decorative generic variation icon beside
+`packing_variation_summary`, preserving the primary level indicator and summary
+text. No summary means no warning row. No weather rules or icon binaries changed.
+
+The focused browser regression first failed on the reviewed head because the
+separate warning icon was absent. After the fix, `node
+tests/web/icon-regressions.cjs` passed, including colder/L2, warmer/L4, stable/L4
+(no warning), and split/null cards at 320/390/1280px; summary equality, decorative
+ARIA, retained primary artwork, no horizontal overflow, and readable warning
+text under PNG fallback and total image failure. The 390px colder-card screenshot
+was inspected locally. The existing browser suite (`UI_BASE_URL=http://127.0.0.1:8001
+node tests/web/browser.cjs --check-only`) passed all 63 checks. `git diff --check`
+also passed. These follow-up runs used offline fixtures only.

@@ -31,12 +31,39 @@ const base = process.env.UI_BASE_URL || 'http://127.0.0.1:8001';
       assert.deepEqual(errors,[]);
       await page.close();
     }
+    // Review #5561693950: warnings must coexist with a representative level.
+    for (const width of [320,390,1280]) for (const [scenario,level] of [['colder',2],['warmer',4],['stable',4],['split',null]]) {
+      const page = await browser.newPage({viewport:{width,height:844}});
+      const fixture = await (await page.request.get(`${base}/api/featured?fixture=${scenario}`)).json();
+      await page.route('**/api/featured?*', route => route.fulfill({json:fixture}));
+      await page.goto(base); await page.waitForSelector('.city-card');
+      const cards = page.locator('.city-card');
+      for (let i=0;i<await cards.count();i++) {
+        const card=cards.nth(i), warning=card.locator('.card-variation');
+        const primary=card.locator('.warmth-host img');
+        assert.equal(await primary.count(),1,'primary indicator preserved');
+        assert.ok((await primary.getAttribute('src')).includes(level===null?'alert-variation':`warmth-l${level}`));
+        if (scenario==='stable') {
+          assert.equal(await warning.count(),0,'no warning without backend variation');
+          assert.equal(await card.locator('img[src*="alert-variation"]').count(),0);
+        } else {
+          assert.equal(await warning.locator('img[src*="alert-variation"]').count(),1,'separate generic warning icon');
+          assert.equal(await warning.textContent(),fixture.cities[i].packing_variation_summary,'backend summary preserved');
+          assert.equal(await warning.locator('picture').getAttribute('aria-hidden'),'true');
+          await warning.locator('img').evaluate(img => img.decode());
+        }
+      }
+      assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+      if(width===390 && scenario==='colder') await page.screenshot({path:'.local-tools/issue40-card-variation.png',fullPage:true});
+      await page.close();
+    }
     for(const mode of ['png','none']) {
       const page=await browser.newPage({viewport:{width:320,height:844}});
       await page.route('**/static/icons/**', route => mode==='none'||route.request().url().endsWith('.webp') ? route.abort() : route.continue());
       await page.goto(base); await page.waitForSelector('.city-card');
       await page.waitForFunction(mode=>[...document.querySelectorAll('.warmth-icon')].every(p=>mode==='none'?p.hidden:p.querySelector('img').complete&&p.querySelector('img').naturalWidth>0),mode);
       assert.ok((await page.locator('.warmth-name').first().textContent()).length>0);
+      assert.ok((await page.locator('.card-variation').first().textContent()).length>0,'warning text survives image failures');
       if(mode==='png') assert.ok((await page.locator('.warmth-icon img').first().evaluate(i=>i.currentSrc)).endsWith('.png'));
       await page.close();
     }

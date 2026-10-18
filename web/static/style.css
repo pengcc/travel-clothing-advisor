@@ -65,3 +65,7 @@ body{overflow-wrap:anywhere}.warmth-mark,.warmth-mark .warmth-name{white-space:n
 .variation-icon{width:48px;height:48px;background:transparent}
 .variation-icon .warmth-icon{width:48px;height:48px}
 .variation-banner>div{min-width:0}
+
+.city-card .card-variation{display:flex;align-items:flex-start;gap:5px}
+.city-card .card-variation .warmth-icon{width:28px;height:28px}
+.city-card .card-variation>span{min-width:0}
