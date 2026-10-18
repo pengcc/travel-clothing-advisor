@@ -51,6 +51,10 @@ export function CityCard(data, href) {
   card.append(host, text('span', data.headline, 'coat'));
   if (data.packing_variation_summary) {
     const warning = text('span', '', 'card-variation');
+    // Direction is service-provided metadata; never guess from translated copy.
+    if (['cold', 'warm', 'mixed'].includes(data.packing_variation_kind)) {
+      warning.classList.add(`card-variation--${data.packing_variation_kind}`);
+    }
     warning.append(text('span', data.packing_variation_summary));
     card.append(warning);
   }
