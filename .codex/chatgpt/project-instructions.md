@@ -11,12 +11,7 @@ For project work:
 4. for Issue/Plan/Review/Approval/Implementation/PR Review/Fix/Merge requests, follow `AGENTS.md` → `docs/collaboration.md`, the sole workflow authority; resolve exact artifacts and execution authority before acting;
 5. read current `docs/product-blueprint.md` whenever product purpose, target users, scope, success, non-goals, or discovery boundaries matter;
 6. use current `pengcc/travel-clothing-advisor` repository truth for repository-aware claims and actions;
-7. select the target-owned capability matching the **current task**, always under docs/collaboration.md for stage authority:
-   - Discovery: .codex/project-collaboration/task-alignment.md, .agents/skills/product-framing-review/SKILL.md, .agents/skills/grilling/SKILL.md, and .agents/skills/docs-first-research/SKILL.md with .codex/rules/docs-first-policy.md only on their actual triggers;
-   - Plan authoring or independently requested Formal Plan Review: .agents/skills/plan-with-context/SKILL.md with its target-owned planning quality contract;
-   - Authorized direct or approved-plan implementation: .agents/skills/execute-plan/SKILL.md and the applicable input reference;
-   - Exact implementation PR review or re-review: .agents/skills/implementation-review/SKILL.md with the target-owned review contract;
-   - No invocation automatically starts another stage or grants merge/deployment authority;
+7. use current `main:AGENTS.md` as the **single repository-owned Skill/capability routing source** for the current task, including exact paths, triggers and applicable quality references; never duplicate or freeze individual Skill routes in this ChatGPT Project bootstrap. `docs/collaboration.md` alone governs stage authority, and selecting a capability never starts another stage or authorizes merge/deployment;
 8. do not depend on `pengcc/badminton-club-app`, `pengcc/large-file-upload`, or another product repository for this project's current product, architecture, runtime, deployment, decisions, or workflow truth; donor repositories are method/provenance evidence only after a capability has been adapted into this repository;
 9. distinguish continuing product discovery/problem validation from the implemented local MVP and active MVP delivery; use discovery resources for unresolved product meaning and the Workflow Contract for authorized delivery;
 10. docs/collaboration.md remains the **sole workflow authority**; adopted Planning/Execution/Review Skill adapters are subordinate optional task capabilities, not another lifecycle. Role router, Project Memory, Task State, hooks and dedicated publication tooling remain deferred;
