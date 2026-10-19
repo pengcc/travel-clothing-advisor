@@ -176,7 +176,9 @@ async function showResult(params) {
     current = data;
     const historical = data.mode === 'historical_reference';
     $('resultKind').textContent = `${isCity ? '城市穿衣参考' : '行程穿衣建议'} · ${data.fixture ? '模拟数据' : '真实气温参考'}`;
-    document.querySelector('#spanRemind strong').textContent = data.fixture ? '冷热变化提醒 · 示例' : historical ? '历史冷暖风险 · 非本次预报' : '冷热变化提醒';
+    const variationKind = ['cold', 'warm', 'mixed'].includes(data.packing_variation_kind) ? data.packing_variation_kind : null;
+    const variationTitle = {cold:'偏冷提醒', warm:'偏暖提醒', mixed:'冷热变化提醒'}[variationKind] || '冷热变化提醒';
+    document.querySelector('#spanRemind strong').textContent = historical ? '历史冷暖风险 · 非本次预报' : data.fixture ? `${variationTitle} · 示例` : variationTitle;
     $('resultCity').textContent = `${data.city.zh} · ${data.city.name}`;
     if (!isCity) { restoreForm({ city: data.city, cityText: `${data.city.zh} · ${data.city.name}`, start: data.start, end: data.end, preference: data.preference }); saveForm(); }
     $('resultDates').textContent = `${range(data.start, data.end)}${isCity ? ' · 今起14天' : ''}`;
@@ -188,9 +190,14 @@ async function showResult(params) {
     $('coatLabel').textContent = historical && data.warmth_indicator_level !== null ? '通常准备的外套' : '外套建议';
     $('resultHeadline').textContent = data.headline;
     $('resultWarmthMark').replaceChildren(WarmthIndicator(data.warmth_indicator_level, Boolean(data.packing_variation_notice)));
-    $('spanRemind').classList.toggle('hidden', !data.packing_variation_notice);
+    const variationBanner = $('spanRemind');
+    // A previously shown result must never leak its direction to the next one.
+    variationBanner.classList.remove('variation-banner--cold', 'variation-banner--warm', 'variation-banner--mixed');
+    if (data.packing_variation_notice && variationKind) variationBanner.classList.add(`variation-banner--${variationKind}`);
+    variationBanner.classList.toggle('hidden', !data.packing_variation_notice);
     $('spanText').textContent = data.packing_variation_notice || '';
-    document.querySelector('#spanRemind .variation-icon').replaceChildren(...(data.packing_variation_notice ? [WarmthIcon('alert-variation')] : []));
+    const variationArt = {cold:'alert-cold', warm:'alert-hot', mixed:'alert-variation'}[variationKind] || 'alert-variation';
+    document.querySelector('#spanRemind .variation-icon').replaceChildren(...(data.packing_variation_notice ? [WarmthIcon(variationArt)] : []));
     $('resultLayers').textContent = data.layers;
     const guidance = data.packing_copy?.guidance;
     $('resultGuidance').replaceChildren(...['alternative', 'personal_layer', 'trousers_shoes']

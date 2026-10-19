@@ -10,7 +10,7 @@ from urllib.error import HTTPError
 from urllib.request import urlopen
 from urllib.parse import urlencode
 from web.fixtures import BERLIN
-from web.live import Service, Unavailable, parse_hours, packing, FORECAST, GEO
+from web.live import Service, Unavailable, parse_hours, packing, variation_kind, FORECAST, GEO
 from web.server import Handler
 
 NOW = datetime(2026,10,16,10,30,tzinfo=BERLIN)
@@ -50,6 +50,7 @@ class LiveTests(unittest.TestCase):
         self.assertEqual(d['warmth_indicator_level'],2)
         self.assertIn('2026-10-17偏冷',d['packing_variation_notice'])
         self.assertIn('外套',d['packing_variation_summary'])
+        self.assertEqual(d['packing_variation_kind'], 'cold')
         self.assertFalse(d['fixture'])
         self.assertEqual(d['mode'],'forecast')
         self.assertEqual(d['weather_fetched_at'],NOW.isoformat(timespec='seconds'))
@@ -68,14 +69,16 @@ class LiveTests(unittest.TestCase):
         self.assertNotIn('daily',calls[0])
         self.assertNotIn('latitude',d['city'])
     def test_variations(self):
-        cases=[([24,14,24],2,True),([14,24,14],4,True),([24]*7+[14]*7,None,True),([14]*14,4,False),([12.9,13.1,13.2],4,False),([22.9,23.1,23.2],2,False),([19,22,19],3,False),([22,24,22],3,True)]
-        for values, main, notice in cases:
+        cases=[([24,14,24],2,'cold'),([14,24,14],4,'warm'),([24]*7+[14]*7,None,'mixed'),([14]*14,4,None),([12.9,13.1,13.2],4,None),([22.9,23.1,23.2],2,None),([19,22,19],3,None),([22,24,22],3,'warm')]
+        for values, main, expected_kind in cases:
             with self.subTest(values=values):
                 dates=[((NOW.date()+timedelta(days=i)).isoformat(),v) for i,v in enumerate(values)]
-                m,n,s=packing(dates)
+                events=[]
+                m,n,s=packing(dates,events)
                 self.assertEqual(m,main)
-                self.assertEqual(bool(n),notice)
-                self.assertEqual(bool(s),notice)
+                self.assertEqual(bool(n),expected_kind is not None)
+                self.assertEqual(bool(s),expected_kind is not None)
+                self.assertEqual(variation_kind(events) if s else None,expected_kind)
     def test_split_clothing_covers_actual_cold_requirement(self):
         for warm, cold, outer, inner, warm_inner in [
             (24, 0, '冬季保暖外套', '保暖内搭', '短袖或薄长袖'),
@@ -87,6 +90,7 @@ class LiveTests(unittest.TestCase):
                     fake = Fake(values=[warm]*7+[cold]*7)
                     d = Service(fake, lambda: NOW).advice(self.params(end='2026-10-29', preference=preference))
                     self.assertIsNone(d['warmth_indicator_level'])
+                    self.assertEqual(d['packing_variation_kind'],'mixed')
                     self.assertIsNone(d['reference_temperature_c'])
                     for field in ('headline', 'packing_variation_notice', 'packing_variation_summary'):
                         self.assertIn(outer, d[field])
@@ -96,6 +100,21 @@ class LiveTests(unittest.TestCase):
                     self.assertIn('2026-10-16', d['packing_variation_notice'])
                     if cold == 14:
                         self.assertNotIn('冬季', d['headline']+d['layers'])
+
+    def test_fixture_variation_kinds(self):
+        from web.fixtures import advice as fixture_advice, featured as fixture_featured
+        cases={'colder':'cold','warmer':'warm','split':'mixed','stable':None}
+        for scenario,kind in cases.items():
+            with self.subTest(scenario=scenario):
+                data=fixture_advice(dict(view='city',city_id='berlin'),scenario,NOW)
+                self.assertEqual(data['packing_variation_kind'],kind)
+                self.assertEqual(bool(data['packing_variation_summary']),kind is not None)
+                city=fixture_featured(scenario,NOW)['cities'][0]
+                self.assertEqual(city['packing_variation_kind'],kind)
+        historical=fixture_advice(dict(view='trip',city_id='berlin',start=NOW.date().isoformat(),
+            end=(NOW.date()+timedelta(days=20)).isoformat(),preference='normal'),'colder',NOW)
+        self.assertIsNone(historical['packing_variation_kind'])
+        self.assertIsNone(historical['packing_variation_summary'])
 
     def test_city_search_skips_incomplete_candidates(self):
         valid = geo()

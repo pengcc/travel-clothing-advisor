@@ -66,6 +66,7 @@ def advise(library, city, p, now, clock, downloader=None, max_missing=0):
                 view='trip', mode='historical_reference', headline=headline, layers=layers,
                 notices=notes, reference_temperature_c=ref, warmth_indicator_level=main,
                 packing_variation_notice=notice, packing_variation_summary=summary,
+                packing_variation_kind='mixed' if summary else None,
                 weather_fetched_at=times[0], history_fetched_at=times,
                 advice_generated_at=generated.isoformat(timespec='seconds'),
                 source='Open-Meteo Historical Weather API / ERA5（气温，CC BY 4.0，经衣物规则计算）；GeoNames（城市）',

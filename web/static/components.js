@@ -30,27 +30,35 @@ export function WarmthIcon(name) {
   img.src = `${path('1x')}.png`;
   return picture;
 }
-export function WarmthIndicator(level, hasVariation = true) {
-  const names = {1: '轻薄', 2: '轻薄', 3: '薄外层', 4: '适中保暖', 5: '加强保暖', 6: '冬季保暖'};
+export function WarmthIndicator(level, hasVariation = true, context = 'result') {
+  const names = {1: '清爽透气', 2: '轻薄衣物', 3: '薄外套', 4: '中等厚度', 5: '保暖外套', 6: '厚实保暖'};
   const label = level === null ? (hasVariation ? '冷热变化大' : '暂无白天参考') : names[level];
   if (!label) throw new Error('无效保暖标记');
   const chip = text('span', '', 'warmth-mark');
   if (level !== null) chip.setAttribute('aria-label', `保暖程度：${label}`);
-  if (level !== null || hasVariation) chip.append(WarmthIcon(level === null ? 'alert-variation' : `warmth-l${level}`));
+  if (level !== null || hasVariation) chip.append(WarmthIcon(level === null ? (context === 'featured' ? 'alert-variation-landscape' : 'alert-variation') : `warmth-l${level}`));
   chip.append(text('span', label, 'warmth-name'));
   return chip;
 }
 export function CityCard(data, href) {
   const c = data.city, card = text('a', '', 'city-card'); card.href = href;
   card.append(text('span', c.name, 'eng'), text('span', c.zh, 'city-name'));
-  const host = text('span', '', 'warmth-host'); host.append(WarmthIndicator(data.warmth_indicator_level, Boolean(data.packing_variation_summary || data.packing_variation_notice)));
+  const host = text('span', '', 'warmth-host'); host.append(WarmthIndicator(data.warmth_indicator_level, Boolean(data.packing_variation_summary || data.packing_variation_notice), 'featured'));
+  // Style only the server-selected state; shared detail labels remain unchanged.
+  host.firstElementChild.classList.add(data.warmth_indicator_level === null
+    ? (data.packing_variation_summary || data.packing_variation_notice ? 'warmth-variation' : 'warmth-unavailable')
+    : `warmth-level-${data.warmth_indicator_level}`);
   card.append(host, text('span', data.headline, 'coat'));
   if (data.packing_variation_summary) {
     const warning = text('span', '', 'card-variation');
-    warning.append(WarmthIcon('alert-variation'), text('span', data.packing_variation_summary));
+    // Direction is service-provided metadata; never guess from translated copy.
+    if (['cold', 'warm', 'mixed'].includes(data.packing_variation_kind)) {
+      warning.classList.add(`card-variation--${data.packing_variation_kind}`);
+    }
+    warning.append(text('span', data.packing_variation_summary));
     card.append(warning);
   }
-  if (data.fixture) card.append(text('span', '模拟数据 · 非真实天气', 'card-source'));
+  // The featured section identifies fixtures once next to its shared date range.
   card.append(text('span', '查看14天建议 →', 'go'));
   return card;
 }
