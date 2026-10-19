@@ -154,7 +154,10 @@ class DevCommandTests(unittest.TestCase):
                     self.assertIn(str(manifest), commands[0])
                     self.assertIn('--store-dir', commands[0])
                 self.assertIn('-m web.server --history-dir', commands[-1])
-                self.assertIn('WARNING:', result.stdout) if fail or not configured else self.assertNotIn('WARNING:', result.stdout)
+                if fail or not configured:
+                    self.assertIn('WARNING:', result.stdout)
+                else:
+                    self.assertNotIn('WARNING:', result.stdout)
 
     def launch(self, *, direct=False):
         # Installed only in the child interpreter. Freeze the German day to
