@@ -5,18 +5,26 @@ Python 3.9+ with `Europe/Berlin` zone data; standard library only:
 From the repository root:
 
 ```sh
-make dev    # Serve http://127.0.0.1:8000, even with empty/stale caches
+make dev    # Prepare today's featured forecast when configured, then serve http://127.0.0.1:8000
 make check-dev # Optional read-only data readiness diagnostic (may exit 1)
 make test   # Existing offline web unittest suite; no provider requests
 make demo   # Fixture advice/search/featured; /api/city may use GeoNames
 ```
 
 `make dev` attaches **both** `.history-local` and `.forecast-local` without
-requiring prepared data. Missing local directories are created by the existing
-development store adapter. Empty or stale caches do not prevent `/` and
-`/api/context` from loading; unavailable featured/history data returns a clear
-503 without fixture clothing defaults. Startup performs no provider downloads,
-creates no fake publication and does not initialize or reset quota ledgers.
+requiring prepared data. If `.forecast-local/cities.json` exists (or the matching
+`FORECAST_DIR/cities.json` override), it first runs the existing bounded
+`web.prefetch_forecasts` worker once: today's valid sources are cache hits with
+**zero provider downloads**, while missing/stale/incomplete sources may trigger
+real Open-Meteo requests and update the local forecast cache/usage ledger.
+This local auto-prepare action is intentional; it does not fetch history or
+initialize city metadata. Keep the cities file as a trusted operator-provided
+list of exactly ten real GeoNames records (Phase 2C below). If it is missing
+or prefetch fails, `make dev` warns and still starts; unavailable featured
+data remains an explicit 503 without fixture defaults. Missing local directories
+are created by the existing development store adapter. Empty or stale caches
+do not prevent `/` and `/api/context` from loading. No fake publication, quota
+reset, uncontrolled retry, scheduler or hosted operation is added.
 Before listening, explicitly configured stores are checked for directory listing
 and traversal access. Invalid paths (for example, a file instead of a directory),
 denied directory creation, inaccessible existing directories and other actual
@@ -54,11 +62,15 @@ Full offline city resolution is a separate server change requiring authorization
 tracked as follow-up to [review #5561695127](https://github.com/pengcc/travel-clothing-advisor/pull/45#pullrequestreview-5561695127);
 Issue #43 does not change `web/server.py` or this route's behavior.
 
-Daily featured snapshots still require the **separate explicit manual worker**
-preparation described under Phase 2C; `make dev` never refreshes or downloads data.
-History preparation also remains a separate explicit operator action. Do not
-treat successful startup as proof of data readiness. Once running, live personal
-queries retain their existing provider calls and cache behavior.
+Local `make dev` performs **one** bounded attempt to prepare today's featured
+snapshot when a valid cities manifest is present; it never retries continuously,
+and a server already running past Germany midnight will **not** refresh by itself.
+The standalone manual worker remains available (Phase 2C). Reliable daily
+scheduling, automatic failure recovery and hosted persistence remain Issue #42
+PR-B/PR-D work, not delivered by this local Makefile shortcut. History preparation
+also remains a separate explicit operator action. Successful server startup is
+not proof that featured or historical data is ready. Live personal queries retain
+their existing provider calls and cache behavior.
 
 Optional overrides: `make dev PORT=8001 HISTORY_DIR=.history-local
 FORECAST_DIR=.forecast-local PYTHON=python3`. `make check-dev` runs only the
