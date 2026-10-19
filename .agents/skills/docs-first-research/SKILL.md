@@ -1,3 +1,8 @@
+---
+name: docs-first-research
+description: Verify consequential external facts from authoritative current sources while separating hypotheses and traveler evidence from technical claims.
+---
+
 # Docs-First Research
 
 Use this capability when a project conclusion depends on externally variable, authoritative, provider-specific, scientific, meteorological, legal, licensing, compatibility, or other facts that current repository evidence does not establish.

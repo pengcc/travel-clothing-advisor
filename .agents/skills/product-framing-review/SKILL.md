@@ -1,3 +1,8 @@
+---
+name: product-framing-review
+description: Frame traveler product problems, useful outcomes and acceptance boundaries from Travel evidence without authorizing implementation.
+---
+
 # Product Framing
 
 Use this capability when end-user product behavior needs focused framing during Product Discovery or later product work.

@@ -47,12 +47,12 @@ This repository currently owns a deliberately small, discovery-only agent capabi
 - **Task Alignment** — `.codex/project-collaboration/task-alignment.md`
   - use for complex or cross-stage work that needs a stable solution-independent Task Baseline or accepted Task Decisions;
   - do not manufacture a baseline for small direct work.
-- **Product Framing** — `.codex/skills/meta/product-framing-review/SKILL.md`
+- **Product Framing** — `.agents/skills/product-framing-review/SKILL.md`
   - use when the meaning of an end-user problem, decision, workflow, answer state, or acceptance boundary needs focused clarification.
-- **Grilling** — `.codex/skills/meta/grilling/SKILL.md`
+- **Grilling** — `.agents/skills/grilling/SKILL.md`
   - use only for broad, branching, or blocking ambiguity;
   - test ambiguity against the smallest representative real traveler scenario.
-- **Docs-First Research** — `.codex/skills/meta/docs-first-research/SKILL.md`
+- **Docs-First Research** — `.agents/skills/docs-first-research/SKILL.md`
   - use when a material conclusion depends on externally variable or authoritative facts;
   - apply `.codex/rules/docs-first-policy.md` for source precedence and claim boundaries.
 
@@ -68,9 +68,9 @@ The following target-adapted repository Skills may be called for the **specific 
 
 For engineering changes, apply the focused target-owned quality principles in .codex/rules/engineering-quality-principles.md; actual validation commands and stage permissions still come from the target repository and its Workflow Contract.
 
-The three delivery Skills live directly under `.agents/skills/`, the repository discovery location documented in [OpenAI Build skills](https://learn.chatgpt.com/docs/build-skills#where-codex-loads-local-skills) (checked 2026-10-18). Existing discovery capability files remain at their established `.codex/skills/meta/` paths and are selected through the explicit routing above. No installer or registration framework is required.
+The three discovery Skills and three delivery Skills live directly under `.agents/skills/`, the repository discovery location documented in [OpenAI Build skills](https://learn.chatgpt.com/docs/build-skills#where-codex-loads-local-skills) (checked 2026-10-18). Each has Skill discovery metadata. The explicit routing above retains task triggers and boundaries. No installer or registration framework is required.
 
-These delivery Skills have discovery metadata, but file presence does **not** prove they were loaded or exercised by a fresh Codex session. Do not claim an unrun invocation or validation passed. Do not require the full Skill set for a single small task. No role router, Project Memory, Task State, publication scripts, hooks or dedicated CI is added by this adoption.
+Skill file presence does **not** prove they were loaded or exercised by a fresh Codex session. Do not claim an unrun invocation or validation passed. Do not require the full Skill set for a single small task. No role router, Project Memory, Task State, publication scripts, hooks or dedicated CI is added by this adoption.
 
 **Selected donor provenance:** Badminton main cf90c34d3b62c66cfc8865e861c11d2481cd1185, adapted under Travel ownership for Issue #48. Donor files and the open donor adoption guide are not Travel runtime authorities.
 

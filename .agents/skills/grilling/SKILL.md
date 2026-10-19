@@ -1,3 +1,8 @@
+---
+name: grilling
+description: Resolve material product or task ambiguity with evidence-first questions and focused traveler scenarios, without creating another workflow.
+---
+
 # Grilling
 
 Use this capability when the user asks to be grilled, or when discovery is blocked by broad, branching, decision-heavy, or baseline-blocking ambiguity.
