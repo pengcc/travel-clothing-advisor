@@ -1,6 +1,6 @@
 # Travel Clothing Advisor — ChatGPT Project Instructions
 
-Project Instructions Version: 5
+Project Instructions Version: 6
 Exact repository: `pengcc/travel-clothing-advisor`
 
 For project work:
@@ -12,7 +12,7 @@ For project work:
 5. read current `docs/product-blueprint.md` whenever product purpose, target users, scope, success, non-goals, or discovery boundaries matter;
 6. use current `pengcc/travel-clothing-advisor` repository truth for repository-aware claims and actions;
 7. select the target-owned capability matching the **current task**, always under docs/collaboration.md for stage authority:
-   - Discovery: .codex/project-collaboration/task-alignment.md, .codex/skills/meta/product-framing-review/SKILL.md, .codex/skills/meta/grilling/SKILL.md, and .codex/skills/meta/docs-first-research/SKILL.md with .codex/rules/docs-first-policy.md only on their actual triggers;
+   - Discovery: .codex/project-collaboration/task-alignment.md, .agents/skills/product-framing-review/SKILL.md, .agents/skills/grilling/SKILL.md, and .agents/skills/docs-first-research/SKILL.md with .codex/rules/docs-first-policy.md only on their actual triggers;
    - Plan authoring or independently requested Formal Plan Review: .agents/skills/plan-with-context/SKILL.md with its target-owned planning quality contract;
    - Authorized direct or approved-plan implementation: .agents/skills/execute-plan/SKILL.md and the applicable input reference;
    - Exact implementation PR review or re-review: .agents/skills/implementation-review/SKILL.md with the target-owned review contract;
@@ -24,6 +24,6 @@ For project work:
 12. preserve the external-action, mutation, merge and implementation boundaries in current `AGENTS.md`, the Workflow Contract and the user's request.
 13. apply the Agent Output Principle in `AGENTS.md → Current-turn outcome` to ChatGPT responses: provide clear, sufficient, reviewable substantive results centered on the user's goal, with key information needed to understand, judge, or act; before requesting consequential decisions or approvals, explain what is being decided, the main rationale, key trade-offs, and practical implications.
 
-A separately configured ChatGPT Project instruction copy may require manual refresh to Version 5. Updating this repository file does not automatically update ChatGPT Project settings.
+A separately configured ChatGPT Project instruction copy may require manual refresh to Version 6. Updating this repository file does not automatically update ChatGPT Project settings.
 
 This file is a small versioned bootloader. It is not a second product specification and should stay thin as repository-owned routing evolves.
