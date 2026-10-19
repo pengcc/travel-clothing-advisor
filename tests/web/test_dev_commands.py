@@ -119,6 +119,43 @@ class DevCommandTests(unittest.TestCase):
         self.assertIn('-m web.server --fixtures --port "8000"', result.stdout)
         self.assertNotIn('-m web.check_dev', result.stdout)
 
+    @unittest.skipUnless(shutil.which('make'), 'make required')
+    def test_make_dev_prepares_featured_when_configured_and_starts_after_failure(self):
+        # A command stub exercises the actual Makefile without network or a server.
+        fake_python = self.root / 'fake-python'
+        calls = self.root / 'python-calls'
+        fake_python.write_text(
+            '#!/bin/sh\n'
+            'printf "%s\\n" "$*" >> "$FAKE_PYTHON_CALLS"\n'
+            'if [ "$2" = web.prefetch_forecasts ] && [ "$FAIL_PREFETCH" = 1 ]; then exit 1; fi\n'
+            'exit 0\n')
+        fake_python.chmod(0o700)
+        for state, configured, fail in (('no-city-list', False, False),
+                                         ('prepared-or-missing', True, False),
+                                         ('worker-failed', True, True)):
+            with self.subTest(state=state):
+                manifest = self.forecasts / 'cities.json'
+                if configured:
+                    manifest.write_text('stub-only; never parsed')
+                else:
+                    manifest.unlink(missing_ok=True)
+                calls.unlink(missing_ok=True)
+                env = dict(os.environ, FAKE_PYTHON_CALLS=str(calls),
+                           FAIL_PREFETCH='1' if fail else '0')
+                result = subprocess.run(
+                    ['make', 'dev', f'PYTHON={fake_python}',
+                     f'HISTORY_DIR={self.history}', f'FORECAST_DIR={self.forecasts}'],
+                    cwd=ROOT, env=env, capture_output=True, text=True, timeout=5)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                commands = calls.read_text().splitlines()
+                self.assertEqual(len(commands), 2 if configured else 1)
+                if configured:
+                    self.assertIn('-m web.prefetch_forecasts --cities-file', commands[0])
+                    self.assertIn(str(manifest), commands[0])
+                    self.assertIn('--store-dir', commands[0])
+                self.assertIn('-m web.server --history-dir', commands[-1])
+                self.assertIn('WARNING:', result.stdout) if fail or not configured else self.assertNotIn('WARNING:', result.stdout)
+
     def launch(self, *, direct=False):
         # Installed only in the child interpreter. Freeze the German day to
         # match synthetic publications and fail/record every provider attempt.
