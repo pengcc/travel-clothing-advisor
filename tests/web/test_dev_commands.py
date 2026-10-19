@@ -298,11 +298,14 @@ class DevCommandTests(unittest.TestCase):
                     (guard / 'sitecustomize.py').write_text(
                         'import os\n'
                         f'original = os.{operation}\n'
-                        'def denied(path, *args, **kwargs):\n'
-                        f'    if str(path) == {str(directory) + ("/." if operation == "stat" else "")!r}:\n'
-                        '        raise PermissionError("Injected inaccessible directory")\n'
-                        '    return original(path, *args, **kwargs)\n'
-                        f'os.{operation} = denied\n')
+                        # Keep the injected hook non-descriptor so Python 3.9
+                        # pathlib does not bind its accessor as an extra argument.
+                        'class DeniedAccess:\n'
+                        '    def __call__(self, path, *args, **kwargs):\n'
+                        f'        if str(path) == {str(directory) + ("/." if operation == "stat" else "")!r}:\n'
+                        '            raise PermissionError("Injected inaccessible directory")\n'
+                        '        return original(path, *args, **kwargs)\n'
+                        f'os.{operation} = DeniedAccess()\n')
                     # Avoid stale bytecode when switching guards quickly.
                     shutil.rmtree(guard / '__pycache__', ignore_errors=True)
                     env = dict(os.environ, PYTHONPATH=os.pathsep.join([str(guard), str(ROOT)]))
