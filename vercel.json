@@ -1,0 +1,10 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "git": {"deploymentEnabled": false},
+  "functions": {
+    "api/index.py": {
+      "excludeFiles": "{.git/**,.local-tools/**,.history-local/**,.forecast-local/**,tests/**,docs/**}"
+    }
+  },
+  "rewrites": [{"source": "/(.*)", "destination": "/api/index"}]
+}

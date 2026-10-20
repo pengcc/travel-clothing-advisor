@@ -5,7 +5,7 @@ The exclusive admission lock and quota ledger cover ONE store, not an account
 or independent machines. A hosted adapter needs a real shared coordinator.
 """
 from calendar import monthrange
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from datetime import date, datetime, time, timedelta
 import gzip
 import hashlib
@@ -191,8 +191,9 @@ class DirectoryStore:
 
 
 class Library:
-    def __init__(self, store, clock=lambda: datetime.now(BERLIN)):
+    def __init__(self, store, clock=lambda: datetime.now(BERLIN), *, read_only=False):
         self.store, self.clock = store, clock
+        self.read_only = read_only
 
     def read(self, city, month):
         """Missing/corrupt entries are misses; storage outages fail closed."""
@@ -238,11 +239,11 @@ class Library:
         ranges = windows(start, end)
         needed = months(ranges)
         try:
-            with self.store.exclusive():
+            with nullcontext() if self.read_only else self.store.exclusive():
                 blocks = {m:self.read(city,m) for m in needed}
                 missing = [m for m,b in blocks.items() if b is None]
                 if missing:
-                    if downloader is None or len(missing) > max_missing:
+                    if self.read_only or downloader is None or len(missing) > max_missing:
                         raise HistoryIncomplete('这个查询的过去五年同期历史资料尚未齐备，暂不提供穿衣建议。')
                     downloader.fill_locked([(city,m) for m in missing])
                     blocks = {m:self.read(city,m) for m in needed}
