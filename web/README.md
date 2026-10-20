@@ -432,7 +432,10 @@ S2 owns dynamic publication; no Blob client, pointer or publisher is added here.
 No provider data, credentials or operator metadata should enter a commit or PR.
 Do not deploy synthetic test data as real weather; any synthetic Preview must be
 protected and explicitly marked test-only. S1's local synthetic harness is labeled
-in its module and startup output, and exercises real rule paths, not fixture advice.
+in a persistent page banner, rendered results, copied advice and shared clipboard
+content as well as its module/startup output. Its harness-only response labeling
+uses the existing simulated-data presentation after real cache/rule execution;
+it does not select fixture advice or enable fixture requests on the Function.
 
 Offline validation:
 
