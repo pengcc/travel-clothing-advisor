@@ -66,7 +66,7 @@ class BlobPublisher(BlobReader):
 
 
 @contextmanager
-def blob_session(scope, *, publisher=False):
+def blob_session(scope, *, publisher=False, request_headers=None):
     """Explicit SDK session: no redirects, retries, env proxy or endpoint override."""
     namespace(scope)
     try:
@@ -75,16 +75,32 @@ def blob_session(scope, *, publisher=False):
         from vercel.blob import sync as sdk
     except ImportError:
         raise OSError('Optional Blob SDK unavailable; requires Python >=3.10 and requirements.txt') from None
-    # Dedicated trial credentials only; never inherit a Production/default Blob
-    # token or trigger the SDK's local CLI/OIDC credential refresh fallback.
+    # Explicit credentials avoid the SDK's default token/CLI/file/cache fallback.
+    # Runtime OIDC is delivered on the current Vercel request, not a build env var.
     import os
     trial_store = os.environ.get('TRAVEL_PREVIEW_BLOB_STORE_ID')
-    trial_token = os.environ.get('TRAVEL_PREVIEW_BLOB_TOKEN')
-    if not trial_store or not trial_token:
+    if not trial_store:
         raise OSError('Dedicated Preview Blob configuration missing')
+    environment = os.environ.get('VERCEL_ENV')
+    if publisher:
+        if environment not in (None, 'development') or os.environ.get('VERCEL'):
+            raise OSError('Blob publication requires a local publisher')
+        trial_token = os.environ.get('TRAVEL_PREVIEW_BLOB_TOKEN')
+        kind = sdk.CredentialKind.READ_WRITE
+    else:
+        connected_store = os.environ.get('BLOB_STORE_ID', '')
+        # The SDK accepts IDs with or without the store_ prefix.
+        if (environment != 'preview' or
+                connected_store.removeprefix('store_') != trial_store.removeprefix('store_')):
+            raise OSError('Preview Blob store configuration mismatch')
+        trial_token = (request_headers or {}).get('x-vercel-oidc-token')
+        kind = sdk.CredentialKind.OIDC
+    if not trial_token or not trial_token.strip():
+        raise OSError('Dedicated Preview Blob credentials missing')
     options = sdk.SyncBlobServiceOptions(
         base_url='https://vercel.com/api/blob',
-        credentials_factory=lambda: sdk.BlobCredentials(token=trial_token, store_id=trial_store))
+        credentials_factory=lambda: sdk.BlobCredentials(
+            token=trial_token, store_id=trial_store, kind=kind))
     try:
         with session(service_options=[options], httpx_client_factory=lambda: httpx2.Client(
                 timeout=4, follow_redirects=False, trust_env=False)):

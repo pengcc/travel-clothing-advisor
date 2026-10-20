@@ -16,7 +16,7 @@ if __name__ == '__main__':
     case.setUp()
     first = publish(case.remote, case.manifest, case.objects, case.clock)
     @contextmanager
-    def connection(scope):
+    def connection(scope, *, request_headers=None):
         yield case.remote
     server = ThreadingHTTPServer(('127.0.0.1', 8004), SyntheticHandler)
     with patch.dict('os.environ', dict(TRAVEL_PREVIEW_NAMESPACE=SCOPE, VERCEL_ENV='preview')), \

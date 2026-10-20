@@ -29,7 +29,7 @@ class handler(Handler):
                     raise Unavailable('独立数据发布仅供受保护的 Preview 验证。')
                 from web.blob_store import blob_session
                 from web.publication import published_service
-                with blob_session(scope) as remote:
+                with blob_session(scope, request_headers=self.headers) as remote:
                     self.service = published_service(remote, scope)
         except (OSError, ValueError):
             return self.send_json(503, dict(error='独立数据存储尚未配置或暂不可用。', code='temporarily_unavailable'))
