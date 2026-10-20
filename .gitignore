@@ -10,3 +10,6 @@ __pycache__/
 
 # Prepared immutable protected-preview data; never commit provider data.
 .preview-data/
+
+# Local S2 publisher coordination, no machine/global lock.
+.preview-publisher.lock
