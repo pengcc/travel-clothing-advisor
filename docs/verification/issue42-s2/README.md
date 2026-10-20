@@ -127,3 +127,21 @@ next instructions. #42 was already closed when this work began, contrary to v7's
 closeout requirement; this PR does not auto-close it or alter its state. Public P0
 for #42/#38, online misses, global budgets and autonomous history completion remain
 unresolved. S0–S2 never authorize public readiness or S3.
+
+## PR #61 P2 remediation — existing separate caches
+
+The publisher now accepts `--forecast-dir .forecast-local --history-dir
+.history-local --cities-file .forecast-local/cities.json`, with the existing
+city/month/namespace arguments. This selects the same three validated sample
+objects directly, without manual staging, scanning/uploading cache directories,
+or touching worker/control files. Single-root `--source` remains supported;
+incomplete or mixed source modes are rejected. The metadata file is bounded to
+200,000 bytes and its selected record must match both weather source identities.
+
+Added an actual CLI dry-run regression with separate synthetic cache trees,
+multiple cities, worker locks and ledger sentinels. It verifies the exact two
+weather object reads, identical selected version, unchanged trees, no publisher
+lock/Blob session access, and missing/corrupt metadata/forecast/archive failure.
+Final remediation validation: SDK-environment `make test` **115 tests OK** (7.650s)
+and `git diff --check` passed. No actual retained-cache inspection, provider call,
+cloud upload or deployment was needed. Independent Re-review remains pending.

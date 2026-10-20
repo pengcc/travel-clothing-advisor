@@ -226,6 +226,67 @@ class PublicationTests(unittest.TestCase):
             finally:
                 server.shutdown(); server.server_close(); thread.join()
 
+    def test_cli_separate_caches_select_only_valid_sample_without_writes(self):
+        from pathlib import Path
+        from web.readonly import ReadOnlyDirectoryStore
+        with tempfile.TemporaryDirectory() as root:
+            root = Path(root).resolve()
+            forecast_root, history_root = root/'.forecast-local', root/'.history-local'
+            for cache in (forecast_root, history_root):
+                cache.mkdir()
+                (cache/'cities.json').write_bytes(encode(RECORDS))
+                (cache/'.worker.lock').write_bytes(b'untouched worker state')
+                (cache/'control').mkdir()
+                (cache/'control/usage-v1.json').write_bytes(b'untouched ledger')
+            for name, raw in self.source.objects.items():
+                target = (forecast_root if name.startswith('forecast/') else history_root)/name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(raw)
+            args = ['--forecast-dir', str(forecast_root), '--history-dir', str(history_root),
+                    '--cities-file', str(forecast_root/'cities.json'),
+                    '--namespace', SCOPE, '--city-id', 'berlin', '--month', MONTH]
+            selected = []
+            original_get = ReadOnlyDirectoryStore.get
+            def record_get(store, name):
+                selected.append((store.root, name))
+                return original_get(store, name)
+            def tree():
+                return {str(p.relative_to(root)):p.read_bytes() for p in root.rglob('*') if p.is_file()}
+            before = tree()
+            with patch('web.publication.datetime') as clock, \
+                 patch('web.blob_store.blob_session', side_effect=AssertionError('external write')), \
+                 patch('web.publish_preview.publisher_lock', side_effect=AssertionError('local write')), \
+                 patch.object(ReadOnlyDirectoryStore, 'get', record_get), \
+                 patch('sys.stdout', new_callable=io.StringIO) as output:
+                clock.now.return_value = NOW
+                self.assertEqual(main(args), 0)
+                report = json.loads(output.getvalue())
+                self.assertEqual(report['mode'], 'dry_run')
+                self.assertEqual(report['objects'], 3)
+                self.assertEqual(report['version'], sha(encode(self.manifest)))
+                self.assertEqual(selected, [(forecast_root, key(CITY, NOW.date())),
+                    (history_root, next(n for n in self.objects if n.endswith('.gz')))])
+                self.assertEqual(tree(), before)
+                targets = [forecast_root/key(CITY, NOW.date()),
+                           history_root/next(n for n in self.objects if n.endswith('.gz')),
+                           forecast_root/'cities.json']
+                for target in targets:
+                    raw = target.read_bytes()
+                    for failure in ('missing', 'corrupt'):
+                        with self.subTest(target=target.name, failure=failure):
+                            if failure == 'missing':
+                                target.unlink()
+                            else:
+                                target.write_bytes(b'corrupt')
+                            output.seek(0); output.truncate()
+                            self.assertEqual(main(args), 1)
+                            self.assertEqual(json.loads(output.getvalue())['status'], 'unavailable')
+                            target.write_bytes(raw)
+                # Ambiguous or incomplete layouts cannot silently select another root.
+                for invalid in (args+['--source', str(root)], args[:2]+args[6:]):
+                    self.assertEqual(main(invalid), 1)
+                self.assertEqual(tree(), before)
+
     def test_cli_dry_run_and_local_publisher_exclusion(self):
         with tempfile.TemporaryDirectory() as root:
             from pathlib import Path

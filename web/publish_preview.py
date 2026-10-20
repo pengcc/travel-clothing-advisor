@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 
 from web.history import encode
-from web.publication import announce, document, namespace, prepare, publish, sha
+from web.publication import LIMIT, announce, document, namespace, prepare, publish, sha
 from web.readonly import ReadOnlyDirectoryStore
 
 
@@ -28,7 +28,10 @@ def publisher_lock(path):
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--namespace', required=True)
-    parser.add_argument('--source', default='.preview-data')
+    parser.add_argument('--source', help='Combined root (default .preview-data); excludes split inputs')
+    parser.add_argument('--forecast-dir', help='Existing read-only forecast cache root')
+    parser.add_argument('--history-dir', help='Existing read-only history cache root')
+    parser.add_argument('--cities-file', help='Existing trusted GeoNames records JSON list')
     parser.add_argument('--city-id')
     parser.add_argument('--month')
     parser.add_argument('--rollback', metavar='VERSION')
@@ -37,14 +40,27 @@ def main(argv=None):
     args = parser.parse_args(argv)
     try:
         namespace(args.namespace)
-        if args.rollback and (args.city_id or args.month):
+        split = (args.forecast_dir, args.history_dir, args.cities_file)
+        if any(split) and (not all(split) or args.source):
+            raise ValueError('Provide all three split inputs, without --source')
+        if args.rollback and (args.city_id or args.month or args.source or any(split)):
             raise ValueError('Rollback cannot include sample inputs')
         if not args.rollback:
             if not args.city_id or not args.month:
                 raise ValueError('Expected --city-id and --month')
-            source = ReadOnlyDirectoryStore(args.source)
-            records = document(source.get('cities.json'))
-            manifest, objects = prepare(source, records, args.city_id, args.month, args.namespace)
+            if all(split):
+                source = ReadOnlyDirectoryStore(args.forecast_dir)
+                archive = ReadOnlyDirectoryStore(args.history_dir)
+                # Read only the explicitly selected metadata file, bounded by the
+                # same object limit. Never scan or assemble a worker/cache tree.
+                with Path(args.cities_file).open('rb') as stream:
+                    records = document(stream.read(LIMIT+1))
+            else:
+                source = ReadOnlyDirectoryStore(args.source or '.preview-data')
+                archive = source
+                records = document(source.get('cities.json'))
+            manifest, objects = prepare(source, records, args.city_id, args.month, args.namespace,
+                                        history_source=archive)
             report = dict(mode='dry_run', version=sha(encode(manifest)),
                           objects=len(objects), source_bytes=sum(len(b) for b in objects.values()))
         else:

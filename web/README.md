@@ -466,15 +466,30 @@ local CLI `web.publish_preview` selects a single city forecast + archive month;
 it neither downloads providers nor publishes a partial featured/five-year answer.
 See [contract, offline evidence and remaining hosted gates](../docs/verification/issue42-s2/README.md).
 
-Dry-run is offline and validates only existing prepared sources. Put the selected
-forecast/history objects and trusted `cities.json` under one immutable source root;
-`--month` must identify an existing valid archive month. Example (replace sample
-ID/month with the authorized current source):
+Dry-run is offline and reads the normal separate cache roots directly, without
+copying or staging their contents. Select one trusted existing GeoNames records
+file explicitly; metadata and both source identities must match. Example (replace
+city/month with an available validated sample; forecast must be for today's
+Germany date):
 
 ```sh
-python3 -m web.publish_preview --source .preview-data \
+python3 -m web.publish_preview \
+  --forecast-dir .forecast-local --history-dir .history-local \
+  --cities-file .forecast-local/cities.json \
   --namespace preview/s2-trial --city-id berlin --month 2025-10
 ```
+
+Only the matching forecast object, archive month and one city record are selected.
+Neither cache is moved, modified, scanned for upload or uploaded wholesale. Worker
+locks, ledgers, other cities and unrelated files are excluded. Missing/corrupt or
+mismatched sources fail validation before any external write. This command does
+not fetch missing data. A trusted `.history-local/cities.json` may instead be
+selected if it contains the required matching record.
+
+The existing combined-root mode remains available with `--source .preview-data`
+(or no source flags, its default). Do not combine `--source` with the split inputs;
+all three split arguments are required together. Both modes use the same sample
+validators and publication path.
 
 For **separately authorized external trials only**, use Python >=3.10 with
 `requirements.txt`. The official SDK import is lazy; existing local/bundled paths

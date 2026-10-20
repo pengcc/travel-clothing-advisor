@@ -92,7 +92,7 @@ def validate(manifest, objects, scope, clock):
     return app
 
 
-def prepare(source, records, city_id, month, scope, clock=lambda: datetime.now(BERLIN)):
+def prepare(source, records, city_id, month, scope, clock=lambda: datetime.now(BERLIN), *, history_source=None):
     """Select only the sample objects; never copy ledgers or an entire cache."""
     namespace(scope)
     selected = service(Snapshot({}, ''), records, clock).resolve(city_id)
@@ -102,10 +102,10 @@ def prepare(source, records, city_id, month, scope, clock=lambda: datetime.now(B
     if len(chosen) != 1:
         raise ValueError('Expected one matching trusted record')
     day = clock().astimezone(BERLIN).date()
-    names = (forecast_key(selected, day), history_key(selected, month))
-    objects = {'cities.json': encode(chosen)}
-    for name in names:
-        objects[name] = source.get(name)
+    archive = source if history_source is None else history_source
+    objects = {'cities.json': encode(chosen),
+               forecast_key(selected, day): source.get(forecast_key(selected, day)),
+               history_key(selected, month): archive.get(history_key(selected, month))}
     if any(not isinstance(raw, bytes) or not 0 < len(raw) <= LIMIT for raw in objects.values()):
         raise ValueError('Missing or oversized sample source')
     manifest = dict(schema=1, namespace=scope, day=day.isoformat(), city_id=selected['id'],
