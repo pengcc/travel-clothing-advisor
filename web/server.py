@@ -37,6 +37,7 @@ for density in ('1x', '2x'):
 
 
 class Handler(BaseHTTPRequestHandler):
+    allow_fixtures = True
     fixtures_only = False
     service = LIVE
     # Do not log query strings (trip inputs) or request headers.
@@ -52,6 +53,8 @@ class Handler(BaseHTTPRequestHandler):
             if any(len(v) != 1 for v in query.values()):
                 raise ValueError('查询参数不能重复。')
             p = {k: v[0] for k, v in query.items()}
+            if not self.allow_fixtures and 'fixture' in p:
+                raise ValueError('只读服务不提供模拟数据。')
             if url.path in STATIC:
                 name, mime = STATIC[url.path]
                 try:

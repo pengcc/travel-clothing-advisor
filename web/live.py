@@ -147,8 +147,14 @@ def variation_kind(events):
 
 
 class Service:
-    def __init__(self, fetch=fetch_json, clock=lambda: datetime.now(BERLIN), *, history=None, history_downloader=None, history_max_missing=0, forecast_cache=None):
+    def __init__(self, fetch=fetch_json, clock=lambda: datetime.now(BERLIN), *, history=None, history_downloader=None, history_max_missing=0, forecast_cache=None, trusted_records=None):
         self.fetch, self.clock = fetch, clock
+        self.offline_cities = None
+        if trusted_records is not None:
+            cities = [location(record) for record in trusted_records]
+            if len({c['id'] for c in cities}) != len(cities):
+                raise ValueError('Duplicate trusted city')
+            self.offline_cities = {c['id']: c for c in cities}
         self.history = history
         self.history_downloader = history_downloader
         self.history_max_missing = history_max_missing
@@ -168,6 +174,12 @@ class Service:
         provider_id = IDS.get(city_id, city_id)
         if not isinstance(provider_id, int) and (not isinstance(provider_id,str) or not provider_id.isascii() or not provider_id.isdigit() or len(provider_id)>10):
             raise ValueError('请选择列表中的德国城市。')
+        if self.offline_cities is not None:
+            city = next((c for c in self.offline_cities.values()
+                         if str(IDS.get(c['id'], c['id'])) == str(provider_id)), None)
+            if city is None:
+                raise Unavailable('这个城市不在已准备的城市范围内，暂不可用。')
+            return dict(city)
         raw = self.get(GEO+'get', dict(id=provider_id))
         city = location(raw)
         if raw['id'] != int(provider_id):
@@ -175,6 +187,15 @@ class Service:
         return city
 
     def cities(self, q):
+        if self.offline_cities is not None:
+            if len(q) > 100:
+                raise ValueError('城市搜索文字过长。')
+            def matches(city):
+                alias = next((c for c in CITIES if c['id'] == city['id']), {})
+                return any(q.casefold() in str(v).casefold() for v in
+                           [city['id'], city['zh'], city['name'], *alias.get('aliases', [])])
+            return dict(cities=[public_city(c) for c in self.offline_cities.values() if matches(c)],
+                        fixture=False, source='Open-Meteo / GeoNames（预先验证的离线城市）')
         if not q:
             return dict(cities=[public_city(c) for c in CITIES], fixture=False)
         if len(q)>100:

@@ -394,3 +394,64 @@ cover mocked GeoNames validation and ID mismatch, safe manifest publication,
 read-only valid/corrupt/missing/unreadable/unconfigured stores, leap/cross-year
 mapping, and exact-trip download job selection. Existing HTTP tests exercise
 `/api/advice` with injected providers and a complete/incomplete history library.
+
+## Issue #42 / Plan v7 S1: prepared read-only Python service
+
+`api/index.py` exports the existing HTTP handler for the Vercel Python candidate;
+`vercel.json` routes requests through it and disables Git-triggered deployments.
+No deployment, protection configuration, cloud storage or provider request is part
+of S1. The entry serves existing templates, allowlisted static files and APIs.
+Unlike the local server, it rejects explicit fixture parameters. The UI/context
+remain available without prepared data; advice APIs return 503 when unavailable.
+
+`web.readonly.service(store, records, clock)` wires the existing rules to an
+immutable **get-only** Store. Forecast and historical reads take no locks, write no
+ledger/cache and never download on a miss. Local `web.server`, `make dev` and
+`web.prefetch_*` retain their existing development/preparation behavior. Do not use
+`make dev` to test this restricted path: it can invoke provider preparation.
+
+For separately authorized real-data testing, prepare a consistent immutable tree
+at `.preview-data/`, containing `cities.json` (a list of previously GeoNames-verified
+German populated-place responses, including IDs, names, admin1 and coordinates),
+the existing `forecast/hourly-14d-v1/...` source objects, the same-day complete
+`forecast/featured-v1/YYYY-MM-DD.json` manifest, and required
+`history/...` month objects from the existing prefetch formats. These are operator
+inputs, never accepted from query parameters. Do not fabricate real city metadata.
+Reuse already legally acquired data; S1 grants no new API calls or downloads.
+Unknown cities fail closed, searches only inspect these records, and shared links
+resolve through the same offline identity boundary. All ten forecast entries must
+validate even for a single featured-city detail. Historical answers require all
+five annual samples; incomplete/corrupt data is unavailable, never preparing.
+
+The tree is ignored by Git. A future separately authorized protected Preview build
+must explicitly include the prepared tree in its build context and verify the
+bundle contains it (ignored files may be excluded by deployment tooling). Keep it
+immutable while serving; do not point this reader at a concurrently updated local
+worker tree. It is a bundled snapshot for S1, not independently published storage.
+S2 owns dynamic publication; no Blob client, pointer or publisher is added here.
+No provider data, credentials or operator metadata should enter a commit or PR.
+Do not deploy synthetic test data as real weather; any synthetic Preview must be
+protected and explicitly marked test-only. S1's local synthetic harness is labeled
+in its module and startup output, and exercises real rule paths, not fixture advice.
+
+Offline validation:
+
+```sh
+make test
+# Separate terminal, synthetic data only, no provider calls:
+python3 tests/web/serve_readonly.py
+node tests/web/readonly-browser.cjs
+```
+
+The browser runner uses the existing optional local Playwright installation and
+Chrome; it blocks requests outside its loopback origin. The strict test Store
+raises on access to `put`/`exclusive`; fake providers raise on any call.
+
+Official compatibility sources checked 2026-10-20:
+[Vercel Python /api handlers](https://vercel.com/docs/functions/runtimes/python/api-directory)
+(`handler` may subclass `BaseHTTPRequestHandler`) and
+[Python runtime packaging](https://vercel.com/docs/functions/runtimes/python)
+(relative files and `excludeFiles`). This is documentary compatibility, not a
+successful hosted build or deployment. Hosted cold start, delay, function resource
+use, protection and free-tier feasibility remain unmeasured pending authorization.
+Issue #42 and parent #38 public P0 remain open.

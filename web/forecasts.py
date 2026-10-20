@@ -3,6 +3,7 @@
 Store adapters are the same atomic, nonblocking, single-host primitives used by
 history. Hosted object storage and distributed admission remain Phase 2D.
 """
+from contextlib import nullcontext
 from datetime import date, datetime, time
 import json
 from time import monotonic
@@ -52,10 +53,11 @@ def pack(body):
 
 class Cache:
     def __init__(self, store, clock=lambda: datetime.now(BERLIN), *, daily_limit=42,
-                 cooldown=300, timer=monotonic):
+                 cooldown=300, timer=monotonic, read_only=False):
         if type(daily_limit) is not int or not 1 <= daily_limit <= 42 or cooldown <= 0:
             raise ValueError('Invalid forecast limits')
         self.store, self.clock = store, clock
+        self.read_only = read_only
         self.daily_limit, self.cooldown, self.timer = daily_limit, cooldown, timer
 
     def current(self, day):
@@ -144,6 +146,15 @@ class Cache:
         Injected two-argument providers must be bounded themselves. Real network
         uses the existing size/wall-time bounded transport with remaining time.
         """
+        if self.read_only:
+            try:
+                cached = self.read(city, now.date())
+                self.current(now.date())
+                if cached is None:
+                    raise Unavailable('这个城市今日预报尚未准备好，暂不提供穿衣建议。')
+                return cached
+            except OSError as exc:
+                raise Unavailable('预报存储暂不可用。') from exc
         provider = transport if fetch is fetch_json else lambda u, p, t: fetch(u, p)
         try:
             with self.store.exclusive():
@@ -205,7 +216,7 @@ class Cache:
         now = self.clock().astimezone(BERLIN)
         day = now.date()
         try:
-            with self.store.exclusive():
+            with nullcontext() if self.read_only else self.store.exclusive():
                 body = unpack(self.store.get(manifest_key(day)))
                 if body['format'] != FORMAT or body['day'] != day.isoformat():
                     raise ValueError()

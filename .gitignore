@@ -7,3 +7,6 @@ __pycache__/
 
 # Local daily forecast sources and operator metadata.
 .forecast-local/
+
+# Prepared immutable protected-preview data; never commit provider data.
+.preview-data/
