@@ -8,7 +8,7 @@ import tempfile
 import threading
 import unittest
 from unittest.mock import patch
-from urllib.request import urlopen
+from urllib.request import urlopen, Request
 from urllib.error import HTTPError
 
 from test_forecasts import CITY, RECORDS
@@ -191,8 +191,9 @@ class PublicationTests(unittest.TestCase):
     def test_http_same_server_observes_new_version_and_production_rejects(self):
         first = publish(self.remote, self.manifest, self.objects, self.clock)
         @contextmanager
-        def connection(scope):
+        def connection(scope, *, request_headers=None):
             self.assertEqual(scope, SCOPE)
+            self.assertEqual(request_headers.get('x-vercel-oidc-token'), 'synthetic-request-oidc')
             yield self.remote
         original = published_service
         with patch.dict('os.environ', dict(TRAVEL_PREVIEW_NAMESPACE=SCOPE, VERCEL_ENV='preview')), \
@@ -204,7 +205,8 @@ class PublicationTests(unittest.TestCase):
             base = 'http://127.0.0.1:'+str(server.server_port)
             def read(path):
                 try:
-                    with urlopen(base+path) as response:
+                    with urlopen(Request(base+path, headers={
+                            'X-Vercel-Oidc-Token': 'synthetic-request-oidc'})) as response:
                         self.assertEqual(response.headers['Cache-Control'], 'no-store')
                         return response.status, json.load(response)
                 except HTTPError as exc:

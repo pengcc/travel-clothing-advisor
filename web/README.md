@@ -493,12 +493,13 @@ validators and publication path.
 
 For **separately authorized external trials only**, use Python >=3.10 with
 `requirements.txt`. The official SDK import is lazy; existing local/bundled paths
-need no dependency. Configure `TRAVEL_PREVIEW_BLOB_STORE_ID` and
-`TRAVEL_PREVIEW_BLOB_TOKEN` securely in the process/Preview environment, identifying
+need no dependency. Configure `TRAVEL_PREVIEW_BLOB_STORE_ID` to identify
 an isolated private trial store. Never paste tokens into arguments, source, logs
 or PRs. No automatic env pull, account configuration or store provisioning occurs.
-The store token has write capability; the hosted adapter exposes only get and
-has no write endpoint. Do not give it a token with Production access.
+The hosted adapter exposes only get and has no write endpoint. A local publisher
+still requires the explicitly supplied `TRAVEL_PREVIEW_BLOB_TOKEN` for this store;
+its embedded store ID must match. It is refused in hosted Vercel environments
+and Production. Never supply a token with Production access.
 
 After explicit write permission, the same command with `--execute` uploads and
 switches the reference. It acquires `.preview-publisher.lock` locally; ensure this
@@ -508,8 +509,16 @@ hosted visibility. No automatic retries or deletions occur. Inspect state after
 an ambiguous write failure; avoid blind retries.
 
 An authorized protected Preview selects the reader with
-`TRAVEL_PREVIEW_NAMESPACE=preview/s2-trial` and `VERCEL_ENV=preview`, plus the two
-dedicated trial credentials above. Without the namespace it keeps S1's bundled
+`TRAVEL_PREVIEW_NAMESPACE=preview/s2-trial` and `VERCEL_ENV=preview`, plus matching
+`BLOB_STORE_ID` and `TRAVEL_PREVIEW_BLOB_STORE_ID` (optional `store_` prefix).
+The request entry passes its headers to the Blob session, which supplies the
+current `x-vercel-oidc-token` through the official SDK's explicit OIDC credentials
+factory. No long-lived token is needed in Preview. Missing request OIDC or a store
+mismatch fails closed; build/environment OIDC, cached tokens, token files, CLI
+refresh and default read-write credentials are never selected by this adapter.
+See the [official Python SDK authentication reference](https://vercel.com/docs/vercel-blob/python-sdk-reference#authentication)
+and [SDK request-header context documentation](https://github.com/vercel/vercel-py#readme).
+Without the namespace it keeps S1's bundled
 path; an invalid/unavailable remote configuration returns 503, without fallback.
 Publish a second same-day source with the same command to change data independently
 of the website. Check successful personal-trip JSON `dataset_version` and actual
