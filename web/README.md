@@ -458,3 +458,76 @@ Official compatibility sources checked 2026-10-20:
 successful hosted build or deployment. Hosted cold start, delay, function resource
 use, protection and free-tier feasibility remain unmeasured pending authorization.
 Issue #42 and parent #38 public P0 remain open.
+
+## Issue #42 / Plan v7 S2: independent sample publication
+
+The optional `web.publication` path pins one complete version per request. The
+local CLI `web.publish_preview` selects a single city forecast + archive month;
+it neither downloads providers nor publishes a partial featured/five-year answer.
+See [contract, offline evidence and remaining hosted gates](../docs/verification/issue42-s2/README.md).
+
+Dry-run is offline and reads the normal separate cache roots directly, without
+copying or staging their contents. Select one trusted existing GeoNames records
+file explicitly; metadata and both source identities must match. Example (replace
+city/month with an available validated sample; forecast must be for today's
+Germany date):
+
+```sh
+python3 -m web.publish_preview \
+  --forecast-dir .forecast-local --history-dir .history-local \
+  --cities-file .forecast-local/cities.json \
+  --namespace preview/s2-trial --city-id berlin --month 2025-10
+```
+
+Only the matching forecast object, archive month and one city record are selected.
+Neither cache is moved, modified, scanned for upload or uploaded wholesale. Worker
+locks, ledgers, other cities and unrelated files are excluded. Missing/corrupt or
+mismatched sources fail validation before any external write. This command does
+not fetch missing data. A trusted `.history-local/cities.json` may instead be
+selected if it contains the required matching record.
+
+The existing combined-root mode remains available with `--source .preview-data`
+(or no source flags, its default). Do not combine `--source` with the split inputs;
+all three split arguments are required together. Both modes use the same sample
+validators and publication path.
+
+For **separately authorized external trials only**, use Python >=3.10 with
+`requirements.txt`. The official SDK import is lazy; existing local/bundled paths
+need no dependency. Configure `TRAVEL_PREVIEW_BLOB_STORE_ID` and
+`TRAVEL_PREVIEW_BLOB_TOKEN` securely in the process/Preview environment, identifying
+an isolated private trial store. Never paste tokens into arguments, source, logs
+or PRs. No automatic env pull, account configuration or store provisioning occurs.
+The store token has write capability; the hosted adapter exposes only get and
+has no write endpoint. Do not give it a token with Production access.
+
+After explicit write permission, the same command with `--execute` uploads and
+switches the reference. It acquires `.preview-publisher.lock` locally; ensure this
+is the **only publishing host**, including during rollback. It outputs counts,
+bytes, IO time and version only. `pointer_write_acknowledged` is not proof of
+hosted visibility. No automatic retries or deletions occur. Inspect state after
+an ambiguous write failure; avoid blind retries.
+
+An authorized protected Preview selects the reader with
+`TRAVEL_PREVIEW_NAMESPACE=preview/s2-trial` and `VERCEL_ENV=preview`, plus the two
+dedicated trial credentials above. Without the namespace it keeps S1's bundled
+path; an invalid/unavailable remote configuration returns 503, without fallback.
+Publish a second same-day source with the same command to change data independently
+of the website. Check successful personal-trip JSON `dataset_version` and actual
+advice on the same deployment. The homepage remains unavailable with this sample.
+Rollback dry-run: `python3 -m web.publish_preview --namespace preview/s2-trial
+--rollback VERSION`; add `--execute` only with write authorization. It revalidates
+the complete old version, so an expired-day rollback is rejected.
+
+Offline checks (synthetic inputs never presented as real data):
+
+```sh
+make test
+# Include actual SDK contract tests after installing requirements in an isolated environment:
+make test PYTHON=.local-tools/s2-venv/bin/python
+node tests/web/publication-browser.cjs
+```
+
+The S2 browser runner manages its own labeled loopback server on port 8004 and
+controls publication over stdin, with no HTTP write endpoint. Live uploads,
+protected deployment, real hosted visibility/cold-start/cost measurements and
+Production isolation remain unverified until separately authorized.
