@@ -496,10 +496,53 @@ For **separately authorized external trials only**, use Python >=3.10 with
 need no dependency. Configure `TRAVEL_PREVIEW_BLOB_STORE_ID` to identify
 an isolated private trial store. Never paste tokens into arguments, source, logs
 or PRs. No automatic env pull, account configuration or store provisioning occurs.
-The hosted adapter exposes only get and has no write endpoint. A local publisher
-still requires the explicitly supplied `TRAVEL_PREVIEW_BLOB_TOKEN` for this store;
-its embedded store ID must match. It is refused in hosted Vercel environments
-and Production. Never supply a token with Production access.
+The hosted adapter exposes only get and has no write endpoint. The local publisher
+requires CLI-issued `VERCEL_OIDC_TOKEN` and matching `BLOB_STORE_ID` /
+`TRAVEL_PREVIEW_BLOB_STORE_ID` (optional `store_` prefix). It explicitly supplies
+`CredentialKind.OIDC` to the pinned official Python SDK. Missing/blank credentials,
+store mismatch, Production, hosted Vercel environments and request-header contexts
+are rejected. Invalid, expired or unauthorized OIDC fails at the service; it never
+falls back to `TRAVEL_PREVIEW_BLOB_TOKEN`, default read-write tokens, SDK credential
+files, CLI refresh or cached credentials. Never use a Production-connected store.
+
+Local commands (run from the repository root in a local shell, with the current
+Vercel CLI installed and logged in; replace team/store/city/month placeholders).
+The **existing private trial store must already be connected to this project's
+Preview environment with OIDC enabled**; stop if it is not. These commands do not
+create a store or deploy. Link only the existing project and verify its owner/name.
+
+```sh
+vercel link --project travel-clothing-advisor --scope YOUR_EXISTING_TEAM
+vercel project inspect --non-interactive
+mkdir -p .local-tools
+umask 077
+vercel env pull .local-tools/s2-preview.env --environment=preview
+# Import only the short-lived token, not other pulled credentials/runtime flags.
+export VERCEL_OIDC_TOKEN="$(sed -n 's/^VERCEL_OIDC_TOKEN="\(.*\)"$/\1/p' .local-tools/s2-preview.env)"
+export BLOB_STORE_ID='store_YOUR_CONNECTED_PREVIEW_STORE'
+export TRAVEL_PREVIEW_BLOB_STORE_ID='store_YOUR_VERIFIED_PRIVATE_TRIAL_STORE'
+
+python3 -m web.publish_preview \
+  --forecast-dir .forecast-local --history-dir .history-local \
+  --cities-file .forecast-local/cities.json \
+  --namespace preview/s2-trial --city-id berlin --month 2025-10
+# Only after separate authorization for the real external write:
+python3 -m web.publish_preview \
+  --forecast-dir .forecast-local --history-dir .history-local \
+  --cities-file .forecast-local/cities.json \
+  --namespace preview/s2-trial --city-id berlin --month 2025-10 --execute
+unset VERCEL_OIDC_TOKEN
+```
+
+Use the Python >=3.10 environment where `requirements.txt` is installed. Confirm
+`BLOB_STORE_ID` against the existing Preview connection and independently confirm
+`TRAVEL_PREVIEW_BLOB_STORE_ID` against the isolated private trial store; they must
+identify the same store. Dry-run requires no credentials and performs no remote
+IO. The Preview env pull obtains a short-lived Preview OIDC token; repeat it when
+the token expires. Keep shell tracing off; never print/source the pulled file or
+commit it. `.local-tools/` is ignored; remove the local credential file after use.
+See [Vercel CLI env pull](https://vercel.com/docs/cli/env#exporting-development-environment-variables)
+and [official OIDC authentication](https://vercel.com/docs/vercel-blob/python-sdk-reference#authentication).
 
 After explicit write permission, the same command with `--execute` uploads and
 switches the reference. It acquires `.preview-publisher.lock` locally; ensure this

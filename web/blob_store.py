@@ -83,10 +83,17 @@ def blob_session(scope, *, publisher=False, request_headers=None):
         raise OSError('Dedicated Preview Blob configuration missing')
     environment = os.environ.get('VERCEL_ENV')
     if publisher:
-        if environment not in (None, 'development') or os.environ.get('VERCEL'):
+        if (environment not in (None, 'development') or os.environ.get('VERCEL') or
+                os.environ.get('VERCEL_TARGET_ENV') == 'production' or
+                request_headers is not None):
             raise OSError('Blob publication requires a local publisher')
-        trial_token = os.environ.get('TRAVEL_PREVIEW_BLOB_TOKEN')
-        kind = sdk.CredentialKind.READ_WRITE
+        connected_store = os.environ.get('BLOB_STORE_ID', '')
+        if (not connected_store or not trial_store.removeprefix('store_') or
+                connected_store.removeprefix('store_') != trial_store.removeprefix('store_')):
+            raise OSError('Preview Blob store configuration mismatch')
+        # CLI-provided short-lived OIDC only; never invoke SDK ambient resolution.
+        trial_token = os.environ.get('VERCEL_OIDC_TOKEN')
+        kind = sdk.CredentialKind.OIDC
     else:
         connected_store = os.environ.get('BLOB_STORE_ID', '')
         # The SDK accepts IDs with or without the store_ prefix.
