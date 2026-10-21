@@ -63,7 +63,7 @@ class Handler(BaseHTTPRequestHandler):
                     return self.send_json(404, dict(error='图片或文件不存在。'))
                 return self.send_bytes(200, body, mime)
             if url.path == '/api/context':
-                return self.send_json(200, dict(window(self.service.clock()), fixture_mode=self.fixtures_only))
+                return self.send_json(200, dict(window(self.service.clock()), fixture_mode=self.fixtures_only, **getattr(self, 'context_extra', {})))
             if url.path == '/api/cities':
                 if set(p) - {'q', 'fixture'}:
                     raise ValueError('查询参数无效。')
