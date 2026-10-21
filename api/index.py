@@ -12,6 +12,7 @@ DATASET = Path(__file__).resolve().parents[1] / '.preview-data'
 
 class handler(Handler):
     allow_fixtures = False
+    context_extra = dict(automatic_scope='featured_forecast_only')
     service = service(ReadOnlyDirectoryStore(DATASET), [])
 
     def do_GET(self):
@@ -21,6 +22,18 @@ class handler(Handler):
         if path == '/' or path.startswith('/static/') or path == '/api/context':
             return super().do_GET()
         try:
+            if os.environ.get('TRAVEL_P1_READER') == 'true':
+                from web.lifecycle import Config, production_service
+                from web.control_store import Control
+                from web.production_store import production_session
+                cfg = Config.environment(os.environ)
+                raw = os.environ.get('TRAVEL_P1_RECORDS_JSON', '').encode('utf-8')
+                control = Control(cfg, os.environ.get('TRAVEL_P1_READER_DSN'), readonly=True)
+                with production_session(cfg, request_headers=self.headers) as remote:
+                    self.service = production_service(control, remote, cfg, raw)
+                    return super().do_GET()
+            if os.environ.get('VERCEL_ENV') == 'production':
+                raise Unavailable('精选十城自动预报尚未启用；普通城市和历史资料暂不自动准备。')
             scope = os.environ.get('TRAVEL_PREVIEW_NAMESPACE')
             if scope is None:
                 self.service = prepared_service(DATASET)

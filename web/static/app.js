@@ -78,8 +78,9 @@ document.querySelectorAll('[data-feeling]').forEach(b => b.addEventListener('cli
 ['start', 'end'].forEach(id => $(id).addEventListener('input', saveForm));
 async function refreshContext() {
   context = await api('/api/context');
+  if (context.automatic_scope === 'featured_forecast_only') document.querySelector('.subnote span').textContent = '当前支持精选十城14天内预报；普通城市和历史资料暂不自动准备';
   for (const id of ['start', 'end']) { $(id).min = context.today; $(id).max = context.max_date; }
-  $('dateHint').textContent = `可选 ${short(context.today)} 至 ${short(context.max_date)}（德国当地日期）`;
+  $('dateHint').textContent = `可选 ${short(context.today)} 至 ${short(context.max_date)}（德国当地日期）` + (context.automatic_scope === 'featured_forecast_only' ? '；当前自动准备仅支持精选十城短期预报，普通城市和历史资料暂不自动补齐。' : '');
 }
 function renderFeatured() {
   const grid = $('featuredGrid'); grid.replaceChildren();

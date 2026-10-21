@@ -607,3 +607,14 @@ The S2 browser runner manages its own labeled loopback server on port 8004 and
 controls publication over stdin, with no HTTP write endpoint. Live uploads,
 protected deployment, real hosted visibility/cold-start/cost measurements and
 Production isolation remain unverified until separately authorized.
+
+### P1 automatic featured forecast (default disabled)
+
+Issue #42 Plan v10's Production lifecycle code is separate from the S2 Preview
+publisher. See [the P1 runbook and evidence boundary](../docs/verification/issue42-p1.md).
+The site reads SQL-pinned immutable versions; the hourly worker owns downloads.
+Neither importing code nor merging the workflow enables resource creation,
+provider calls, writes or deployment. Ordinary-city/history automation is not
+implemented in P1. Real PostgreSQL tests and protected two-day operational
+acceptance require their own explicit targets/authorization; fixtures do not
+prove live ten-city data.

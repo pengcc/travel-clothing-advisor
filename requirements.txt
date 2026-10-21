@@ -1,3 +1,5 @@
 # Optional S2 private Blob candidate (Python >=3.10); standard-library local paths
 # do not import it. No store is provisioned or accessed by installation.
 vercel-blob==0.5.0
+# Lazy import; no database is opened by importing the application.
+psycopg[binary]==3.2.12
