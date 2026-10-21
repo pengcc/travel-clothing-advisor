@@ -4,9 +4,63 @@ SDK import is lazy: bundled S1/local paths and standard-library tests need none.
 Dedicated Preview credentials enter only the SDK factory, never output.
 """
 from contextlib import contextmanager
-from time import monotonic
+import base64
+from pathlib import Path
+import re
+from time import monotonic, time
 
-from web.publication import LIMIT, namespace
+from web.publication import LIMIT, document, namespace
+
+
+PROJECT_LINK = Path(__file__).resolve().parents[1]/'.vercel/project.json'
+PUBLISHER_PROJECT = 'travel-clothing-advisor'
+
+
+def publisher_identity(token):
+    """Screen CLI identity against the operator-verified repo link before Blob IO.
+
+    This is a restrictive claims preflight, not signature verification. Blob must
+    authenticate the SAME unchanged bearer on every operation; edited/forged
+    claims cannot authorize a write. Never use claims to select a credential,
+    endpoint or project link, and never resolve ambient SDK credentials.
+    """
+    try:
+        if not isinstance(token, str) or len(token) > 16_384:
+            raise ValueError()
+        parts = token.split('.')
+        if len(parts) != 3 or any(not re.fullmatch(r'[A-Za-z0-9_-]+', p) for p in parts):
+            raise ValueError()
+        def decode(part):
+            return base64.b64decode(part+'='*(-len(part) % 4), altchars=b'-_', validate=True)
+        header, claims = (document(decode(p)) for p in parts[:2])
+        decode(parts[2])
+        with PROJECT_LINK.open('rb') as stream:
+            link = document(stream.read(16_385))
+        if not isinstance(link, dict) or not isinstance(header, dict) or not isinstance(claims, dict):
+            raise ValueError()
+        if (header.get('alg') != 'RS256' or header.get('typ') != 'JWT' or
+                not isinstance(header.get('kid'), str) or not header['kid'].strip()):
+            raise ValueError()
+        for name in ('iss', 'aud', 'sub', 'owner', 'owner_id', 'project', 'project_id', 'environment'):
+            if not isinstance(claims.get(name), str) or not claims[name].strip():
+                raise ValueError()
+        owner = claims['owner']
+        if (not re.fullmatch(r'[a-zA-Z0-9_-]+', owner) or
+                claims['environment'] != 'preview' or claims['project'] != PUBLISHER_PROJECT or
+                not isinstance(link.get('projectId'), str) or not link['projectId'].startswith('prj_') or
+                not isinstance(link.get('orgId'), str) or not link['orgId'].startswith('team_') or
+                claims['project_id'] != link['projectId'] or claims['owner_id'] != link['orgId'] or
+                claims['iss'] not in ('https://oidc.vercel.com', 'https://oidc.vercel.com/'+owner) or
+                claims['aud'] != 'https://vercel.com/'+owner or
+                claims['sub'] != f'owner:{owner}:project:{PUBLISHER_PROJECT}:environment:preview'):
+            raise ValueError()
+        now = time()
+        if (any(type(claims.get(n)) is not int for n in ('iat', 'nbf', 'exp')) or
+                not claims['iat'] <= now or not claims['nbf'] <= now < claims['exp'] or
+                not claims['iat'] <= claims['exp']):
+            raise ValueError()
+    except (OSError, ValueError, TypeError, KeyError, OverflowError, RecursionError):
+        raise OSError('Local Preview OIDC identity or verified project link invalid') from None
 
 
 class BlobReader:
@@ -104,6 +158,8 @@ def blob_session(scope, *, publisher=False, request_headers=None):
         kind = sdk.CredentialKind.OIDC
     if not trial_token or not trial_token.strip():
         raise OSError('Dedicated Preview Blob credentials missing')
+    if publisher:
+        publisher_identity(trial_token)
     options = sdk.SyncBlobServiceOptions(
         base_url='https://vercel.com/api/blob',
         credentials_factory=lambda: sdk.BlobCredentials(

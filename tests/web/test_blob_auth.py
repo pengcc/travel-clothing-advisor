@@ -1,5 +1,9 @@
 """Offline authentication boundaries against the pinned official SDK."""
+import base64
 from email.message import Message
+import io
+import json
+from time import time
 import unittest
 from unittest.mock import patch
 
@@ -17,6 +21,17 @@ class BlobAuthTests(unittest.TestCase):
         self.http = httpx2
         self.env = dict(VERCEL_ENV='preview', BLOB_STORE_ID='store_trial',
                         TRAVEL_PREVIEW_BLOB_STORE_ID='trial')
+        now = int(time())
+        self.claims = dict(iss='https://oidc.vercel.com/trial-team',
+            aud='https://vercel.com/trial-team',
+            sub='owner:trial-team:project:travel-clothing-advisor:environment:preview',
+            owner='trial-team', owner_id='team_trial', project='travel-clothing-advisor',
+            project_id='prj_trial', environment='preview', iat=now-60, nbf=now-60, exp=now+3600)
+        self.link = dict(projectId='prj_trial', orgId='team_trial')
+        link_patch = patch('web.blob_store.PROJECT_LINK')
+        self.project_link = link_patch.start()
+        self.addCleanup(link_patch.stop)
+        self.project_link.open.side_effect = lambda *a: io.BytesIO(json.dumps(self.link).encode())
         self.headers = Message()
         self.headers['X-Vercel-Oidc-Token'] = 'synthetic-request-oidc'
 
@@ -66,9 +81,17 @@ class BlobAuthTests(unittest.TestCase):
         self.reject(self.env, publisher=True)
         self.reject(dict(self.env, VERCEL_ENV='development', VERCEL='1'), publisher=True)
 
+    def token(self, claims=None, header=None):
+        def segment(value):
+            return base64.urlsafe_b64encode(json.dumps(value).encode()).decode().rstrip('=')
+        return '.'.join((segment(dict(alg='RS256', typ='JWT', kid='synthetic-key')
+                                 if header is None else header),
+                         segment(self.claims if claims is None else claims),
+                         segment('synthetic-signature')))
+
     def local_env(self, **changes):
         return dict(BLOB_STORE_ID='store_trial', TRAVEL_PREVIEW_BLOB_STORE_ID='trial',
-                    VERCEL_OIDC_TOKEN='synthetic-cli-oidc', **changes)
+                    VERCEL_OIDC_TOKEN=self.token(), **changes)
 
     def test_local_publisher_requires_matching_store_and_oidc_without_fallback(self):
         for variable in ('BLOB_STORE_ID', 'TRAVEL_PREVIEW_BLOB_STORE_ID', 'VERCEL_OIDC_TOKEN'):
@@ -98,6 +121,50 @@ class BlobAuthTests(unittest.TestCase):
             self.reject(self.local_env(**changes), publisher=True)
         for headers in ({}, self.headers):
             self.reject(self.local_env(), publisher=True, headers=headers)
+
+    def test_publisher_identity_rejects_before_any_io_with_local_flags_unset(self):
+        cases = []
+        for name in self.claims:
+            for invalid in (None, [], True, ''):
+                claims = dict(self.claims, **{name: invalid})
+                cases.append(claims)
+            claims = dict(self.claims)
+            claims.pop(name)
+            cases.append(claims)
+        for changes in (
+                dict(environment='production', sub='owner:trial-team:project:travel-clothing-advisor:environment:production'),
+                dict(environment='development'), dict(environment='custom'),
+                dict(project_id='prj_other'), dict(owner_id='team_other'),
+                dict(project='another-project'), dict(iss='https://attacker.invalid'),
+                dict(iss='https://oidc.vercel.com/another-team'),
+                dict(aud='https://vercel.com/another-team'), dict(sub='environment:production'),
+                dict(exp=int(time())-1), dict(nbf=int(time())+3600), dict(iat=int(time())+3600)):
+            cases.append(dict(self.claims, **changes))
+        for index, claims in enumerate(cases):
+            with self.subTest(case=index):
+                env = self.local_env()
+                env['VERCEL_OIDC_TOKEN'] = self.token(claims)
+                # Both IDs still match, with no local VERCEL_ENV/TARGET_ENV flags.
+                self.reject(env, publisher=True)
+        for token in ('opaque', 'a.b.c', 'e30.e30.', self.token().replace('.', '..', 1),
+                      self.token(header=dict(alg='none', typ='JWT', kid='key')),
+                      self.token(header=dict(alg='HS256', typ='JWT', kid='key')),
+                      self.token(header=dict(alg='RS256', typ='JWT')), 'x'*16385):
+            env = self.local_env()
+            env['VERCEL_OIDC_TOKEN'] = token
+            self.reject(env, publisher=True)
+        for link in ({}, dict(projectId='prj_other', orgId='team_trial'),
+                     dict(projectId='prj_trial', orgId='team_other')):
+            self.link = link
+            self.reject(self.local_env(), publisher=True)
+        for error in (FileNotFoundError(), PermissionError(), ValueError()):
+            self.project_link.open.side_effect = error
+            self.reject(self.local_env(), publisher=True)
+
+    def test_preview_identity_accepts_only_verified_link_and_documented_issuers(self):
+        from web.blob_store import publisher_identity
+        for issuer in ('https://oidc.vercel.com', 'https://oidc.vercel.com/trial-team'):
+            publisher_identity(self.token(dict(self.claims, iss=issuer)))
 
     def test_local_oidc_publication_with_actual_sdk_and_failure_boundaries(self):
         from test_forecasts import CITY, RECORDS
@@ -150,6 +217,7 @@ class BlobAuthTests(unittest.TestCase):
                         with self.assertRaises((OSError, ValueError)) as error:
                             publish(publisher, manifest, objects, clock)
                         self.assertNotIn('synthetic-cli-oidc', str(error.exception))
+                        self.assertNotIn(self.token(), str(error.exception))
                         self.assertEqual(stored[pointer], b'previous-pointer')
                     else:
                         version = publish(publisher, manifest, objects, clock)
@@ -158,7 +226,7 @@ class BlobAuthTests(unittest.TestCase):
                         self.assertEqual(publisher.stats['reads'], 8)
                 self.assertTrue(calls)
                 for request in calls:
-                    self.assertEqual(request.headers['authorization'], 'Bearer synthetic-cli-oidc')
+                    self.assertEqual(request.headers['authorization'], 'Bearer '+self.token())
                     self.assertIn(request.url.host, ('vercel.com', 'trial.private.blob.vercel-storage.com'))
                 puts = [r for r in calls if r.method == 'PUT']
                 for request in puts:

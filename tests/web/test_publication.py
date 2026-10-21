@@ -289,6 +289,35 @@ class PublicationTests(unittest.TestCase):
                     self.assertEqual(main(invalid), 1)
                 self.assertEqual(tree(), before)
 
+    def test_november_cli_sample_requires_fresh_exact_inputs_even_after_dry_run(self):
+        from pathlib import Path
+        month = '2025-11'
+        Library(self.source, self.clock).publish(CITY, month, month_data(month))
+        manifest, objects = prepare(self.source, RECORDS, 'berlin', month, SCOPE, self.clock)
+        with tempfile.TemporaryDirectory() as root:
+            for name, raw in objects.items():
+                target = Path(root)/name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(raw)
+            args = ['--source', root, '--namespace', SCOPE, '--city-id', 'berlin', '--month', month]
+            with patch('web.publication.datetime') as clock, \
+                 patch('web.blob_store.blob_session', side_effect=AssertionError('remote IO')), \
+                 patch('web.publish_preview.publisher_lock', side_effect=AssertionError('local lock')), \
+                 patch('sys.stdout', new_callable=io.StringIO) as output:
+                clock.now.return_value = NOW
+                self.assertEqual(main(args), 0)
+                self.assertEqual(json.loads(output.getvalue())['version'], sha(encode(manifest)))
+                # An archive confirmed yesterday does not validate today's forecast.
+                clock.now.return_value = NOW+timedelta(days=1)
+                for options in (args, args+['--execute']):
+                    output.seek(0); output.truncate()
+                    self.assertEqual(main(options), 1)
+                    self.assertEqual(json.loads(output.getvalue())['status'], 'unavailable')
+                clock.now.return_value = NOW
+                # A successful dry-run cannot authorize later changed/corrupt inputs.
+                (Path(root)/key(CITY, NOW.date())).write_bytes(b'corrupt')
+                self.assertEqual(main(args+['--execute']), 1)
+
     def test_cli_dry_run_and_local_publisher_exclusion(self):
         with tempfile.TemporaryDirectory() as root:
             from pathlib import Path
