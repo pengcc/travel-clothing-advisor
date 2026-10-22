@@ -657,9 +657,11 @@ python3 -m web.bundle_data --cities-file weather-data/cities.json --forecast-dir
 ```
 
 Inspect `weather-data-next` using `prepared_service('weather-data-next').featured()`;
-missing or incomplete cities remain unavailable. Replace the contents of
-`weather-data/` with the reviewed export (retain this README), remove the temporary
-export, and commit the resulting data diff. Never copy entire local cache trees:
+missing or incomplete cities remain unavailable. Copy the validated export into
+`weather-data/` as an incremental update (retain this README and every existing
+valid historical month, including months outside the current export window).
+Verify existing history is preserved before removing the temporary export, and
+commit the resulting data diff. Never copy entire local cache trees:
 they contain worker locks and quota ledgers. Keep only public city/weather data.
 No new download service, database, Blob, Actions or Cron is required.
 
