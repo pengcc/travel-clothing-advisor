@@ -294,7 +294,9 @@ class Service:
             cached = self.forecasts.obtain(city, now, self.fetch)
             return self.forecast_advice(city, p, now, cached)
         except Unavailable:
-            if self.history is None:
+            # Managed whole-publication readers retain their operational errors;
+            # only independent city/local readers fall back to historical advice.
+            if not self.independent_cities or self.history is None:
                 raise
             from web.historical_advice import advise
             return advise(self.history, city, p, now, self.clock,
