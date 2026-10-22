@@ -190,8 +190,13 @@ class Cache:
                 if self.timer() >= deadline:
                     raise Unavailable('预报准备已超时。')
                 self.current(day)
-                body = dict(format=FORMAT, day=day.isoformat(), entries=entries)
-                self.store.put(manifest_key(day), pack(body))
+                # Selected runs prepare source objects, not partial replacements
+                # for the legacy ten-city publication. Its reader revalidates
+                # every source version, so a changed source fails closed until
+                # a full canonical run republishes the manifest.
+                if [entry['city']['id'] for entry in entries] == list(FEATURED):
+                    body = dict(format=FORMAT, day=day.isoformat(), entries=entries)
+                    self.store.put(manifest_key(day), pack(body))
                 self.current(day)
                 stats['complete'] = True
                 return stats

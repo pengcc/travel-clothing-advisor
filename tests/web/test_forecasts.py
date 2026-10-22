@@ -77,6 +77,41 @@ class ForecastTests(unittest.TestCase):
             self.assertEqual(params['models'], 'best_match')
             self.assertNotIn('daily', params)
 
+    def test_selected_prefetch_preserves_complete_manifest(self):
+        self.cache.prefetch(RECORDS, self.provider)
+        name = manifest_key(self.now.date())
+        original = self.store.get(name)
+        before = self.service().featured()
+        stats = self.cache.prefetch(RECORDS[:1], self.provider)
+        self.assertTrue(stats['complete'])  # Selected sources are ready.
+        self.assertEqual((stats['hits'], stats['forecast_attempts']), (1, 0))
+        self.assertEqual(self.store.get(name), original)
+        self.assertEqual(self.service().featured(), before)
+        self.assertEqual(len(self.calls), 10)
+
+        # A repaired source really changes version. Keeping the old manifest
+        # bytes must not make the reader advertise that publication as valid.
+        self.store.put(key(CITY, self.now.date()), b'corrupt')
+        self.now += timedelta(minutes=1)
+        repaired = self.cache.prefetch(RECORDS[:1], self.provider)
+        self.assertEqual(repaired['published'], 1)
+        self.assertEqual(self.store.get(name), original)
+        with self.assertRaises(Unavailable):
+            self.service().featured()
+        self.cache.prefetch(RECORDS, self.provider)
+        self.assertEqual(len(self.service().featured()['cities']), 10)
+        self.assertNotEqual(self.store.get(name), original)
+
+    def test_selected_prefetch_without_manifest_only_prepares_sources(self):
+        stats = self.cache.prefetch(RECORDS[:1], self.provider)
+        self.assertTrue(stats['complete'])
+        self.assertEqual(stats['published'], 1)
+        self.assertIsNotNone(self.cache.read(CITY, self.now.date()))
+        self.assertIsNone(self.store.get(manifest_key(self.now.date())))
+        with self.assertRaises(Unavailable):
+            self.service().featured()
+        self.assertEqual(self.service().advice(self.params())['mode'], 'forecast')
+
     def test_one_source_restart_reload_and_no_advice_storage(self):
         with tempfile.TemporaryDirectory(dir=Path(__file__).parents[2]) as root:
             cache = Cache(DirectoryStore(root), lambda: self.now)

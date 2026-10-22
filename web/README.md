@@ -626,9 +626,18 @@ of the ten featured cities: today's valid forecast, otherwise complete five-year
 history for today through day 14, otherwise 数据暂缺. Cards retain 4/4/2 pagination;
 historical cards and details explicitly say they are not forecasts. Home requests
 never download data. Existing optional Blob/P1 readers remain separate opt-in paths.
+Personal trips also prefer a valid forecast, falling back to complete five-year
+history for the exact requested city, dates and cold/normal/hot preference when
+the forecast is unavailable. Incomplete history still returns unavailable.
 
 Manual preparation reuses the existing workers, checksums, identities, budgets,
 cache hits and weather transports. Run from the repository root:
+
+Selected-city prefetch prepares only those sources and preserves the existing
+ten-city manifest. Only a complete canonical ten-city run republishes that
+manifest. If a source version changes, the whole-publication reader rejects the
+old manifest until a complete run republishes it; `complete` in prefetch output
+means the selected sources are ready, not that a ten-city manifest was published.
 
 ```sh
 # Use existing verified city metadata. This command downloads at most Berlin's

@@ -290,8 +290,15 @@ class Service:
             city = self.resolve(p.get('city_id'))
             return advise(self.history, city, p, now, self.clock, self.history_downloader, self.history_max_missing)
         city = self.resolve(p.get('city_id'))
-        cached = self.forecasts.obtain(city, now, self.fetch)
-        return self.forecast_advice(city, p, now, cached)
+        try:
+            cached = self.forecasts.obtain(city, now, self.fetch)
+            return self.forecast_advice(city, p, now, cached)
+        except Unavailable:
+            if self.history is None:
+                raise
+            from web.historical_advice import advise
+            return advise(self.history, city, p, now, self.clock,
+                          self.history_downloader, self.history_max_missing)
 
     def forecast_advice(self, city, p, now, cached, *, generated=None):
         """Same packing path for personal ranges and read-only featured views."""
