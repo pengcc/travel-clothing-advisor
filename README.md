@@ -1,35 +1,68 @@
 # Travel Clothing Advisor
 
-A product-discovery project exploring how to help travelers who are unfamiliar with a destination's climate avoid costly clothing-packing mistakes.
+面向赴德国旅行、对当地气候不熟悉的用户，把气温信息转化为**需要带多厚的外套、哪些内搭/保暖层要带、早晚和冷热变化如何增减衣物**等简明备衣建议。不是实时天气 App，也不承诺精确个人体感。
 
-The initial market focus is Germany. The current hypothesis is that the main user need is not another weather forecast or fashion recommendation, but a clear translation from weather/climate variability into practical packing risk guidance: what must be covered, what can safely be left at home, and what should be carried as a removable layer during the day.
+**项目方向、功能规则、当前架构、已完成状态和分阶段交付，以 [MVP Functional & Technical Specification](docs/mvp-functional-technical-spec.md) 为统一依据。** 进一步的目标用户和问题验证见 [Product Blueprint](docs/product-blueprint.md)；协作阶段及权限见 [Collaboration Workflow](docs/collaboration.md)。
 
-## Current phase
+## 功能范围
 
-**Product Discovery / Problem Validation**, with a runnable command-line prototype (not a released service).
+- **第一批精选 10 个德国城市**，从德国当地今天起显示真实 14 天逐小时气温推导的备衣建议、主要温差提醒及数据来源；城市卡片与个人行程查询互相独立。20 城是后续候选，100 城并未批准。
+- **按行程查询**：城市、起止日期和怕冷/正常/怕热（默认正常）。当前 Web MVP 允许德国今天起 30 天内的旅行日期；全部处于今天至 +13 天的行程使用预报，超出则整趟使用过去五年同期 **ERA5 历史气温参考**，绝不把历史写成某天的未来预报。
+- **五年历史须完整**才能生成历史建议；缺失时如实显示不可用。只使用气温与日间/早晚温差，不提供雨雪风提醒、逐日时尚穿搭或 AI 图像。
+- 不需要用户账户，也不收集个人行程持久记录。支持手机优先的中文界面和复制/分享建议。
 
-Current work should focus on:
+## 当前交付状态（2026-10-22）
 
-- real community evidence;
-- product framing and problem boundaries;
-- competitor research;
-- representative travel scenarios and failure cases;
-- validating whether risk-oriented packing guidance is meaningfully better than ordinary weather or packing-list tools.
+| 能力 | 实际状态 |
+| --- | --- |
+| Python Web/CLI、14 天预报下载与校验、手动本地启动 | **已有代码**，本地运行可使用 `.forecast-local/` |
+| 五年 ERA5 历史按城市/月分批下载、校验并复用 | **已有本地实现**；不等于十城全年历史均已齐 |
+| Vercel Preview Git 只读显示预报/历史/缺失状态 | **已有代码及 Preview 路径**；网页只读取已部署包里的 `weather-data/` |
+| 第一批十城真实预报的 Git 数据 | **已合并 [PR #67](https://github.com/pengcc/travel-clothing-advisor/pull/67)**：十城 2026-10-22 快照（德国午夜后不再是当日有效预报）；合并本身**不等于 Preview 已更新或验收** |
+| Git 中的五年历史资料 | 目前已验证柏林、慕尼黑 2021–2025 年 10/11 月共 **20 个月度对象**；其他城市待分批补齐 |
+| 无人值守天气获取 → Git 更新 → Preview 更新 | **未完成**；旧 PostgreSQL/Blob P1 worker 代码虽存在，但默认关闭，未作为 Git Preview 自动更新运行 |
+| 公共 Production 上线、20/100 城实际支持 | **未完成／未批准**；当前只考虑受保护 Preview 和免费资源 |
 
-## Prototype now available
+## 现在的数据架构
 
-The Python standard-library CLI at `experiments/clothing-rules/trip_advisor.py` accepts German cities, trip dates, and optional cold/hot preference. Fully forecast-covered trips within 14 calendar days use Open-Meteo forecasts, with two past-year references. Trips with any day outside that horizon but wholly within 30 calendar days use eight years of fixed-model historical reanalysis as a **packing reference**, not a day-by-day forecast. This describes the **still-unmodified experimental CLI**, not the accepted Phase 2B web requirement. The web target uses **five** previous analogous years of incrementally prefetched, durably stored ERA5 temperatures ([Issue #21](https://github.com/pengcc/travel-clothing-advisor/issues/21)); the CLI has not been converted. See `experiments/clothing-rules/README.md` for commands and constraints.
-
-The recommendation quality remains experimental. A local Python web UI uses real temperature-only forecasts for personal trips within 14 days and five-year stored historical references for longer trips within 30 days; featured cities remain explicitly simulated. There is no deployed daily-update service, final production framework, AI architecture, or validated weather/clothing accuracy.
-
-## Run the local web UI
-
-Requires Python 3.9+ with Europe/Berlin timezone data; no runtime packages to install.
-
-```sh
-python3 -m web.server
+```text
+本地 Python（Open-Meteo 预报 / ERA5 历史）
+  ├─ .forecast-local/      当天有效预报
+  └─ .history-local/       长期保留的已验证历史月份
+            ↓ 手动校验、导出并增量合并
+Git weather-data/         只提交公开真实资料，不提交缓存账本/密钥
+            ↓ 当前必须手动重新部署
+受保护 Vercel Preview      api/index.py 只读数据 → 手机网页
 ```
 
-Open http://127.0.0.1:8000. Personal trips use real forecasts; featured-city cards and their results are demo data. Personal trips extending into days 15–30 can read a complete five-year ERA5 local history library; missing data returns unavailable. A bounded manual prefetch worker and offline tests are included; no live history has been bulk-downloaded or hosted storage provisioned. See [web/README.md](web/README.md) for live/demo boundaries, optional smoke tests and offline regressions, and [Phase 2A verification](docs/verification/phase2a/README.md) for actual results.
+- **本地有数据不等于线上有数据**：`make dev` 使用本地目录；Preview 只读当前部署所含 Git 数据。两者尚不会自动同步。
+- **预报每日过期**：新德国日期必须取新 14 天快照并更新 Preview；历史月份已经完整验证后长期复用，按近期需求逐批积累，不每天重下。
+- **保留历史数据**：`web.bundle_data` 只导出当前窗口匹配的有效月份；并入 `weather-data/` 时必须采用**增量合并**，保留以前有效的历史月份，不得整体删除或用新目录覆盖旧历史。
+- `vercel.json` 现在有 `git.deploymentEnabled=false`，因此 Git 合并**不会触发自动部署**。Preview 使用默认 Git 只读数据路径；旧 `TRAVEL_PREVIEW_NAMESPACE` Blob 路径或 `TRAVEL_P1_READER` P1 SQL/Blob 路径是独立可选开关，并非当前路径的必要配置。
+- **费用边界**：全部免费、不买 VPS、不升级套餐；动态存储、自动化和公开发布均需要另外验证实际账户能力、费用和授权。**不为第一批十城人工发布先引入数据库或 Blob。**
 
-See [`docs/product-blueprint.md`](docs/product-blueprint.md) for the current product-discovery boundary.
+## 渐进交付顺序
+
+1. **十城真实 14 天预报**：本地准备 → 校验 → Git 更新 → 受保护 Preview 实测十城页面和详情；可先人工维护。PR #67 已完成 Git 部分，Preview 对应新版本的实际验收仍须进行。
+2. **十城历史分批覆盖**：先近期旅行所需的五年同期月份，再按城市与月份扩大覆盖；完整有效的月文件持续保留并发布，不等全部全年数据齐备才支持已有覆盖的行程。
+3. **自动更新**：仅在人工链路真正跑通后，自动执行相同的预报日更、历史增量补齐和 Git/Preview 发布，记录失败与用量。
+4. **扩展到 20 城**：依据十城真实使用体验、免费额度和发布成本再决定；100 城只是可能的更远期扩展。
+
+## 本地运行与数据准备
+
+Web 开发服务为 Python 标准库项目（建议用仓库的 Python 3.12）：
+
+```sh
+make dev         # 使用 .forecast-local/ + .history-local/，有清单时尝试补当日精选预报
+make check-dev   # 只读检查本地数据准备情况
+make test        # Python 单元测试；不应触发真实天气下载
+make demo        # 明确使用 UI 模拟资料，不是 Open-Meteo 实况
+```
+
+浏览器打开 `http://127.0.0.1:8000`。单独运行 `python3 -m web.server` **不会自动挂载**两套本地持久缓存；请使用 `make dev`。
+
+需要准备/检查真实数据、分批获取历史月份或导出到 Git 时，按 [Web 操作说明 — Git weather bundle](web/README.md#git-weather-bundle) 使用现有 `web.prefetch_forecasts`、`web.prefetch_history`、`web.bundle_data`；这些命令不会自动更新远端 Git 或 Vercel。数据目录的来源与过期规则见 [weather-data/README.md](weather-data/README.md)。
+
+历史的独立 CLI 实验 `experiments/clothing-rules/trip_advisor.py` 仍使用八年参考等较早实验规则，**不是当前网页五年历史功能契约**。
+
+**当前安全边界：** 文档、PR、数据提交、合并、实际云端部署和启用定时任务是不同操作，均遵守 [Collaboration Workflow](docs/collaboration.md) 中的授权要求。已能构建网页不等于已完成真实数据可用性、连续日更或公开上线验收。
