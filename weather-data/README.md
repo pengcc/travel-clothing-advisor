@@ -8,10 +8,14 @@ ERA5 historical months. Sources: [Open-Meteo](https://open-meteo.com/)
 GeoNames through Open-Meteo. Original acquisition times remain in each object.
 No credentials, personal trips, generated advice, usage ledgers or locks belong here.
 
-Initial sample prepared 2026-10-22: Berlin forecast, Berlin/Munich complete
-historical windows, no Hamburg weather. Forecasts expire at German midnight;
+First ten-city forecast batch prepared 2026-10-22: Berlin, Munich, Hamburg,
+Frankfurt am Main, Cologne, Dresden, Heidelberg, Nuremberg, Düsseldorf and Leipzig.
+All ten contain same-day Open-Meteo forecasts; Berlin/Munich retain their complete
+historical windows (20 validated monthly objects, unchanged).
+Forecasts expire at German midnight;
 complete five-year history may remain usable. History is a packing reference,
-never a prediction of specific future weather. Other cities remain visible with
+never a prediction of specific future weather. Cities without a current forecast
+or complete historical coverage show
 “数据暂缺” until manually prepared.
 
 Manual update commands are in [web/README.md](../web/README.md#git-weather-bundle).
