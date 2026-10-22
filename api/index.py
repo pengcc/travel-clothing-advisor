@@ -7,12 +7,12 @@ from web.live import Unavailable
 from web.readonly import prepared_service, service, ReadOnlyDirectoryStore
 from web.server import Handler
 
-DATASET = Path(__file__).resolve().parents[1] / '.preview-data'
+DATASET = Path(__file__).resolve().parents[1] / 'weather-data'
 
 
 class handler(Handler):
     allow_fixtures = False
-    context_extra = dict(automatic_scope='featured_forecast_only')
+    context_extra = dict(automatic_scope='bundled_readonly')
     service = service(ReadOnlyDirectoryStore(DATASET), [])
 
     def do_GET(self):

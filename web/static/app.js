@@ -89,6 +89,7 @@ function renderFeatured() {
     featuredStatus('城市数据已过期或日期不匹配，暂无可用城市建议。'); return;
   }
   for (const data of snapshot.cities.slice(page * 4, page * 4 + 4)) {
+    if (data.mode === 'unavailable') { grid.append(CityCard(data, '#')); continue; }
     const params = { view: 'city', city_id: data.city.id }, card = CityCard(data, link(params));
     card.addEventListener('click', e => { if (e.button === 0 && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey) { e.preventDefault(); navigate(params); } });
     grid.append(card);
@@ -100,7 +101,7 @@ function validFeaturedSnapshot(data) {
   return context && data?.today === context.today && data.forecast_end === context.forecast_end &&
     (data.data_status === undefined || data.data_status === 'fresh') &&
     Array.isArray(data.cities) && data.cities.length === 10 && data.cities.every(city =>
-      city?.data_status === 'fresh' && city.start === context.today && city.end === context.forecast_end);
+      (city?.data_status === 'fresh' || (city?.mode === 'historical_reference' && city?.data_status === 'complete') || city?.data_status === 'unavailable') && city.start === context.today && city.end === context.forecast_end);
 }
 function featuredStatus(message) {
   snapshot = null; $('retryFeatured').classList.toggle('hidden', message === '正在加载城市参考…'); $('prevPage').disabled = true; $('nextPage').disabled = true;

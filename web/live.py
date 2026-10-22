@@ -147,7 +147,9 @@ def variation_kind(events):
 
 
 class Service:
-    def __init__(self, fetch=fetch_json, clock=lambda: datetime.now(BERLIN), *, history=None, history_downloader=None, history_max_missing=0, forecast_cache=None, trusted_records=None):
+    def __init__(self, fetch=fetch_json, clock=lambda: datetime.now(BERLIN), *, history=None, history_downloader=None, history_max_missing=0, forecast_cache=None, trusted_records=None, independent_cities=True, featured_records=None):
+        self.featured_cities = {location(r)["id"]: location(r) for r in (featured_records or [])}
+        self.independent_cities = independent_cities
         self.fetch, self.clock = fetch, clock
         self.offline_cities = None
         if trusted_records is not None:
@@ -219,12 +221,56 @@ class Service:
         return dict(cities=list(cities.values()), fixture=False, source='Open-Meteo / GeoNames')
 
     def featured(self):
-        return self.forecasts.featured(self)
+        return self.city_references() if self.independent_cities else self.forecasts.featured(self)
 
     def city_advice(self, p):
         if not p.get('city_id') or set(p) - {'view', 'city_id', 'start', 'end', 'preference'}:
             raise ValueError('查询参数无效。')
-        return self.forecasts.featured(self, p.get('city_id'))
+        return self.city_references(p.get('city_id')) if self.independent_cities else self.forecasts.featured(self, p.get('city_id'))
+
+    def city_references(self, city_id=None):
+        """Independent read-only city results; never download on the homepage."""
+        from web.forecasts import FEATURED
+        if city_id is not None and city_id not in FEATURED:
+            raise ValueError('该城市不在精选城市列表中。')
+        now = self.clock().astimezone(BERLIN)
+        w = window(now)
+        results = []
+        for catalog in CITIES[:10]:
+            if city_id is not None and catalog['id'] != city_id:
+                continue
+            p = dict(view='city', start=w['today'], end=w['forecast_end'], preference='normal')
+            result = None
+            try:
+                # Offline metadata is validated at dataset loading. Local workers
+                # can also leave validated city metadata in the daily manifest.
+                city = (self.offline_cities or self.featured_cities).get(catalog['id'])
+                if city is None and self.offline_cities is None:
+                    from web.forecasts import manifest_key, unpack
+                    body = unpack(self.forecasts.store.get(manifest_key(now.date())))
+                    city = next(e['city'] for e in body['entries'] if e['city']['id'] == catalog['id'])
+                if city is None:
+                    raise Unavailable('城市资料暂缺。')
+                try:
+                    result = self.forecasts.render(self, city, now, self.forecasts.read(city, now.date()))
+                except (Unavailable, OSError, ValueError, KeyError, TypeError):
+                    if self.history is not None:
+                        from web.historical_advice import advise
+                        result = advise(self.history, city, p, now, self.clock)
+                        result['view'] = 'city'
+            except (Unavailable, OSError, ValueError, KeyError, TypeError, StopIteration):
+                pass
+            if result is None:
+                result = dict(city=public_city(catalog), **p, mode='unavailable',
+                              data_status='unavailable', headline='数据暂缺',
+                              warmth_indicator_level=None, fixture=False)
+            results.append(result)
+        self.forecasts.current(now.date())
+        if city_id is not None:
+            if results[0]['mode'] == 'unavailable':
+                raise Unavailable('数据暂缺')
+            return results[0]
+        return dict(**w, fixture=False, data_status='fresh', cities=results)
 
     def advice(self, p):
         if set(p) - {'view','city_id','start','end','preference'} or p.get('view','trip') != 'trip' or p.get('preference') not in ('cold','normal','hot'):
@@ -244,8 +290,17 @@ class Service:
             city = self.resolve(p.get('city_id'))
             return advise(self.history, city, p, now, self.clock, self.history_downloader, self.history_max_missing)
         city = self.resolve(p.get('city_id'))
-        cached = self.forecasts.obtain(city, now, self.fetch)
-        return self.forecast_advice(city, p, now, cached)
+        try:
+            cached = self.forecasts.obtain(city, now, self.fetch)
+            return self.forecast_advice(city, p, now, cached)
+        except Unavailable:
+            # Managed whole-publication readers retain their operational errors;
+            # only independent city/local readers fall back to historical advice.
+            if not self.independent_cities or self.history is None:
+                raise
+            from web.historical_advice import advise
+            return advise(self.history, city, p, now, self.clock,
+                          self.history_downloader, self.history_max_missing)
 
     def forecast_advice(self, city, p, now, cached, *, generated=None):
         """Same packing path for personal ranges and read-only featured views."""

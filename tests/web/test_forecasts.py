@@ -32,13 +32,15 @@ class ForecastTests(unittest.TestCase):
         return forecast(self.now)
 
     def service(self, cache=None):
+        # Preserve coverage of the legacy whole-publication reader used by P1.
+        # Independent homepage and bundle behavior is covered in test_city_bundle.
         def fetch(url, params):
             if url == FORECAST:
                 return self.provider(url, params, 4)
             self.geocodes += 1
             return geo(int(params['id']))
         self.geocodes = 0
-        return Service(fetch, lambda: self.now, forecast_cache=cache or self.cache)
+        return Service(fetch, lambda: self.now, forecast_cache=cache or self.cache, independent_cities=False)
 
     def params(self, **kw):
         return dict(dict(view='trip', city_id='berlin', start=self.now.date().isoformat(),
@@ -74,6 +76,41 @@ class ForecastTests(unittest.TestCase):
         for params in self.calls:
             self.assertEqual(params['models'], 'best_match')
             self.assertNotIn('daily', params)
+
+    def test_selected_prefetch_preserves_complete_manifest(self):
+        self.cache.prefetch(RECORDS, self.provider)
+        name = manifest_key(self.now.date())
+        original = self.store.get(name)
+        before = self.service().featured()
+        stats = self.cache.prefetch(RECORDS[:1], self.provider)
+        self.assertTrue(stats['complete'])  # Selected sources are ready.
+        self.assertEqual((stats['hits'], stats['forecast_attempts']), (1, 0))
+        self.assertEqual(self.store.get(name), original)
+        self.assertEqual(self.service().featured(), before)
+        self.assertEqual(len(self.calls), 10)
+
+        # A repaired source really changes version. Keeping the old manifest
+        # bytes must not make the reader advertise that publication as valid.
+        self.store.put(key(CITY, self.now.date()), b'corrupt')
+        self.now += timedelta(minutes=1)
+        repaired = self.cache.prefetch(RECORDS[:1], self.provider)
+        self.assertEqual(repaired['published'], 1)
+        self.assertEqual(self.store.get(name), original)
+        with self.assertRaises(Unavailable):
+            self.service().featured()
+        self.cache.prefetch(RECORDS, self.provider)
+        self.assertEqual(len(self.service().featured()['cities']), 10)
+        self.assertNotEqual(self.store.get(name), original)
+
+    def test_selected_prefetch_without_manifest_only_prepares_sources(self):
+        stats = self.cache.prefetch(RECORDS[:1], self.provider)
+        self.assertTrue(stats['complete'])
+        self.assertEqual(stats['published'], 1)
+        self.assertIsNotNone(self.cache.read(CITY, self.now.date()))
+        self.assertIsNone(self.store.get(manifest_key(self.now.date())))
+        with self.assertRaises(Unavailable):
+            self.service().featured()
+        self.assertEqual(self.service().advice(self.params())['mode'], 'forecast')
 
     def test_one_source_restart_reload_and_no_advice_storage(self):
         with tempfile.TemporaryDirectory(dir=Path(__file__).parents[2]) as root:
@@ -216,7 +253,7 @@ class ForecastTests(unittest.TestCase):
         with self.assertRaises(Unavailable): cache.prefetch(RECORDS, slow, timeout=1)
         self.assertEqual(cache.stats['forecast_attempts'], 1)
         self.assertEqual(cache.stats['published'], 0)
-        for records in (RECORDS[:9], RECORDS+[RECORDS[0]], RECORDS[:9]+[geo(123)],
+        for records in ([], RECORDS+[RECORDS[0]], RECORDS[:9]+[RECORDS[0]],
                         [dict(r, latitude=True) for r in RECORDS]):
             with self.assertRaises((ValueError, Unavailable)):
                 cache.prefetch(records, self.provider)
@@ -291,7 +328,7 @@ def forbidden(*args):
     raise AssertionError('No network permitted after restart')
 try:
     stats = cache.prefetch(RECORDS, forbidden)
-    service = Service(forbidden, lambda: NOW, forecast_cache=cache)
+    service = Service(forbidden, lambda: NOW, forecast_cache=cache, independent_cities=False)
     assert len(service.featured()['cities']) == 10
     assert service.city_advice(dict(city_id='berlin'))['fixture'] is False
     print(json.dumps(stats, sort_keys=True))
@@ -311,7 +348,7 @@ except Unavailable:
         from web.prefetch_forecasts import main
         with tempfile.TemporaryDirectory(dir=Path(__file__).parents[2]) as root:
             source = Path(root)/'cities.json'
-            source.write_text(json.dumps(RECORDS[:9]))
+            source.write_text(json.dumps([]))
             output = StringIO()
             with redirect_stdout(output):
                 status = main(['--cities-file', str(source), '--store-dir', str(Path(root)/'store')])
@@ -348,7 +385,7 @@ class ForecastAPITests(unittest.TestCase):
         cache = Cache(MemoryStore(), lambda: NOW)
         cache.prefetch(RECORDS, lambda u,p,t: fake(u,p))
         class TestHandler(Handler):
-            service = Service(fake, lambda: NOW, forecast_cache=cache)
+            service = Service(fake, lambda: NOW, forecast_cache=cache, independent_cities=False)
         server = ThreadingHTTPServer(('127.0.0.1', 0), TestHandler)
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()

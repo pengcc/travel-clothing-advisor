@@ -618,3 +618,70 @@ provider calls, writes or deployment. Ordinary-city/history automation is not
 implemented in P1. Real PostgreSQL tests and protected two-day operational
 acceptance require their own explicit targets/authorization; fixtures do not
 prove live ten-city data.
+
+## Git weather bundle
+
+The default Preview reader uses tracked `weather-data/`, independently for each
+of the ten featured cities: today's valid forecast, otherwise complete five-year
+history for today through day 14, otherwise 数据暂缺. Cards retain 4/4/2 pagination;
+historical cards and details explicitly say they are not forecasts. Home requests
+never download data. Existing optional Blob/P1 readers remain separate opt-in paths.
+Personal trips also prefer a valid forecast, falling back to complete five-year
+history for the exact requested city, dates and cold/normal/hot preference when
+the forecast is unavailable. Incomplete history still returns unavailable.
+
+Manual preparation reuses the existing workers, checksums, identities, budgets,
+cache hits and weather transports. Run from the repository root:
+
+Selected-city prefetch prepares only those sources and preserves the existing
+ten-city manifest. Only a complete canonical ten-city run republishes that
+manifest. If a source version changes, the whole-publication reader rejects the
+old manifest until a complete run republishes it; `complete` in prefetch output
+means the selected sources are ready, not that a ten-city manifest was published.
+
+```sh
+# Use existing verified city metadata. This command downloads at most Berlin's
+# missing same-day forecast; omit/repeat --city-id to choose other cities.
+python3 -m web.prefetch_forecasts --cities-file weather-data/cities.json --city-id berlin --store-dir .forecast-local
+
+# Check the exact desired historical window first (including tomorrow for rollover).
+# Change these example dates to the current German date/window before updating.
+python3 -m web.prefetch_history --cities-file weather-data/cities.json --city-id berlin --city-id munich --start 2026-10-22 --end 2026-11-05 --store .history-local --check
+# Explicit live download, within the original worker's budget. Rerun to resume
+# after the reported budget/cooldown; do not reset its control ledger.
+python3 -m web.prefetch_history --cities-file weather-data/cities.json --city-id berlin --city-id munich --start 2026-10-22 --end 2026-11-05 --store .history-local --download
+
+# Offline export: selects only validated source objects and city metadata,
+# covering available history for the current 30-day window. New output only.
+python3 -m web.bundle_data --cities-file weather-data/cities.json --forecast-dir .forecast-local --history-dir .history-local --output weather-data-next
+```
+
+Inspect `weather-data-next` using `prepared_service('weather-data-next').featured()`;
+missing or incomplete cities remain unavailable. Replace the contents of
+`weather-data/` with the reviewed export (retain this README), remove the temporary
+export, and commit the resulting data diff. Never copy entire local cache trees:
+they contain worker locks and quota ledgers. Keep only public city/weather data.
+No new download service, database, Blob, Actions or Cron is required.
+
+[Vercel's Python runtime](https://vercel.com/docs/functions/runtimes/python)
+bundles reachable project files; `weather-data/` is not excluded by `vercel.json`
+or `.gitignore`. The handler reads through `ReadOnlyDirectoryStore` and disables
+provider calls. Git deployment remains disabled in the existing configuration;
+this change does not authorize or trigger a deployment. Preview validation here
+uses the real Vercel handler locally, not a published Preview or remote build.
+
+Validation:
+
+```sh
+make test
+python3 tests/web/serve_city_bundle.py
+# In another terminal; optional existing local Playwright/Chrome installation:
+node tests/web/city-bundle-browser.cjs
+```
+
+The browser check uses the bundled real-weather sample on its preparation day;
+after it expires, refresh the sample first. `test_city_bundle.py` uses synthetic
+source data with the real service to deterministically test midnight fallback,
+corruption, incomplete history and city-specific IO failure without downloads.
+Independent Implementation Review and explicit merge/deployment authority remain
+separate from this implementation.

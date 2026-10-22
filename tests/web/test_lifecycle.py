@@ -123,6 +123,26 @@ class LifecycleTests(unittest.TestCase):
         self.control.claimed.clear()
         self.assertTrue(self.cycle()['complete'])
         self.assertEqual(len(self.calls),10)
+
+    def test_personal_trip_preserves_uncommitted_publication_health(self):
+        trip=dict(view='trip',city_id='berlin',start=self.now.date().isoformat(),
+                  end=(self.now.date()+timedelta(days=2)).isoformat(),preference='cold')
+        for health in ('forecast_preparing','quota_limited','scheduler_unavailable'):
+            with self.subTest(health=health), patch.object(
+                    self.control,'snapshot',return_value=(self.now.date(),None,health)):
+                app=self.app()
+                with self.assertRaises(StageUnavailable) as featured:
+                    app.featured()
+                with patch.object(app.history,'sample',wraps=app.history.sample) as history:
+                    with self.assertRaises(StageUnavailable) as personal:
+                        app.advice(trip)
+                    history.assert_not_called()
+                self.assertIs(personal.exception,featured.exception)
+                self.assertEqual(personal.exception.code,health)
+                self.assertTrue(str(personal.exception))
+                self.assertEqual(self.remote.reads,0)
+                self.assertEqual(self.calls,[])
+
     def test_midnight_and_corruption_refuse_advice(self):
         self.cycle()
         version=self.control.committed

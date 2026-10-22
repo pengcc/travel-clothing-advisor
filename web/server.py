@@ -6,7 +6,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 from web.fixtures import CITIES, advice, featured, window
-from web.live import Service, public_city
+from web.live import Service, public_city, Unavailable
 
 LIVE = Service()
 
@@ -115,7 +115,21 @@ if __name__ == '__main__':
     Handler.fixtures_only = args.fixtures
     from web.history import Library
     from web.forecasts import Cache
-    Handler.service = Service(
+    records = []
+    for root in (args.forecast_dir, args.history_dir):
+        if root:
+            try:
+                from web.live import location
+                raw = (Path(root) / 'cities.json').read_bytes()
+                candidate = json.loads(raw) if len(raw) <= 200_000 else []
+                if not isinstance(candidate, list):
+                    raise ValueError('Expected city list')
+                for record in candidate:
+                    location(record)
+                records.extend(candidate)
+            except (OSError, ValueError, TypeError, Unavailable):
+                pass
+    Handler.service = Service(featured_records=records,
         history=Library(local_store(args.history_dir)) if args.history_dir else None,
         forecast_cache=Cache(local_store(args.forecast_dir)) if args.forecast_dir else None)
     server = ThreadingHTTPServer(('127.0.0.1', args.port), Handler)
