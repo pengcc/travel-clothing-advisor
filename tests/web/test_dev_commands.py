@@ -240,16 +240,13 @@ class DevCommandTests(unittest.TestCase):
                 # Startup and context/page reads leave all file bytes intact.
                 after = self.snapshot()
                 self.assertEqual(before, {k: v for k, v in after.items() if not k.startswith('guard/')})
-                try:
-                    with urlopen(base + '/api/featured', timeout=2) as response:
-                        self.assertEqual(state, 'prepared')
-                        self.assertFalse(json.load(response)['fixture'])
-                except HTTPError as exc:
-                    self.assertNotEqual(state, 'prepared')
-                    self.assertEqual(exc.code, 503)
-                    body = json.load(exc)
-                    self.assertTrue(body['error'])
-                    self.assertNotIn('headline', body)
+                with urlopen(base + '/api/featured', timeout=2) as response:
+                    self.assertEqual(response.status, 200)
+                    body = json.load(response)
+                    self.assertFalse(body['fixture'])
+                    self.assertEqual(len(body['cities']), 10)
+                    self.assertEqual(body['cities'][0]['mode'],
+                                     'forecast' if state == 'prepared' else 'unavailable')
                 # Reads may create the existing worker lock, never ledger/data.
                 self.assertEqual({k: v for k, v in before.items() if not k.endswith('.worker.lock')},
                                  {k: v for k, v in self.snapshot().items() if not k.endswith('.worker.lock')})

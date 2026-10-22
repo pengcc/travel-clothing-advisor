@@ -8,7 +8,8 @@ from web.live import Unavailable
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--cities-file', required=True, help='Local JSON list of ten verified GeoNames records')
+    parser.add_argument('--cities-file', required=True, help='Local JSON list of 1–10 verified GeoNames records')
+    parser.add_argument('--city-id', action='append', help='Prepare only selected IDs (repeatable)')
     parser.add_argument('--store-dir', default='.forecast-local', help='Local development store only')
     parser.add_argument('--timeout', type=float, default=45, help='Whole invocation seconds, maximum 60')
     args = parser.parse_args(argv)
@@ -20,6 +21,11 @@ def main(argv=None):
         records = json.loads(source.read_text())
         if not isinstance(records, list):
             raise ValueError()
+        if args.city_id:
+            from web.live import location
+            if set(args.city_id) - {location(r)['id'] for r in records}:
+                raise ValueError('Unknown selected city')
+            records = [r for r in records if location(r)['id'] in args.city_id]
         cache = Cache(DirectoryStore(args.store_dir))
         stats = cache.prefetch(records, timeout=args.timeout)
     except (OSError, ValueError, TypeError, KeyError, Unavailable):

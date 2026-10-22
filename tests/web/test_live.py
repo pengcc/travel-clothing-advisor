@@ -288,7 +288,7 @@ class APITests(unittest.TestCase):
         code,d=self.request('/api/cities?q=frankfurt');self.assertEqual(code,200);self.assertEqual(len(d['cities']),2)
         code,d=self.request('/api/advice?view=city&city_id=berlin');self.assertEqual(code,503);self.assertNotIn('headline',d)
         code,d=self.request('/api/advice?view=city&city_id=berlin&fixture=stable');self.assertEqual(code,200);self.assertTrue(d['fixture']);self.assertIsNone(d['weather_fetched_at'])
-        code,d=self.request('/api/featured');self.assertEqual(code,503);self.assertNotIn('cities',d);self.assertEqual(d['code'],'temporarily_unavailable')
+        code,d=self.request('/api/featured');self.assertEqual(code,200);self.assertEqual(len(d['cities']),10);self.assertTrue(all(c['mode']=='unavailable' for c in d['cities']))
         code,d=self.request('/api/featured?fixture=default');self.assertEqual(code,200);self.assertTrue(d['fixture'])
         code,d=self.request('/api/advice?'+urlencode(p)+'&fixture=stable');self.assertEqual(code,200);self.assertTrue(d['fixture'])
         code,d=self.request('/api/cities?q=x&q=y');self.assertEqual(code,400)

@@ -164,18 +164,13 @@ class Cache:
             raise Unavailable('预报存储暂不可用。') from exc
 
     def prefetch(self, records, provider=transport, *, timeout=45):
-        """Exactly the ten featured cities, already resolved by a trusted operator.
-
-        Partial source objects survive for recovery; only all ten validated sources
-        can become a complete featured publication. No geocoding occurs here.
-        """
+        """Prepare 1–10 selected verified cities with the existing cache pipeline."""
         if not 0 < timeout <= 60:
             raise ValueError('Timeout must be in (0, 60]')
         cities = [location(raw) for raw in records]
-        if len(cities) != 10 or {c['id'] for c in cities} != set(FEATURED):
-            raise ValueError('Supply exactly ten distinct featured GeoNames records')
-        by_id = {c['id']: c for c in cities}
-        cities = [by_id[i] for i in FEATURED]
+        if not 1 <= len(cities) <= 10 or len({c['id'] for c in cities}) != len(cities):
+            raise ValueError('Supply 1–10 distinct verified GeoNames records')
+        cities.sort(key=lambda c: FEATURED.index(c['id']) if c['id'] in FEATURED else len(FEATURED))
         stats = dict(forecast_attempts=0, geocoding_attempts=0, hits=0, published=0, failed=0, complete=False)
         self.stats = stats
         day = self.clock().astimezone(BERLIN).date()

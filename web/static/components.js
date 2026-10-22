@@ -41,7 +41,8 @@ export function WarmthIndicator(level, hasVariation = true, context = 'result') 
   return chip;
 }
 export function CityCard(data, href) {
-  const c = data.city, card = text('a', '', 'city-card'); card.href = href;
+  const c = data.city, card = text(data.mode === 'unavailable' ? 'div' : 'a', '', 'city-card');
+  if (data.mode !== 'unavailable') card.href = href;
   card.append(text('span', c.name, 'eng'), text('span', c.zh, 'city-name'));
   const host = text('span', '', 'warmth-host'); host.append(WarmthIndicator(data.warmth_indicator_level, Boolean(data.packing_variation_summary || data.packing_variation_notice), 'featured'));
   // Style only the server-selected state; shared detail labels remain unchanged.
@@ -59,7 +60,7 @@ export function CityCard(data, href) {
     card.append(warning);
   }
   // The featured section identifies fixtures once next to its shared date range.
-  card.append(text('span', '查看14天建议 →', 'go'));
+  card.append(text('span', data.mode === 'historical_reference' ? '历史备衣参考（非预报） →' : data.mode === 'unavailable' ? '数据暂缺' : '查看14天预报 →', 'go'));
   return card;
 }
 

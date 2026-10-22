@@ -32,9 +32,11 @@ def no_provider(*args, **kwargs):
     raise Unavailable('只读服务不提供在线天气下载或城市解析。')
 
 
-def service(store, records, clock=lambda: datetime.now(BERLIN)):
-    """Records are operator-supplied GeoNames responses, never URL metadata."""
-    return Service(no_provider, clock, trusted_records=records,
+def service(store, records, clock=lambda: datetime.now(BERLIN), *, independent_cities=False):
+    """Validated operator records. Legacy remote publications opt into their
+    all-city publication contract by default; bundles select independent cities.
+    """
+    return Service(no_provider, clock, trusted_records=records, independent_cities=independent_cities,
                    forecast_cache=Cache(store, clock, read_only=True),
                    history=Library(store, clock, read_only=True))
 
@@ -48,6 +50,6 @@ def prepared_service(root, clock=lambda: datetime.now(BERLIN)):
         records = json.loads(raw)
         if not isinstance(records, list):
             raise ValueError()
-        return service(store, records, clock)
+        return service(store, records, clock, independent_cities=True)
     except (OSError, ValueError, TypeError, KeyError, LookupError) as exc:
         raise Unavailable('只读数据集或可信城市资料尚未准备好。') from exc
