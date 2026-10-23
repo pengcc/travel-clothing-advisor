@@ -60,7 +60,7 @@ export function CityCard(data, href) {
     card.append(warning);
   }
   // The featured section identifies fixtures once next to its shared date range.
-  card.append(text('span', data.mode === 'historical_reference' ? '历史备衣参考（非预报） →' : data.mode === 'unavailable' ? '数据暂缺' : '查看14天预报 →', 'go'));
+  card.append(text('span', data.mode === 'historical_reference' ? '历史备衣参考（非预报） →' : data.mode === 'unavailable' ? '当日预报尚未更新或数据暂缺；当前没有可用建议' : '查看14天预报 →', 'go'));
   return card;
 }
 
@@ -97,5 +97,8 @@ export function formatAdviceCopy(data) {
   else if (data.caveat.includes('第8–14天')) caveat += '第8–14天不确定性更大，冷暖日期可能改变。';
   lines.push(`提醒：${caveat}`, data.fixture ? '来源：人工编写的模拟数据，未获取真实天气或历史资料。' :
     `来源：Open-Meteo${historical ? ' / ERA5' : ''}（CC BY 4.0）；GeoNames。`);
+  if (!data.fixture) lines.push('资料获取时间：' + data.weather_fetched_at + '（不代表模型更新时间）。',
+    '依据气温计算的备衣参考，建议为本站加工结果。',
+    'https://open-meteo.com/ · https://creativecommons.org/licenses/by/4.0/ · https://www.geonames.org/');
   return lines.join('\n');
 }

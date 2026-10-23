@@ -621,7 +621,7 @@ prove live ten-city data.
 
 ## Git weather bundle
 
-The default Preview reader uses tracked `weather-data/`, independently for each
+Production and the default Preview reader use tracked `weather-data/`, independently for each
 of the ten featured cities: today's valid forecast, otherwise complete five-year
 history for today through day 14, otherwise 数据暂缺. Cards retain 4/4/2 pagination;
 historical cards and details explicitly say they are not forecasts. Home requests
@@ -676,14 +676,100 @@ Validation:
 
 ```sh
 make test
-python3 tests/web/serve_city_bundle.py
+python3 tests/web/serve_city_bundle.py --synthetic
 # In another terminal; optional existing local Playwright/Chrome installation:
 node tests/web/city-bundle-browser.cjs
 ```
 
-The browser check uses the bundled real-weather sample on its preparation day;
-after it expires, refresh the sample first. `test_city_bundle.py` uses synthetic
+The browser check uses a temporary synthetic bundle and controllable German clock,
+not the expired tracked sample. Omit `--synthetic` only to inspect the actual
+tracked bundle; that does not download or freshen weather. `test_city_bundle.py` uses synthetic
 source data with the real service to deterministically test midnight fallback,
 corruption, incomplete history and city-specific IO failure without downloads.
 Independent Implementation Review and explicit merge/deployment authority remain
 separate from this implementation.
+
+### Issue #38 publication checks
+
+Production selects Git before legacy readers and returns a configuration-conflict
+503 for `TRAVEL_P1_READER=true` or any configured `TRAVEL_PREVIEW_NAMESPACE`,
+including empty. Non-Production remote paths retain their existing constraints.
+Public context reports `data_delivery=manual_git_bundle`, without environment
+values. Requests never fetch weather, write objects or start workers.
+
+These instructions are for separately authorized data/publication actions; they
+are not steps run by tests. No duty roster, midnight release, extra monitoring
+service or new operations process is required. The bundle does not refresh
+itself: after German midnight the site uses complete history or unavailable.
+Actual update cadence and availability expectations belong to a later publication
+decision, not a standing permission inferred from this document.
+
+1. When real weather preparation is explicitly authorized, prepare all ten:
+   `python3 -m web.prefetch_forecasts --cities-file weather-data/cities.json --store-dir .forecast-local`.
+   Keep budgets, cooldowns and cache reuse; never clear ledgers or retry without
+   bounds. Optional history uses the existing check-before-download CLI for
+   required months only, not a daily full-year refresh.
+2. Export with the bundle command above to a **nonexistent** directory. Record
+   tracked history file names/hashes before merging. Incrementally copy validated
+   public objects, preserving **all** existing history, including outside the
+   export window. Never replace the weather-data tree or copy locks, ledgers,
+   credentials or personal inputs. Compare history names/hashes against the
+   pre-update revision; investigate every deletion/alteration.
+3. Run this read-only check on the **final** directory. Export success or featured
+   HTTP 200 alone is insufficient. Missing cities or German date rollover fail
+   the all-ten freshness gate. Record actual city/year/month historical coverage;
+   do not promise all selectable dates have history.
+
+```sh
+python3 - <<'PY'
+from datetime import datetime
+from pathlib import Path
+from web.fixtures import BERLIN, CITIES, window
+from web.readonly import prepared_service
+root = Path('weather-data')
+before = {p.relative_to(root): p.read_bytes() for p in root.rglob('*') if p.is_file()}
+now = datetime.now(BERLIN)
+app = prepared_service(root, lambda: now)
+cards = app.featured()['cities']
+assert len(cards) == 10
+assert {c['city']['id'] for c in cards} == {c['id'] for c in CITIES[:10]}
+for card in cards:
+    assert card['mode'] == 'forecast' and card['fixture'] is False
+    assert card['start'] == window(now)['today'] and card['end'] == window(now)['forecast_end']
+    assert datetime.fromisoformat(card['weather_fetched_at']).astimezone(BERLIN).date() == now.date()
+    detail = app.city_advice(dict(view='city', city_id=card['city']['id']))
+    assert detail == card
+    print(card['city']['id'], card['mode'], card['weather_fetched_at'])
+assert datetime.now(BERLIN).date() == now.date()
+assert before == {p.relative_to(root): p.read_bytes() for p in root.rglob('*') if p.is_file()}
+PY
+```
+
+4. Review the diff, obtain independent Implementation Review and separate merge
+   authority, and record the exact revision. Git automatic deployment stays
+   disabled. Before requesting deployment permission, check actual account
+   eligibility, remaining shared free quotas, Python package size and provider
+   licensing: [Open-Meteo terms](https://open-meteo.com/en/terms),
+   [licence](https://open-meteo.com/en/licence),
+   [Vercel Hobby](https://vercel.com/docs/plans/hobby).
+   Data CC BY rights do not establish free API commercial-use eligibility.
+   Insufficient eligibility/resources means stop publication; no buying,
+   upgrading, migration or weakened validation.
+5. Obtain bounded Preview/Production deployment permission, verify the reviewed
+   revision in Preview, then publish Production within its separate authority.
+   Confirm source SHA, packaged data day, deployment URL/version and all ten
+   actual APIs/details agree. Local success, push and merge are not deployment.
+6. **After deployment**, verify anonymous Production without bypass credentials:
+   ten cards/details, personal cold/normal/hot trips, mode/failure labels,
+   sources, copy/share and dates. Verify iOS Safari, Android Chrome, WeChat and
+   actual mainland China access. Loopback tests cannot substitute. Record actual
+   passes/failures and gaps without personal data; only then declare launch.
+   Measure page request volume/latency and check actual account usage before
+   claiming free capacity is sufficient.
+7. On upstream/budget/publication failure, retain validated data and controls;
+   use truthful history/unavailable and bounded retries. Never label partial
+   publication updated. Recheck dates before rollback: yesterday's forecast
+   stays expired. Deployment, rollback and access changes need their applicable
+   authorization; this document grants no recurring authority.
+
+No new release tooling, CI, scheduler, dependencies or account settings are added.

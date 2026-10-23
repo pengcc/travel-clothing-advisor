@@ -12,16 +12,25 @@ DATASET = Path(__file__).resolve().parents[1] / 'weather-data'
 
 class handler(Handler):
     allow_fixtures = False
-    context_extra = dict(automatic_scope='bundled_readonly')
+    context_extra = dict(data_delivery='manual_git_bundle')
     service = service(ReadOnlyDirectoryStore(DATASET), [])
 
     def do_GET(self):
+        self.context_extra = dict(data_delivery='manual_git_bundle' if (
+            os.environ.get('VERCEL_ENV') == 'production' or (
+                os.environ.get('TRAVEL_P1_READER') != 'true' and 'TRAVEL_PREVIEW_NAMESPACE' not in os.environ
+            )) else 'remote_publication')
         # Serve the UI/context even before operator data is available, so the
         # existing error panel can explain unavailable advice.
         path = urlsplit(self.path).path
         if path == '/' or path.startswith('/static/') or path == '/api/context':
             return super().do_GET()
         try:
+            if os.environ.get('VERCEL_ENV') == 'production':
+                if os.environ.get('TRAVEL_P1_READER') == 'true' or 'TRAVEL_PREVIEW_NAMESPACE' in os.environ:
+                    raise Unavailable('Production Git 数据模式与旧远端读取配置冲突，请检查部署配置。')
+                self.service = prepared_service(DATASET)
+                return super().do_GET()
             if os.environ.get('TRAVEL_P1_READER') == 'true':
                 from web.lifecycle import Config, production_service
                 from web.control_store import Control
@@ -32,8 +41,6 @@ class handler(Handler):
                 with production_session(cfg, request_headers=self.headers) as remote:
                     self.service = production_service(control, remote, cfg, raw)
                     return super().do_GET()
-            if os.environ.get('VERCEL_ENV') == 'production':
-                raise Unavailable('精选十城自动预报尚未启用；普通城市和历史资料暂不自动准备。')
             scope = os.environ.get('TRAVEL_PREVIEW_NAMESPACE')
             if scope is None:
                 self.service = prepared_service(DATASET)
