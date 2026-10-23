@@ -1,5 +1,20 @@
 # Travel Clothing Advisor — MVP Functional & Technical Specification
 
+Issue #38 implementation branch: Production and default Preview now share the
+read-only Git path; Production rejects legacy P1/Preview namespace conflicts.
+Fixtures stay disabled. Public context identifies manual Git delivery; the UI
+explains ten-city scope, manual updates and conditional history coverage. Native
+arrival/departure constraints apply on editing, restoration and German rollover;
+the 30-day limit and server checks remain. Open-Meteo, CC BY 4.0 and GeoNames have
+separate nearby links; historical data identifies ERA5 and advice is a derived
+temperature-only packing reference. No roster, midnight release or added
+operations process is required. See [publication checks](../web/README.md#issue-38-publication-checks).
+This code change is not deployment or launch evidence. Independent review and
+separate merge authority precede separately authorized Preview/Production
+publication; anonymous real-environment checks follow deployment before launch
+can be claimed. Real weather, free-account eligibility and target-device/network
+checks have not been performed by this implementation.
+
 > **当前状态（2026-10-22）：** 本文同时记录已接受的 Web MVP 功能契约、实际交付架构、已交付能力和下一阶段顺序；具体运行行为以当前 `main` 代码为准。PR #66 的 Git 只读读取已合并；[PR #67](https://github.com/pengcc/travel-clothing-advisor/pull/67) **已合并**，十城 **2026-10-22** 的真实预报已写入 Git，但不能因此声称现有 Vercel Preview 已更新，或次日仍可使用这些预报。生产公开发布及无人值守自动日更尚未完成。
 > **范围：** 德国旅行穿衣建议网站的功能、输入输出、气温数据、缓存、发布路径和分阶段交付。产品目的与探索边界见 [Product Blueprint](product-blueprint.md)；实施阶段权限见 [Collaboration Workflow](collaboration.md)。本文不替代二者，也不是 UI 视觉设计稿。
 > **源头：** 延续 2026-10-15 的功能决定，按 2026-10-22 当前 `main` 和用户明确的渐进交付方向修正实施现状；保留有效的五年历史、14 天预报、30 天查询和衣物建议规则。

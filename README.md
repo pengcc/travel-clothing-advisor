@@ -8,6 +8,17 @@
 
 ## 功能范围
 
+Issue #38 implementation branch: Production now uses the same read-only Git
+bundle as default Preview, rejecting legacy P1/Preview configuration collisions.
+The UI identifies the ten-city scope, manual updates and conditional historical
+coverage, links each source/licence, and couples native arrival/departure dates.
+This is code delivery, not a deployment or public-launch claim. The tracked
+2026-10-22 forecasts remain expired after that German day. No duty roster,
+midnight release or additional operations process is required. See the
+[manual bundle checks](web/README.md#issue-38-publication-checks) for separately
+authorized data preparation and publication; independent review and separate
+merge/deployment authorization remain required.
+
 - **第一批精选 10 个德国城市**，优先展示德国当地今天起有效的 14 天真实逐小时气温所推导的备衣建议、主要温差提醒及数据来源。在当前 Git 只读 Preview 中，若精选城市预报缺失或过期，卡片和详情仅在该城市对应行程的五年 ERA5 历史完整时回退为明确标注的历史参考，否则显示不可用；城市卡片与个人行程查询互相独立。20 城是后续候选，100 城并未批准。
 - **按行程查询**：城市、起止日期和怕冷/正常/怕热（默认正常）。当前 Web MVP 允许德国今天起 30 天内的旅行日期。整趟位于今天至 +13 天的行程**优先使用有效的 14 天预报**；当前 Git 只读 Preview 若无有效预报，仅在整趟所需的五年 ERA5 历史资料完整时回退为**历史气温参考**，否则明确不可用。行程超过 +13 天、但仍在 +29 天以内时，**整趟**使用完整的过去五年同期历史参考；两种历史情形均明确标记模式和数据来源，绝不把历史写成未来预报。
 - **五年历史须完整**才能生成历史建议；缺失时如实显示不可用。只使用气温与日间/早晚温差，不提供雨雪风提醒、逐日时尚穿搭或 AI 图像。

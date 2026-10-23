@@ -3,10 +3,10 @@ from datetime import datetime
 from pathlib import Path
 import json
 
-from web.fixtures import BERLIN
+from web.fixtures import BERLIN, CITIES
 from web.forecasts import Cache
 from web.history import Library
-from web.live import Service, Unavailable
+from web.live import Service, Unavailable, location
 
 
 class ReadOnlyDirectoryStore:
@@ -48,7 +48,9 @@ def prepared_service(root, clock=lambda: datetime.now(BERLIN)):
         if raw is None or len(raw) > 200_000:
             raise ValueError()
         records = json.loads(raw)
-        if not isinstance(records, list):
+        if not isinstance(records, list) or len(records) != 10:
+            raise ValueError()
+        if {location(record)['id'] for record in records} != {c['id'] for c in CITIES[:10]}:
             raise ValueError()
         return service(store, records, clock, independent_cities=True)
     except (OSError, ValueError, TypeError, KeyError, LookupError) as exc:

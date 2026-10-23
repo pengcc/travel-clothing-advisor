@@ -29,6 +29,7 @@ function restoreForm(state) {
   personal = { city: state.city, preference: state.preference || 'normal' };
   $('city').value = state.cityText || ''; $('start').value = state.start || ''; $('end').value = state.end || '';
   page = state.page || 0;
+  syncDates();
   document.querySelectorAll('[data-feeling]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.feeling === personal.preference)));
 }
 function link(params) {
@@ -53,7 +54,7 @@ async function search() {
       const button = text('button', `${city.zh} · ${city.name}`); button.type = 'button';
       button.append(text('small', city.state)); button.addEventListener('click', () => chooseCity(city)); box.append(button);
     }
-    if (!data.cities.length) box.append(text('div', '没找到这个德国城市，请尝试德文名称或加上联邦州。', 'empty'));
+    if (!data.cities.length) box.append(text('div', context?.data_delivery === 'manual_git_bundle' ? '首版仅支持精选十城，此城市不在支持范围内。' : '没找到这个德国城市，请尝试德文名称或加上联邦州。', 'empty'));
     box.classList.remove('hidden'); $('city').setAttribute('aria-expanded', 'true');
   } catch (error) { $('cityError').textContent = error.message; }
 }
@@ -75,12 +76,24 @@ document.querySelectorAll('[data-feeling]').forEach(b => b.addEventListener('cli
   personal.preference = b.dataset.feeling;
   document.querySelectorAll('[data-feeling]').forEach(el => el.setAttribute('aria-pressed', String(el === b))); saveForm();
 }));
-['start', 'end'].forEach(id => $(id).addEventListener('input', saveForm));
+function syncDates() {
+  if (!context) return;
+  for (const id of ['start', 'end']) {
+    $(id).min = context.today; $(id).max = context.max_date;
+    if ($(id).value && ($(id).value < context.today || $(id).value > context.max_date)) $(id).value = '';
+  }
+  $('end').min = $('start').value || context.today;
+  if ($('end').value && $('end').value < $('end').min) $('end').value = '';
+}
+['start', 'end'].forEach(id => {
+  for (const event of ['input', 'change']) $(id).addEventListener(event, () => { syncDates(); saveForm(); });
+});
 async function refreshContext() {
   context = await api('/api/context');
   if (context.automatic_scope === 'featured_forecast_only') document.querySelector('.subnote span').textContent = '当前支持精选十城14天内预报；普通城市和历史资料暂不自动准备';
-  for (const id of ['start', 'end']) { $(id).min = context.today; $(id).max = context.max_date; }
-  $('dateHint').textContent = `可选 ${short(context.today)} 至 ${short(context.max_date)}（德国当地日期）` + (context.automatic_scope === 'featured_forecast_only' ? '；当前自动准备仅支持精选十城短期预报，普通城市和历史资料暂不自动补齐。' : '');
+  syncDates();
+  if (context.data_delivery === 'manual_git_bundle') document.querySelector('.subnote span').textContent = '首版支持精选十城；预报人工每日更新；历史仅已备齐范围可用';
+  $('dateHint').textContent = `可选 ${short(context.today)} 至 ${short(context.max_date)}（德国当地日期）` + (context.data_delivery === 'manual_git_bundle' ? '；14天内优先使用当日预报，历史仅五年同期资料完整时可用；可选日期不保证都有资料。' : context.automatic_scope === 'featured_forecast_only' ? '；当前自动准备仅支持精选十城短期预报，普通城市和历史资料暂不自动补齐。' : '');
 }
 function renderFeatured() {
   const grid = $('featuredGrid'); grid.replaceChildren();
@@ -132,6 +145,7 @@ function resultStatus(message, error = false) {
   $('resultContent').classList.add('hidden'); $('resultStatus').classList.remove('hidden');
   $('resultStatus').replaceChildren(text('p', message));
   if (error === 'history_incomplete') {
+    const retry = text('button', '重试查询', 'secondary-action'); retry.type = 'button'; retry.onclick = () => route(); $('resultStatus').append(retry);
     const edit = text('button', '修改行程', 'secondary-action'); edit.type = 'button'; edit.onclick = () => $('back').click(); $('resultStatus').append(edit);
   } else if (error && error !== 'invalid_request') { const retry = text('button', '重试查询', 'secondary-action'); retry.type = 'button'; retry.onclick = () => route(); $('resultStatus').append(retry); }
 }
@@ -223,12 +237,12 @@ async function showResult(params) {
       const stamp = value => new Date(value).toLocaleString('zh-CN', { timeZone: 'Europe/Berlin', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false });
       $('source').textContent = `来源：${data.source}。${historical ? '历史资料获取时间（最早）' : '天气获取时间'}：${stamp(data.weather_fetched_at)}；建议生成时间：${stamp(data.advice_generated_at)}（德国当地时间）。获取时间不代表提供方模型更新时间。`;
       if (historical) $('source').append(` 历史资料各月获取时间：${data.history_fetched_at.map(stamp).join('；')}。历史资料长期复用，无需每日刷新。`);
-      const attribution = text('a', historical ? 'Open-Meteo ERA5 / CC BY 4.0 / GeoNames' : 'Open-Meteo / CC BY 4.0 / GeoNames'); attribution.href = 'https://open-meteo.com/'; $('source').append(' ', attribution);
+      $('source').append(' 依据气温计算的备衣参考；建议为本站加工结果。');
     }
   } catch (error) {
     if (version !== requestVersion) return;
     if ($('resultCity').textContent === '尚未确定城市') $('resultCity').textContent = '未能确定城市';
-    resultStatus(error.message, error.code || true);
+    resultStatus(context?.data_delivery === 'manual_git_bundle' && error.status === 503 ? '当日预报尚未更新或数据暂缺；当前没有可用建议。' : error.message, error.code || true);
   } finally { if (version === requestVersion) $('result').setAttribute('aria-busy', 'false'); }
 }
 function navigate(params) {

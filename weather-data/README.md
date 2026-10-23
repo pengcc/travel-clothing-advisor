@@ -19,6 +19,14 @@ or complete historical coverage show
 “数据暂缺” until manually prepared.
 
 Manual update commands are in [web/README.md](../web/README.md#git-weather-bundle).
-A Git update needs a new deployment to reach Preview; a running deployment never
+A Git update needs a separately authorized deployment to reach Preview or Production; a running deployment never
 refreshes or writes data. Roll back by deploying the prior reviewed Git revision
 (subject to the same date/coverage validation).
+
+Production now selects this Git path before legacy readers and rejects old
+P1/Preview namespace configuration collisions. No automatic refresh, duty roster
+or midnight release is introduced. Correct historical/unavailable fallback does
+not prove first-launch freshness: all ten real same-day forecasts must pass the
+[final directory checks](../web/README.md#issue-38-publication-checks).
+The 2026-10-22 batch above is a dated acquisition record, not a claim of current
+forecast validity. City attribution: [GeoNames](https://www.geonames.org/).
