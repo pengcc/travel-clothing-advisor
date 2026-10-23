@@ -1,5 +1,6 @@
 """Loopback Vercel handler; --synthetic is deterministic and never fetches weather."""
 import argparse
+import os
 from datetime import timedelta
 from pathlib import Path
 import sys
@@ -31,15 +32,26 @@ def synthetic_server():
 
     class SyntheticHandler(handler):
         def do_POST(self):
-            # Test clock only; no provider, retained data or production endpoint.
-            if self.path not in ('/__test/reset', '/__test/advance'):
+            # Synthetic server only: temporary clock/config/metadata failure injection.
+            # No provider, retained data or production endpoint.
+            if self.path not in ('/__test/reset', '/__test/advance', '/__test/config-conflict', '/__test/bad-metadata'):
                 return self.send_json(404, {})
-            now[0] = NOW if self.path.endswith('reset') else now[0]+timedelta(days=1)
+            if self.path.endswith('reset'):
+                now[0] = NOW
+                os.environ.pop('TRAVEL_P1_READER', None)
+                (target / 'cities.json').write_bytes(metadata)
+            elif self.path.endswith('advance'):
+                now[0] += timedelta(days=1)
+            elif self.path.endswith('config-conflict'):
+                os.environ['TRAVEL_P1_READER'] = 'true'
+            else:
+                (target / 'cities.json').write_bytes(b'[]')
             return self.send_json(200, {})
 
     with tempfile.TemporaryDirectory(dir=Path(__file__).parents[2]) as root:
         target = Path(root)/'bundle'
         prepare(RECORDS, store, store, target, clock)
+        metadata = (target / 'cities.json').read_bytes()
         SyntheticHandler.service = prepared_service(target, clock)
         with patch.dict('os.environ', {'VERCEL_ENV': 'production'}, clear=True), \
              patch('api.index.DATASET', target), \

@@ -242,7 +242,11 @@ async function showResult(params) {
   } catch (error) {
     if (version !== requestVersion) return;
     if ($('resultCity').textContent === '尚未确定城市') $('resultCity').textContent = '未能确定城市';
-    resultStatus(context?.data_delivery === 'manual_git_bundle' && error.status === 503 ? '当日预报尚未更新或数据暂缺；当前没有可用建议。' : error.message, error.code || true);
+    // Only the city weather-missing response has this generic message. History,
+    // configuration and dataset validation failures retain their API explanation.
+    const missingWeather = context?.data_delivery === 'manual_git_bundle' && error.status === 503 &&
+      error.code === 'temporarily_unavailable' && error.message === '数据暂缺';
+    resultStatus(missingWeather ? '当日预报尚未更新或数据暂缺；当前没有可用建议。' : error.message, error.code || true);
   } finally { if (version === requestVersion) $('result').setAttribute('aria-busy', 'false'); }
 }
 function navigate(params) {

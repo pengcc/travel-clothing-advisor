@@ -101,16 +101,47 @@ const assert = require('node:assert/strict');
       assert.equal(await page.locator('#end').inputValue(), '');
       await page.goto(base + '?view=trip&city_id=hamburg&start=2026-10-21&end=2026-10-23&preference=hot');
       await page.locator('#resultStatus button').first().waitFor();
-      assert.match(await page.locator('#resultStatus').innerText(), /当前没有可用建议/);
+      assert.match(await page.locator('#resultStatus').innerText(), /历史|五年/);
+      assert.doesNotMatch(await page.locator('#resultStatus').innerText(), /当日预报尚未更新/);
       await page.locator('#back').click();
       await cards.first().waitFor();
       assert.equal(await page.locator('#start').inputValue(), '2026-10-21');
       assert.equal(await page.locator('#end').inputValue(), '2026-10-23');
       assert.equal(await page.locator('[data-feeling="hot"]').getAttribute('aria-pressed'), 'true');
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth), false);
+      // R1: actual Production handler errors must remain distinct in the result UI.
+      const cases = [
+        ['weather', '?view=city&city_id=hamburg', /当日预报尚未更新或数据暂缺/, 'temporarily_unavailable'],
+        ['history', '?view=trip&city_id=hamburg&start=2026-10-30&end=2026-11-02&preference=normal', /过去五年同期历史资料尚未齐备/, 'history_incomplete'],
+        ['config-conflict', '?view=city&city_id=berlin', /Production Git 数据模式与旧远端读取配置冲突/, 'temporarily_unavailable'],
+        ['bad-metadata', '?view=city&city_id=berlin', /只读数据集或可信城市资料尚未准备好/, 'temporarily_unavailable'],
+      ];
+      for (const [kind, query, message, code] of cases) {
+        await page.request.post(base + '/__test/reset');
+        const datasetFailure = ['config-conflict', 'bad-metadata'].includes(kind);
+        if (datasetFailure) {
+          // An already-open page must retain the diagnostic if configuration/data
+          // fails before its next result request.
+          await page.goto(base);
+          await cards.first().waitFor();
+          await page.request.post(base + '/__test/' + kind);
+        }
+        const responsePromise = page.waitForResponse(response => new URL(response.url()).pathname === '/api/advice');
+        if (datasetFailure) await cards.first().click();
+        else await page.goto(base + query);
+        const response = await responsePromise;
+        assert.equal(response.status(), 503);
+        assert.equal((await response.json()).code, code);
+        await page.locator('#resultStatus button').first().waitFor();
+        const resultMessage = await page.locator('#resultStatus').innerText();
+        assert.match(resultMessage, message);
+        if (kind !== 'weather') assert.doesNotMatch(resultMessage, /当日预报尚未更新/);
+        assert.equal(await page.locator('#resultContent').isVisible(), false);
+      }
+      await page.request.post(base + '/__test/reset');
       assert.deepEqual(errors, []);
       await page.close();
     }
-    console.log('PASS: synthetic Production bundle; mixed states, 4/4/2, dates/restoration, sources/copy/share, midnight, failure preservation; 1280/390/320');
+    console.log('PASS: synthetic Production bundle; mixed states, 4/4/2, dates/restoration, sources/copy/share, midnight, failure preservation, distinct weather/history/config/metadata failures; 1280/390/320');
   } finally { await browser.close(); }
 })().catch(e => {console.error(e); process.exitCode=1;});
