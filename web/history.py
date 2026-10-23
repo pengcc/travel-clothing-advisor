@@ -288,6 +288,10 @@ def transport(url, params, timeout):
         return json.loads(b''.join(chunks))
 
 
+class BackfillPaused(Unavailable):
+    """Normal bounded backfill stop; valid progress can be resumed."""
+
+
 class Downloader:
     """Serial, single-store admission; failed attempts stay charged. No auto retries."""
     def __init__(self, library, provider=transport, *, batch=6, daily=60, monthly=600,
@@ -343,7 +347,7 @@ class Downloader:
                 raise Unavailable('历史资料服务冷却中，请稍后重试。')
             if (self.stats['published'] >= self.max_blocks or self.stats['equivalent_calls']+cost > self.batch or
                 ledger['days'].get(day,0)+cost > self.daily or ledger['months'].get(mon,0)+cost > self.monthly):
-                raise Unavailable('历史资料补取预算已用完，请稍后重试。')
+                raise BackfillPaused('历史资料补取预算已用完，请稍后重试。')
             ledger['days'][day] = ledger['days'].get(day,0)+cost
             ledger['months'][mon] = ledger['months'].get(mon,0)+cost
             store.put(LEDGER, encode(ledger))  # reserve durably BEFORE network IO

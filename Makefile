@@ -2,6 +2,7 @@ PYTHON ?= python3
 PORT ?= 8000
 HISTORY_DIR ?= .history-local
 FORECAST_DIR ?= .forecast-local
+DATA_DIR ?= weather-data
 
 .PHONY: dev check-dev test demo
 
@@ -26,3 +27,8 @@ test:
 # Fixture advice/search/featured only; /api/city can still call GeoNames (see web/README.md).
 demo:
 	$(PYTHON) -m web.server --fixtures --port "$(PORT)"
+
+# Manual data maintenance; only data-update opts into provider IO.
+.PHONY: data-update data-status data-export
+data-update data-status data-export:
+	$(PYTHON) -m web.data_commands $(patsubst data-%,%,$@) --forecast-dir "$(FORECAST_DIR)" --history-dir "$(HISTORY_DIR)" --bundle-dir "$(DATA_DIR)"

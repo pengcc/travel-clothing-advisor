@@ -630,40 +630,62 @@ Personal trips also prefer a valid forecast, falling back to complete five-year
 history for the exact requested city, dates and cold/normal/hot preference when
 the forecast is unavailable. Incomplete history still returns unavailable.
 
-Manual preparation reuses the existing workers, checksums, identities, budgets,
-cache hits and weather transports. Run from the repository root:
-
-Selected-city prefetch prepares only those sources and preserves the existing
-ten-city manifest. Only a complete canonical ten-city run republishes that
-manifest. If a source version changes, the whole-publication reader rejects the
-old manifest until a complete run republishes it; `complete` in prefetch output
-means the selected sources are ready, not that a ten-city manifest was published.
+Run these manual commands from the repository root using the existing ten-city
+trusted `weather-data/cities.json` manifest:
 
 ```sh
-# Use existing verified city metadata. This command downloads at most Berlin's
-# missing same-day forecast; omit/repeat --city-id to choose other cities.
-python3 -m web.prefetch_forecasts --cities-file weather-data/cities.json --city-id berlin --store-dir .forecast-local
-
-# Check the exact desired historical window first (including tomorrow for rollover).
-# Change these example dates to the current German date/window before updating.
-python3 -m web.prefetch_history --cities-file weather-data/cities.json --city-id berlin --city-id munich --start 2026-10-22 --end 2026-11-05 --store .history-local --check
-# Explicit live download, within the original worker's budget. Rerun to resume
-# after the reported budget/cooldown; do not reset its control ledger.
-python3 -m web.prefetch_history --cities-file weather-data/cities.json --city-id berlin --city-id munich --start 2026-10-22 --end 2026-11-05 --store .history-local --download
-
-# Offline export: selects only validated source objects and city metadata,
-# covering available history for the current 30-day window. New output only.
-python3 -m web.bundle_data --cities-file weather-data/cities.json --forecast-dir .forecast-local --history-dir .history-local --output weather-data-next
+make data-status  # offline, read-only coverage report
+make data-update  # LIVE forecast + bounded historical preparation, local caches only
+make data-export  # offline validation and replacement of the Git data directory
 ```
 
-Inspect `weather-data-next` using `prepared_service('weather-data-next').featured()`;
-missing or incomplete cities remain unavailable. Copy the validated export into
-`weather-data/` as an incremental update (retain this README and every existing
-valid historical month, including months outside the current export window).
-Verify existing history is preserved before removing the temporary export, and
-commit the resulting data diff. Never copy entire local cache trees:
-they contain worker locks and quota ledgers. Keep only public city/weather data.
-No new download service, database, Blob, Actions or Cron is required.
+`data-update` reuses valid same-day forecasts and historical months from both
+`.forecast-local` / `.history-local` and `weather-data/`. Git history is copied
+into the local store under its existing worker lock before planning downloads,
+so already saved valid months do not consume provider calls. It prepares real
+14-day forecasts through the existing forecast worker (45 seconds, existing
+42/day admission and cooldown), then calls the existing history worker with its
+CLI defaults: 30 batch / 60 daily / 600 monthly equivalent calls, 30 seconds,
+maximum five new blocks, four-second requests and 300-second failure cooldown.
+Recent trip months from the existing 30-day planner take priority; no full-year
+backfill is added. Successful objects survive a failed run. `paused_limit` is a
+normal successful bounded history stop; forecast failure or history storage,
+provider, cooldown or timeout failure returns nonzero. Rerun manually to resume;
+never delete budget ledgers to bypass limits. Update never exports or deploys.
+
+`data-status` validates both local and Git objects without creating directories,
+locks or ledgers. JSON output includes the German date, valid forecast count out
+of ten, each city's **all** valid historical months, recent missing months and
+pending block counts (not provider-call estimates). Missing data is informational
+and returns success; unreadable storage or invalid metadata fails. It downloads
+nothing and does not deploy.
+
+`data-export` requires ten valid same-day forecasts from the combined stores.
+It validates exact staged bytes and retains the union of all valid history,
+including months outside today's window. Valid local objects take precedence;
+corrupt local objects cannot hide valid Git objects. It preserves the destination
+README, copies only validated weather objects and the trusted city manifest,
+and excludes ledgers, locks and cache metadata. Old forecasts and invalid objects
+are removed. It prints added/changed/removed and validated-object counts for a
+subsequent data PR. The current directory is replaced only after staging and
+validation, with a German-date check and rollback if the date changes during the
+swap. A failed swap restores the previous directory. Cooperating exporters use a
+nonblocking parent-directory lock; concurrent destination changes detected before
+the swap abort. Do not manually edit/read the bundle during export: the two rename
+operations have a brief directory-absence interval and cannot protect against
+uncooperative writers or process/machine termination between them. Staging remains
+offline; validation does not prove live acquisition or complete history coverage.
+
+`HISTORY_DIR`, `FORECAST_DIR`, `DATA_DIR` (default `weather-data`) and `PYTHON`
+are overridable Make variables. Use distinct cache and Git directories. `make dev`
+keeps its existing same-day forecast preparation and server startup; it adds no
+history download, background worker, scheduling or retry loop. Lower-level
+`web.prefetch_forecasts`, `web.prefetch_history` and new-destination-only
+`web.bundle_data` remain available for selected-city/exact-trip operations;
+`data-export` is the guarded daily Git update path.
+
+These commands do not commit, push, deploy or schedule anything. Review the data
+diff and obtain separate deployment authorization when publishing prepared data.
 
 [Vercel's Python runtime](https://vercel.com/docs/functions/runtimes/python)
 bundles reachable project files; `weather-data/` is not excluded by `vercel.json`
