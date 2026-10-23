@@ -28,7 +28,7 @@ def records_at(root):
 
 
 def valid_objects(roots, cities, clock, *, history=False):
-    """Validate bytes from each source independently; prefer local valid objects."""
+    """Validate each source independently; the first root has precedence."""
     result = {}
     day = clock().astimezone(BERLIN).date()
     for root in reversed(roots):
@@ -137,7 +137,9 @@ def _export(records, cities, forecasts, history, bundle, clock):
     if len(f) != 10:
         raise ValueError('Export requires ten valid same-day forecasts')
     objects.update(f)
-    objects.update(valid_objects([history, bundle], cities, clock, history=True))
+    # Routine exports retain accepted Git history bytes; local data only adds
+    # missing months or repairs invalid Git objects. Forecast priority is unchanged.
+    objects.update(valid_objects([bundle, history], cities, clock, history=True))
     with tempfile.TemporaryDirectory(prefix='.data-export-', dir=bundle.parent) as temporary:
         stage = Path(temporary) / 'next'
         stage.mkdir()

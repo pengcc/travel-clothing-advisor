@@ -662,9 +662,11 @@ nothing and does not deploy.
 
 `data-export` requires ten valid same-day forecasts from the combined stores.
 It validates exact staged bytes and retains the union of all valid history,
-including months outside today's window. Valid local objects take precedence;
-corrupt local objects cannot hide valid Git objects. It preserves the destination
-README, copies only validated weather objects and the trusted city manifest,
+including months outside today's window. Existing valid Git historical months
+remain byte-identical, even if another valid local version exists; local history
+only adds missing months or repairs invalid Git months. Valid local forecasts
+retain precedence, and corrupt local objects cannot hide valid Git objects.
+It preserves the destination README, copies only validated weather objects and the trusted city manifest,
 and excludes ledgers, locks and cache metadata. Old forecasts and invalid objects
 are removed. It prints added/changed/removed and validated-object counts for a
 subsequent data PR. The current directory is replaced only after staging and

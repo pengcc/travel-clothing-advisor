@@ -103,10 +103,7 @@ class DataCommandTests(unittest.TestCase):
             self.assertEqual(child.returncode == 0, success, child.stdout + child.stderr)
             self.assertEqual(tree(self.root), before)
 
-    def test_command_update_and_export_all_cached_no_network(self):
-        self.prepare()
-        for city, month in plan(self.cities, NOW.date()):
-            Library(DirectoryStore(self.bundle), self.clock).publish(city, month, month_data(month))
+    def offline_environment(self):
         guard = self.root / 'guard'
         guard.mkdir()
         (guard / 'sitecustomize.py').write_text(
@@ -120,7 +117,13 @@ class DataCommandTests(unittest.TestCase):
             '    if event in ("urllib.Request", "socket.connect"):\n'
             '        raise AssertionError("Network forbidden")\n'
             'sys.addaudithook(deny)\n')
-        env = dict(os.environ, PYTHONPATH=os.pathsep.join([str(guard), str(Path.cwd())]))
+        return dict(os.environ, PYTHONPATH=os.pathsep.join([str(guard), str(Path.cwd())]))
+
+    def test_command_update_and_export_all_cached_no_network(self):
+        self.prepare()
+        for city, month in plan(self.cities, NOW.date()):
+            Library(DirectoryStore(self.bundle), self.clock).publish(city, month, month_data(month))
+        env = self.offline_environment()
         for command in ('data-update', 'data-status', 'data-export'):
             child = subprocess.run(['make', command, f'PYTHON={sys.executable}',
                 f'DATA_DIR={self.bundle}', f'FORECAST_DIR={self.f}', f'HISTORY_DIR={self.h}'],
@@ -166,3 +169,31 @@ class DataCommandTests(unittest.TestCase):
         with patch.object(data_commands, 'valid_objects', read), self.assertRaises(ValueError):
             export(self.records, *self.params)
         self.assertEqual((self.bundle / 'README.md').read_text(), 'Concurrent edit')
+
+    def test_make_export_preserves_valid_git_history_and_adds_or_repairs_local_months(self):
+        self.prepare()
+        city = self.cities[0]
+        git = Library(DirectoryStore(self.bundle), self.clock)
+        local = Library(DirectoryStore(self.h), self.clock)
+        retained, added, repaired = '2020-01', '2020-02', '2020-03'
+        git.publish(city, retained, month_data(retained, value=10))
+        local.publish(city, retained, month_data(retained, value=20))
+        self.assertIsNotNone(git.read(city, retained))
+        self.assertIsNotNone(local.read(city, retained))
+        retained_key = key(city, retained)
+        git_bytes = (self.bundle / retained_key).read_bytes()
+        local_bytes = (self.h / retained_key).read_bytes()
+        self.assertNotEqual(git_bytes, local_bytes)
+        local.publish(city, added, month_data(added))
+        local.publish(city, repaired, month_data(repaired))
+        git.store.put(key(city, repaired), b'corrupt')
+        child = subprocess.run(['make', 'data-export', f'PYTHON={sys.executable}',
+            f'DATA_DIR={self.bundle}', f'FORECAST_DIR={self.f}', f'HISTORY_DIR={self.h}'],
+            env=self.offline_environment(), capture_output=True, text=True)
+        self.assertEqual(child.returncode, 0, child.stdout + child.stderr)
+        self.assertEqual((self.bundle / retained_key).read_bytes(), git_bytes)
+        self.assertEqual((self.h / retained_key).read_bytes(), local_bytes)
+        for month in (added, repaired):
+            self.assertEqual((self.bundle / key(city, month)).read_bytes(),
+                             (self.h / key(city, month)).read_bytes())
+            self.assertIsNotNone(git.read(city, month))
