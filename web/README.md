@@ -798,3 +798,52 @@ PY
    authorization; this document grants no recurring authority.
 
 No new release tooling, CI, scheduler, dependencies or account settings are added.
+
+### Fixed five-year local history inventory and backfill (#74)
+
+`make history-status` validates all 600 city-month targets (the ten trusted cities,
+2021–2025) against Git `weather-data/` and `.history-local/`, without requests,
+directory creation, locks or ledger writes. JSON goes to stdout; a short summary
+goes to stderr. Each month distinguishes valid, missing, invalid and unreadable,
+with local/Git states and the effective source. An unreadable source prevents a
+complete verdict even when the other source has valid data. Missing local roots
+are reported as missing. If unreadable targets have no valid alternative source,
+`equivalent_calls` is `null`: `known_missing_equivalent_calls` is only the known
+missing/invalid cost, and `unknown_blocks` counts targets whose download need
+cannot be established. The human summary labels the total unknown. Rejected
+out-of-root object paths (including symlinks) are reported per source as
+`unreadable`, retaining the matrix and returning a nonzero exit without reading
+the external object. This is an observation, not a locked snapshot.
+
+`make history-backfill` is also read-only by default. Explicit actions:
+
+- `make history-backfill ARGS=--seed`: copy valid Git months into local missing or
+  invalid slots, under the existing worker lock. Valid local bytes always win.
+- `make history-backfill ARGS='--download --max-blocks 5 --batch-calls 30 --timeout 30'`:
+  **live ERA5 requests**, after offline seeding. Obtain separate authorization for
+  the real data operation and verify current free/non-commercial eligibility and
+  shared provider usage first. No GeoNames or forecast requests are made.
+
+Default limits remain 5 downloaded blocks/run, 30 conservative weighted units/run,
+60/day, 600/month, 30 seconds for the download worker, and 4 seconds/request.
+`--daily-calls` / `--monthly-calls` accept an explicitly chosen budget; higher
+budgets require the separately approved small real sample and shared-quota check.
+The ledger coordinates only this local store, not the account/IP. Never run
+`data-update` concurrently or switch stores/reset the ledger to evade quotas.
+The worker time limit covers downloads; inventory and offline seeding additionally
+require local validation time. No automatic retries, waiting loops or concurrency.
+
+After a normal block/call-budget stop, run the same command manually to continue.
+Inspect `stop_reason`, `run` (published/hits/HTTP/weighted calls/failures), imported
+blocks and remaining inventory. Timeout, cooldown, invalid ledger, lock or storage
+failure requires investigation before resuming; keep successful files and ledger.
+For backup, copy the entire idle local store including `control/usage-v1.json`;
+restore only for recovery, retaining current usage accounting and without running
+independent copies. Do not delete the ledger or replace valid months. Keep Git
+history unchanged; these commands provide no export or publication operation.
+
+A fixture-tested tool or successful PR does not establish real 600/600 coverage.
+Record a fresh `history-status` result after separately authorized real batches.
+`data-export` still requires ten current forecasts and is not a history-only export.
+Merge, data publication and deployment remain separately authorized operations;
+main currently enables automatic Production deployment.
