@@ -42,13 +42,13 @@ checks have not been performed by this implementation.
         └── 历史月份逐步补齐   → .history-local/
                    ↓ 验证与离线导出／增量合并
         Git: weather-data/（只包含公开、校验合格的数据；保留已有有效历史）
-                   ↓ 需要明确的部署动作，当前不会自动部署
+                   ↓ main 合并后触发 Production 自动部署；Preview 仍需手动部署
         Vercel Preview：Python 只读 API + 网页（访问保护按需决定）
 ```
 
 - 本地 `make dev` 使用 `.forecast-local/` 与 `.history-local/`，且可能补取缺失的当天精选预报；**不会自动把本地缓存同步到 Git 或 Vercel**。网页 Preview 默认读仓库中 `weather-data/` 的当前部署版本，不读取开发者电脑目录，也不会在用户请求时下载天气。
 - 现有 `web.prefetch_forecasts`、`web.prefetch_history`、`web.bundle_data` 和 `web.readonly` 分别承担预报准备、历史补齐、离线数据导出及只读服务；`web/README.md#git-weather-bundle` 记录实际命令。**导出仅覆盖当前相关历史窗口，发布者必须把导出结果增量合并到 Git，并逐一保留已积累的有效历史月份**；不可整体清空 `weather-data/`。
-- 当前 `vercel.json` 设置 `git.deploymentEnabled=false`，所以 PR 合并或 Git 数据变化**不会自行触发 Preview 部署**。部署必须取含最新数据的正确提交，且必须选择 Preview 而非 Production。预报按德国当地日期有效，过了午夜需新日期的预报和新部署；历史月文件不会随日切换自动失效。
+- 2026-10-24 的 Git 部署配置调整为只对 `main` 自动部署 Production，其他分支（包括 Preview 分支）不自动部署；Preview 验收仍需明确使用正确的数据提交手动创建。Production 合并必须考虑自动部署的影响。预报按德国当地日期有效，过了午夜需新日期的预报和新部署；历史月文件不会随日切换自动失效。
 - `api/index.py` 保留独立的旧 Preview Blob 读取开关 `TRAVEL_PREVIEW_NAMESPACE` 和 P1 SQL/Blob 开关 `TRAVEL_P1_READER`。**默认 Git 只读 Preview 路径不以数据库或 Blob 为前置条件**；这些路径虽已有代码，但相关自动运营与真实费用门槛不能写成已启用。现有 Production 路径仍有保护/未启用边界；Preview 验收不等于已执行公开上线，也不意味着永久不公开。
 - 免费资源是硬约束：不购买 VPS、不升级付费套餐；手工 Preview 和未来自动方案都须遵守已核实的账户额度、供应商许可及按实际需求决定的访问设置。无需为第一批十城人工发布先配置 SQL、Blob 或 Cron；未来若要支持任意城市查询时动态共享/持久化，可另行明确需求与架构，不追溯改写已交付阶段。
 
@@ -145,7 +145,7 @@ UI 阶段再确定：信息层级、首页与结果页布局、卡片分页/滑�
 
 - 本地 `web.server`、`web.prefetch_forecasts`、`web.prefetch_history` 和 `web.bundle_data` 已实现。天气数据来自 Open-Meteo 预报及 ERA5 历史 API，经过城市身份、气温时段/时区和文件完整性校验；**普通网页读请求不下载天气**。
 - `weather-data/` 在 Git 中保存经验证的公开城市信息、预报和历史月份；部署时由 Vercel Python Function 的 `api/index.py` 以只读方式打开。当日十城预报是否完整由实际提交的日期与数据决定。**Preview** 是当前阶段的验证目标；是否设置访问保护取决于测试人员访问需求和 Vercel 实际配置；不能因为分支或 PR 已合并就声称 Preview 同步成功。
-- `vercel.json` **禁用了 Git 自动部署**。第一阶段的手工发布必须在数据提交之后另外创建或更新 **Preview 部署**，确认是 Preview 而非 Production，并检查十城首页、详情、历史/缺失状态和实际 Open-Meteo 来源。部署当天预报跨德国午夜失效，后续需重新准备新日期的数据。
+- `vercel.json` 仅对 `main` **启用 Git 自动 Production 部署**。Preview 分支仍需手动创建或更新 Preview 部署并检查十城首页、详情、历史/缺失状态和实际 Open-Meteo 来源；合并到 `main` 会自动触发 Production 部署，不应将合并视为纯代码归档。部署当天预报跨德国午夜失效，后续需重新准备新日期的数据。
 - 旧 S2 Preview Blob 读取路径和未启用的 P1 PostgreSQL/Blob workflow 仍存在，但**不属于第一阶段默认 Git 数据读取链路**；既不删除既有代码，也不把它们当成手工 Preview 的必选前置基础设施。自动化或生产运行仍须另行获得相应权限与真实费用/配额确认。
 
 ### 5.2 后续自动化与上线边界
@@ -167,7 +167,7 @@ UI 阶段再确定：信息层级、首页与结果页布局、卡片分页/滑�
 - 第一阶段先验收**人工**发布的真实十城数据：Git 变更内容正确、Preview 部署确实使用该版本、卡片和详情来自同一真实源并显示 `weather_fetched_at`；跨德国午夜不冒充当天预报。第三阶段自动化应另验收定时执行、失败恢复和无半成品发布，未运行之前不得标注已实现。
 - Preview 可供手机真实使用；记录平台额度、缓存命中率与主要查询耗时，再决定是否正式发布。
 
-**下一步（按交付成果推进）：** [PR #67](https://github.com/pengcc/travel-clothing-advisor/pull/67) 已合并十城 2026-10-22 的真实预报数据，但 Git 合并不自动部署。先以最新有效日期的数据完成 Preview 的人工端到端验证；然后分批扩充十城历史月份；再将同一人工验证过的流程自动化；十城稳定后才评估 20 城。每阶段的可用性与成本应按真实环境单独核实；达到可用标准后可独立决定是否对外开放，无需等待全部后续阶段完成。合并、部署、发布和额外资源动作均保留独立授权。
+**下一步（按交付成果推进）：** 2026-10-22 的 [PR #67](https://github.com/pengcc/travel-clothing-advisor/pull/67) 是首批真实数据历史记录；后续十城当天数据已经可通过 Make 命令渐进更新并提交 Git。当前部署策略是 `main` 合并自动触发 Production、Preview 手动验证。应核实实际 Vercel Git 连接、免费资源与许可，再对自动部署后的真实十城数据做线上验收；以后继续分批扩充历史月份和优化自动更新，不要求这些后续功能完成才发布。合并与发布的实际外部效果仍须按授权边界控制。
 
 ## 7. 参考资料（核对于 2026-10-15）
 

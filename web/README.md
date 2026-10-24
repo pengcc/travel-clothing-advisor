@@ -398,7 +398,7 @@ mapping, and exact-trip download job selection. Existing HTTP tests exercise
 ## Issue #42 / Plan v7 S1: prepared read-only Python service
 
 `api/index.py` exports the existing HTTP handler for the Vercel Python candidate;
-`vercel.json` routes requests through it and disables Git-triggered deployments.
+`vercel.json` routes requests through it; its current Git rule automatically deploys `main` to Production only (other branches remain manual).
 No deployment, protection configuration, cloud storage or provider request is part
 of S1. The entry serves existing templates, allowlisted static files and APIs.
 Unlike the local server, it rejects explicit fixture parameters. The UI/context
@@ -692,8 +692,7 @@ diff and obtain separate deployment authorization when publishing prepared data.
 [Vercel's Python runtime](https://vercel.com/docs/functions/runtimes/python)
 bundles reachable project files; `weather-data/` is not excluded by `vercel.json`
 or `.gitignore`. The handler reads through `ReadOnlyDirectoryStore` and disables
-provider calls. Git deployment remains disabled in the existing configuration;
-this change does not authorize or trigger a deployment. Preview validation here
+provider calls. Git pushes to `main` now trigger Production deployment when the Vercel Git integration is linked; other branches do not auto-deploy. This documentation does not authorize a specific merge or deployment. Preview validation here
 uses the real Vercel handler locally, not a published Preview or remote build.
 
 Validation:
@@ -770,8 +769,10 @@ PY
 ```
 
 4. Review the diff, obtain independent Implementation Review and separate merge
-   authority, and record the exact revision. Git automatic deployment stays
-   disabled. Before requesting deployment permission, check actual account
+   authority, and record the exact revision. A merge to `main` now automatically
+   starts a Production deployment when the Git integration is connected; approve
+   such merges with that effect in mind. Before requesting deployment permission,
+   check actual account
    eligibility, remaining shared free quotas, Python package size and provider
    licensing: [Open-Meteo terms](https://open-meteo.com/en/terms),
    [licence](https://open-meteo.com/en/licence),
