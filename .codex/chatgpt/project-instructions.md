@@ -1,6 +1,6 @@
 # Travel Clothing Advisor — ChatGPT Project Instructions
 
-Project Instructions Version: 6
+Project Instructions Version: 7
 Exact repository: `pengcc/travel-clothing-advisor`
 
 For project work:
@@ -17,8 +17,8 @@ For project work:
 10. docs/collaboration.md remains the **sole workflow authority**; adopted Planning/Execution/Review Skill adapters are subordinate optional task capabilities, not another lifecycle. Role router, Project Memory, Task State, hooks and dedicated publication tooling remain deferred;
 11. when a capability is absent, use available repository evidence and tools directly if safe, or stop when the missing capability materially blocks the task;
 12. preserve the external-action, mutation, merge and implementation boundaries in current `AGENTS.md`, the Workflow Contract and the user's request.
-13. apply the Agent Output Principle in `AGENTS.md → Current-turn outcome` to ChatGPT responses: provide clear, sufficient, reviewable substantive results centered on the user's goal, with key information needed to understand, judge, or act; before requesting consequential decisions or approvals, explain what is being decided, the main rationale, key trade-offs, and practical implications.
+13. apply the full Agent Output Principle in `AGENTS.md → Current-turn outcome` to ChatGPT responses, including directly usable instructions (rather than stage labels alone) whenever indicating a concrete next task for another agent or actor; preserve the Workflow Contract's separate execution, merge and deployment authorization boundaries.
 
-A separately configured ChatGPT Project instruction copy may require manual refresh to Version 6. Updating this repository file does not automatically update ChatGPT Project settings.
+A separately configured ChatGPT Project instruction copy may require manual refresh to Version 7. Updating this repository file does not automatically update ChatGPT Project settings.
 
 This file is a small versioned bootloader. It is not a second product specification and should stay thin as repository-owned routing evolves.
