@@ -32,3 +32,8 @@ demo:
 .PHONY: data-update data-status data-export
 data-update data-status data-export:
 	$(PYTHON) -m web.data_commands $(patsubst data-%,%,$@) --forecast-dir "$(FORECAST_DIR)" --history-dir "$(HISTORY_DIR)" --bundle-dir "$(DATA_DIR)"
+
+# Historical inventory is read-only; ARGS=--seed writes locally, ARGS=--download opts into LIVE IO.
+.PHONY: history-status history-backfill
+history-status history-backfill:
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m web.history_commands $(patsubst history-%,%,$@) --history-dir "$(HISTORY_DIR)" --bundle-dir "$(DATA_DIR)" $(ARGS)
