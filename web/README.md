@@ -807,7 +807,13 @@ directory creation, locks or ledger writes. JSON goes to stdout; a short summary
 goes to stderr. Each month distinguishes valid, missing, invalid and unreadable,
 with local/Git states and the effective source. An unreadable source prevents a
 complete verdict even when the other source has valid data. Missing local roots
-are reported as missing. This is an observation, not a locked snapshot.
+are reported as missing. If unreadable targets have no valid alternative source,
+`equivalent_calls` is `null`: `known_missing_equivalent_calls` is only the known
+missing/invalid cost, and `unknown_blocks` counts targets whose download need
+cannot be established. The human summary labels the total unknown. Rejected
+out-of-root object paths (including symlinks) are reported per source as
+`unreadable`, retaining the matrix and returning a nonzero exit without reading
+the external object. This is an observation, not a locked snapshot.
 
 `make history-backfill` is also read-only by default. Explicit actions:
 

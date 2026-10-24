@@ -1,5 +1,7 @@
 """Offline fixed-year inventory and bounded operator workflow."""
+from contextlib import redirect_stdout, redirect_stderr
 from datetime import datetime, timedelta
+import io
 import json
 from pathlib import Path
 import tempfile
@@ -54,6 +56,91 @@ class HistoryCommandTests(unittest.TestCase):
             report = inventory(*self.args)
         self.assertEqual(report['unreadable'], 600)
         self.assertEqual(report['status'], 'unreadable')
+        self.assertIsNone(report['equivalent_calls'])
+        self.assertEqual(report['known_missing_equivalent_calls'], 0)
+        self.assertEqual(report['unknown_blocks'], 600)
+        with patch('web.history_commands.ReadOnlyDirectoryStore.get', side_effect=PermissionError()):
+            report, summary = self.cli_report(expected_exit=1)
+        self.assertIsNone(report['equivalent_calls'])
+        self.assertIn('unknown total weighted units', summary)
+        self.assertIn('600 unknown blocks', summary)
+        self.assertNotIn('0 estimated weighted units', summary)
+
+    def cli_report(self, command='status', expected_exit=0):
+        stdout, stderr = io.StringIO(), io.StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            self.assertEqual(main([command, '--bundle-dir', str(self.bundle),
+                                   '--history-dir', str(self.local)]), expected_exit)
+        return json.loads(stdout.getvalue()), stderr.getvalue()
+
+    def test_mixed_unknown_cost_and_valid_alternative(self):
+        city = self.cities[0]
+        self.publish(self.bundle, city, '2024-02')
+        self.publish(self.bundle, city, '2024-03')
+        denied = {key(city, '2024-03'), key(city, '2024-04')}
+        original = Path.read_bytes
+        def read(path):
+            if path.resolve() in {(self.local / name).resolve() for name in denied}:
+                raise PermissionError()
+            return original(path)
+        with patch.object(Path, 'read_bytes', read):
+            report, summary = self.cli_report(expected_exit=1)
+        # The valid Git alternative proves March needs no download despite local outage.
+        self.assertEqual(report['valid'], 2)
+        self.assertEqual(report['missing'], 597)
+        self.assertEqual(report['remaining'], 598)
+        self.assertEqual(report['unknown_blocks'], 1)
+        self.assertIsNone(report['equivalent_calls'])
+        self.assertEqual(report['known_missing_equivalent_calls'], 597 * 6)
+        self.assertIn('unknown total weighted units', summary)
+        self.assertIn('3582 known missing weighted units', summary)
+        self.assertIn('1 unknown blocks', summary)
+        self.assertNotIn('estimated weighted units', summary)
+        report, summary = self.cli_report()
+        self.assertEqual(report['unknown_blocks'], 0)
+        self.assertEqual(report['equivalent_calls'], 598 * 6)
+        self.assertIn('3588 estimated weighted units', summary)
+
+    def test_outside_symlink_preserves_matrix_and_never_reads_target(self):
+        city, month = self.cities[0], MONTHS[0]
+        external = self.root / 'outside-month'
+        external.write_bytes(b'synthetic external object; must never be read')
+        store = DirectoryStore(self.local)
+        store.put(LEDGER, b'ledger must remain unchanged')
+        (self.local / '.worker.lock').write_bytes(b'lock must remain unchanged')
+        def snapshot():
+            return {str(p.relative_to(self.root)): (
+                p.lstat().st_mtime_ns, p.readlink() if p.is_symlink() else
+                p.read_bytes() if p.is_file() else None)
+                for p in self.root.rglob('*')}
+        original = Path.read_bytes
+        def guarded_read(path):
+            if path.resolve() == external.resolve():
+                self.fail('out-of-root object contents were read')
+            return original(path)
+        for source, root in (('local', self.local), ('git', self.bundle)):
+            with self.subTest(source=source):
+                link = root / key(city, month)
+                link.parent.mkdir(parents=True, exist_ok=True)
+                link.symlink_to(external)
+                before = snapshot()
+                with patch.object(Path, 'read_bytes', guarded_read):
+                    for command in ('status', 'backfill'):
+                        report, summary = self.cli_report(command, expected_exit=1)
+                        self.assertEqual(report['status'], 'unreadable')
+                        self.assertEqual(sum(len(row['months']) for row in report['cities']), 600)
+                        block = report['cities'][0]['months'][month]
+                        self.assertEqual(block[source], 'unreadable')
+                        self.assertEqual(block['state'], 'unreadable')
+                        self.assertEqual(report['unknown_blocks'], 1)
+                        self.assertIsNone(report['equivalent_calls'])
+                        self.assertIn('unknown total weighted units', summary)
+                    result = backfill(*self.args, download=True,
+                                      provider=lambda *a: self.fail('network'))
+                    self.assertEqual(result['stop_reason'], 'storage_unreadable')
+                    self.assertEqual(result['http_requests'], 0)
+                self.assertEqual(snapshot(), before)
+                link.unlink()
 
     def test_seed_preserves_valid_bytes_and_ledger(self):
         city = self.cities[0]

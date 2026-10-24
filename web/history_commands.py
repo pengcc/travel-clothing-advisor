@@ -18,8 +18,8 @@ MONTHS = tuple(f'{year}-{month:02d}' for year in range(2021, 2026) for month in 
 
 def inspect(root, city, month, clock):
     """Validate exactly the observed bytes, preserving missing/invalid/outage states."""
-    store = ReadOnlyDirectoryStore(root)
     try:
+        store = ReadOnlyDirectoryStore(root)
         # A nonexistent store is known absent; a file in place of a root is an outage.
         if store.root.exists() and not store.root.is_dir():
             raise OSError()
@@ -31,7 +31,7 @@ def inspect(root, city, month, clock):
                 return raw
         valid = Library(Snapshot(), clock, read_only=True).read(city, month) is not None
         return ('valid', raw) if valid else ('invalid', None)
-    except OSError:
+    except (OSError, ValueError):
         return 'unreadable', None
 
 
@@ -54,8 +54,12 @@ def inventory(cities, local, bundle, clock):
                      for s in ('local', 'git'))
     missing = [(c, m) for c, r in zip(cities, rows) for m, b in r['months'].items()
                if b['state'] in ('missing', 'invalid')]
+    known_calls = sum(Downloader.cost(m) for _, m in missing)
+    unknown_blocks = counts['unreadable']
     return dict(status='unreadable' if unreadable else 'complete' if counts['valid'] == 600 else 'partial',
-                total=600, remaining=600-counts['valid'], equivalent_calls=sum(Downloader.cost(m) for _, m in missing),
+                total=600, remaining=600-counts['valid'],
+                equivalent_calls=None if unknown_blocks else known_calls,
+                known_missing_equivalent_calls=known_calls, unknown_blocks=unknown_blocks,
                 http_requests=0, cities=rows, **counts)
 
 
@@ -143,8 +147,12 @@ def main(argv=None):
                               batch=args.batch_calls, daily=args.daily_calls,
                               monthly=args.monthly_calls, timeout=args.timeout)
         print(json.dumps(report, sort_keys=True))
+        estimate = (f"unknown total weighted units; {report['known_missing_equivalent_calls']} "
+                    f"known missing weighted units; {report['unknown_blocks']} unknown blocks"
+                    if report['equivalent_calls'] is None else
+                    f"{report['equivalent_calls']} estimated weighted units")
         print(f"{report['valid']}/600 valid; {report['remaining']} remaining; "
-              f"{report['equivalent_calls']} estimated weighted units; "
+              f"{estimate}; "
               f"{report.get('stop_reason', report['status'])}", file=sys.stderr)
         return 1 if report['status'] == 'unreadable' or report.get('stop_reason') in (
             'invalid_ledger', 'provider_or_storage_failure', 'cooldown', 'timeout', 'locked') else 0
