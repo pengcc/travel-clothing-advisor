@@ -19,7 +19,7 @@ or complete historical coverage show
 “数据暂缺” until manually prepared.
 
 Manual update commands are in [web/README.md](../web/README.md#git-weather-bundle).
-A Git update needs a separately authorized deployment to reach Preview or Production; a running deployment never
+Once Git auto-deployment is active, a separately authorized merge to `main` triggers a Production build automatically; Preview remains manual. A running deployment never
 refreshes or writes data. Roll back by deploying the prior reviewed Git revision
 (subject to the same date/coverage validation).
 

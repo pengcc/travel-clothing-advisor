@@ -52,7 +52,7 @@ Vercel Preview（阶段验证） api/index.py 只读数据 → 手机网页
 - **本地有数据不等于线上有数据**：`make dev` 使用本地目录；Preview 只读当前部署所含 Git 数据。两者尚不会自动同步。
 - **预报每日过期**：新德国日期必须取新 14 天快照并更新 Preview；历史月份已经完整验证后长期复用，按近期需求逐批积累，不每天重下。
 - **保留历史数据**：`web.bundle_data` 只导出当前窗口匹配的有效月份；并入 `weather-data/` 时必须采用**增量合并**，保留以前有效的历史月份，不得整体删除或用新目录覆盖旧历史。
-- `vercel.json` 现在有 `git.deploymentEnabled=false`，因此 Git 合并**不会触发自动部署**。Preview 使用默认 Git 只读数据路径；旧 `TRAVEL_PREVIEW_NAMESPACE` Blob 路径或 `TRAVEL_P1_READER` P1 SQL/Blob 路径是独立可选开关，并非当前路径的必要配置。
+- `vercel.json` 对 Git 自动部署仅启用 `main`：提交合并到 `main` 后，已连接 Git 的 Vercel 项目会自动构建并部署 Production；其他分支不自动部署，Preview 仍可单独手动验证。Git 数据提交不代表当天仍有效，也不等于线上验收通过。旧 `TRAVEL_PREVIEW_NAMESPACE` Blob 路径或 `TRAVEL_P1_READER` P1 SQL/Blob 路径不是当前 Git 只读路径的必要配置。
 - **费用边界**：全部免费、不买 VPS、不升级套餐；动态存储、自动化及对外发布等动作，须按当时账户额度、供应商许可和独立授权核实。**这些是执行条件，不是决定不公开上线；不为第一批十城人工发布先引入数据库或 Blob。**
 
 ## 渐进交付顺序
