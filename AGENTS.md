@@ -34,6 +34,8 @@ Provide clear, sufficient, and reviewable substantive results centered on the us
 
 For consequential decisions or approvals, explain what is being decided, the main rationale, key trade-offs, and practical implications before asking the user to decide.
 
+When indicating a concrete next task for another agent or actor, provide a directly usable instruction rather than only a workflow label or sequence. Include the exact target or result reference, intended outcome, and material scope or authority boundaries in proportion to the task. Do not invent a next task, handoff artifact, or permission for work that still requires separate authorization.
+
 Use an installed discovery capability only when material new alignment, product framing, research, or clarification is actually required. Adequate completed research and prior discovery are reusable evidence. If the current request can be answered directly from that evidence and no material formal discovery work remains, answer it directly rather than manufacturing another workflow, stage, handoff, or investigation.
 
 Evidence boundaries, uncertainty, process state, validation, and next workflow are supporting information rather than default report structure. Surface them when they materially affect the current answer, trust, risk, decision, or requested action. Internal checks do not become user-visible merely because they ran.
