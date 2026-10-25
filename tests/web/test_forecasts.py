@@ -233,6 +233,28 @@ class ForecastTests(unittest.TestCase):
             cache.prefetch(RECORDS, self.provider)
             self.assertNotEqual(service.featured()['today'], before['today'])
 
+    def test_fallback_day_publication_and_readonly_reuse(self):
+        self.now = datetime(2026, 10, 25, 12, tzinfo=BERLIN)
+        data = forecast(self.now)
+        for field in ('time', 'temperature_2m'):
+            data['hourly'][field] = data['hourly'][field][1:]
+        data['utc_offset_seconds'] = 3600
+        stats = self.cache.prefetch(RECORDS, lambda u, p, t: deepcopy(data))
+        self.assertEqual((stats['published'], stats['forecast_attempts']), (10, 10))
+        ledger = self.store.get(LEDGER)
+        service = self.service(Cache(self.store, lambda: self.now, read_only=True))
+        with patch.object(service, 'fetch', side_effect=AssertionError('No provider calls')):
+            cards = service.featured()
+            self.assertEqual(len(cards['cities']), 10)
+            detail = service.city_advice(dict(city_id='berlin'))
+            self.assertEqual(detail, cards['cities'][0])
+            self.assertEqual(cards['today'], '2026-10-25')
+        def forbidden(*args):
+            raise AssertionError('Valid sources must be reused')
+        rerun = self.cache.prefetch(RECORDS, forbidden)
+        self.assertEqual((rerun['hits'], rerun['forecast_attempts']), (10, 0))
+        self.assertEqual(self.store.get(LEDGER), ledger)
+
     def test_cross_midnight_during_fetch_and_publication(self):
         self.now = NOW.replace(hour=23, minute=59)
         day = self.now.date()

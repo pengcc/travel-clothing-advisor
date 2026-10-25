@@ -211,6 +211,47 @@ class LiveTests(unittest.TestCase):
             for n in range(14):
                 date=now.date()+timedelta(days=n)
                 self.assertEqual(sum(d.date()==date and 9<=d.hour<=18 for d,v in hours),10)
+    def test_fallback_day_fixed_offset_response(self):
+        now = datetime(2026, 10, 25, 12, tzinfo=BERLIN)
+        # Open-Meteo uses the request-time offset for its daily boundaries:
+        # after fallback, UTC 23:00 is Berlin 01:00 on the still-summer midnight.
+        data = forecast(now)
+        for field in ('time', 'temperature_2m'):
+            data['hourly'][field] = data['hourly'][field][1:]
+        data['utc_offset_seconds'] = 3600
+        self.assertEqual(len(data['hourly']['time']), 336)
+        hours = parse_hours(data, now)
+        self.assertEqual(hours[0][0].hour, 1)
+        folds = [d.fold for d, _ in hours if d.date() == now.date() and d.hour == 2]
+        self.assertEqual(folds, [0, 1])
+        for n in range(14):
+            day = now.date() + timedelta(days=n)
+            self.assertEqual(sum(d.date() == day and 6 <= d.hour <= 22
+                                 for d, _ in hours), 17)
+
+        # The exception is only for this DST boundary, never arbitrary missing
+        # leading hours, gaps, stale dates or missing required final-day edges.
+        for index in (0, 5, -2):
+            broken = deepcopy(data)
+            for field in ('time', 'temperature_2m'):
+                broken['hourly'][field].pop(index)
+            with self.subTest(index=index), self.assertRaises(Unavailable):
+                parse_hours(broken, now)
+        shortened = deepcopy(data)
+        for field in ('time', 'temperature_2m'):
+            shortened['hourly'][field] = shortened['hourly'][field][:-2]
+        with self.assertRaises(Unavailable):
+            parse_hours(shortened, now)
+        for shift in (-1, 1):
+            other = now + timedelta(days=shift)
+            broken = forecast(other)
+            for field in ('time', 'temperature_2m'):
+                broken['hourly'][field] = broken['hourly'][field][1:]
+            with self.subTest(shift=shift), self.assertRaises(Unavailable):
+                parse_hours(broken, other)
+        with self.assertRaises(Unavailable):
+            parse_hours(data, now + timedelta(days=1))
+
     def test_remaining_today_and_edge_only(self):
         self.fake.data=forecast(values=[24]*14)
         # Huge past cold values must not affect future advice.
