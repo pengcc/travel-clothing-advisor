@@ -90,12 +90,10 @@ def parse_hours(data, now):
         midnight = datetime.combine(today, time(), BERLIN)
         evening = datetime.combine(today, time(23), BERLIN)
         # Open-Meteo fixes daily boundaries to the request-time UTC offset.
-        # After autumn fallback its first epoch is 01:00 in Berlin, although
-        # every required 06–22 hour is present. Keep all other start checks.
-        fallback_start = midnight.timestamp() + (midnight.utcoffset() - evening.utcoffset()).total_seconds()
-        valid_starts = {int(midnight.timestamp())}
-        if fallback_start > midnight.timestamp():
-            valid_starts.add(int(fallback_start))
+        # After a DST change the first epoch is autumn 01:00 or spring's
+        # preceding-day 23:00 in Berlin. Required 06–22 coverage is checked below.
+        fixed_offset_start = midnight.timestamp() + (midnight.utcoffset() - evening.utcoffset()).total_seconds()
+        valid_starts = {int(midnight.timestamp()), int(fixed_offset_start)}
         if times[0] not in valid_starts or hours[-1][0].date() < today + timedelta(days=13):
             raise ValueError()
         indexed = dict(zip(times, temps))
