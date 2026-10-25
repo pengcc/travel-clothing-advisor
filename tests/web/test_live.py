@@ -1,6 +1,6 @@
 """Deterministic service and HTTP tests: no provider network required."""
 from copy import deepcopy
-from datetime import datetime, timedelta, time
+from datetime import datetime, timedelta, time, timezone
 from http.server import ThreadingHTTPServer
 import json
 import threading
@@ -211,6 +211,96 @@ class LiveTests(unittest.TestCase):
             for n in range(14):
                 date=now.date()+timedelta(days=n)
                 self.assertEqual(sum(d.date()==date and 9<=d.hour<=18 for d,v in hours),10)
+    def test_fallback_day_fixed_offset_response(self):
+        now = datetime(2026, 10, 25, 12, tzinfo=BERLIN)
+        # Open-Meteo uses the request-time offset for its daily boundaries:
+        # after fallback, UTC 23:00 is Berlin 01:00 on the still-summer midnight.
+        data = forecast(now)
+        for field in ('time', 'temperature_2m'):
+            data['hourly'][field] = data['hourly'][field][1:]
+        data['utc_offset_seconds'] = 3600
+        self.assertEqual(len(data['hourly']['time']), 336)
+        hours = parse_hours(data, now)
+        self.assertEqual(hours[0][0].hour, 1)
+        folds = [d.fold for d, _ in hours if d.date() == now.date() and d.hour == 2]
+        self.assertEqual(folds, [0, 1])
+        for n in range(14):
+            day = now.date() + timedelta(days=n)
+            self.assertEqual(sum(d.date() == day and 6 <= d.hour <= 22
+                                 for d, _ in hours), 17)
+
+        # The exception is only for this DST boundary, never arbitrary missing
+        # leading hours, gaps, stale dates or missing required final-day edges.
+        for index in (0, 5, -2):
+            broken = deepcopy(data)
+            for field in ('time', 'temperature_2m'):
+                broken['hourly'][field].pop(index)
+            with self.subTest(index=index), self.assertRaises(Unavailable):
+                parse_hours(broken, now)
+        shortened = deepcopy(data)
+        for field in ('time', 'temperature_2m'):
+            shortened['hourly'][field] = shortened['hourly'][field][:-2]
+        with self.assertRaises(Unavailable):
+            parse_hours(shortened, now)
+        for shift in (-1, 1):
+            other = now + timedelta(days=shift)
+            broken = forecast(other)
+            for field in ('time', 'temperature_2m'):
+                broken['hourly'][field] = broken['hourly'][field][1:]
+            with self.subTest(shift=shift), self.assertRaises(Unavailable):
+                parse_hours(broken, other)
+        with self.assertRaises(Unavailable):
+            parse_hours(data, now + timedelta(days=1))
+
+    def test_spring_forward_day_fixed_offset_response(self):
+        now = datetime(2027, 3, 28, 12, tzinfo=BERLIN)
+        # Request-time UTC+02:00 midnight is 23:00 on the preceding Berlin day.
+        start = datetime(2027, 3, 28, tzinfo=timezone(timedelta(hours=2)))
+        times = [int(start.timestamp()) + n * 3600 for n in range(336)]
+        data = dict(timezone='Europe/Berlin', utc_offset_seconds=7200,
+                    hourly_units=dict(temperature_2m='°C'),
+                    hourly=dict(time=times, temperature_2m=[14] * len(times)))
+        hours = parse_hours(data, now)
+        self.assertEqual(hours[0][0].isoformat(), '2027-03-27T23:00:00+01:00')
+        self.assertEqual(hours[-1][0].isoformat(), '2027-04-10T23:00:00+02:00')
+        self.assertFalse(any(d.date() == now.date() and d.hour == 2 for d, _ in hours))
+        for n in range(14):
+            day = now.date() + timedelta(days=n)
+            self.assertEqual(sum(d.date() == day and 6 <= d.hour <= 22
+                                 for d, _ in hours), 17)
+        fake = Fake(now)
+        fake.data = data
+        advice = Service(fake, lambda: now).advice(dict(
+            view='trip', city_id='berlin', start='2027-03-28',
+            end='2027-04-10', preference='normal'))
+        self.assertEqual(advice['mode'], 'forecast')
+        self.assertEqual(advice['reference_temperature_c'], 14)
+
+        # First-day 06:00 and final-day 22:00 remain required, even if
+        # truncation leaves a contiguous UTC sequence with no internal gap.
+        for index in (6, 50, -2):
+            broken = deepcopy(data)
+            for field in ('time', 'temperature_2m'):
+                broken['hourly'][field].pop(index)
+            with self.subTest(index=index), self.assertRaises(Unavailable):
+                parse_hours(broken, now)
+        for bounds in (slice(7, None), slice(None, -2)):
+            broken = deepcopy(data)
+            for field in ('time', 'temperature_2m'):
+                broken['hourly'][field] = broken['hourly'][field][bounds]
+            with self.subTest(bounds=bounds), self.assertRaises(Unavailable):
+                parse_hours(broken, now)
+        # An extra preceding-day hour is not a valid start on ordinary dates.
+        for shift in (-1, 1):
+            other = now + timedelta(days=shift)
+            broken = forecast(other)
+            broken['hourly']['time'].insert(0, broken['hourly']['time'][0] - 3600)
+            broken['hourly']['temperature_2m'].insert(0, 14)
+            with self.subTest(shift=shift), self.assertRaises(Unavailable):
+                parse_hours(broken, other)
+        with self.assertRaises(Unavailable):
+            parse_hours(data, now + timedelta(days=1))
+
     def test_remaining_today_and_edge_only(self):
         self.fake.data=forecast(values=[24]*14)
         # Huge past cold values must not affect future advice.
