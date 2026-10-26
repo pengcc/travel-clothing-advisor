@@ -881,9 +881,18 @@ This does not assert historical completeness or authorize history repair.
 
 Only `codex/weather-forecast-data` is written, by an exact-SHA lease; main is never
 pushed. Commit provenance, parent and forecast-only diff are checked before reuse.
+The runner checks out full history; an explicitly shallow checkout is unshallowed
+under the existing subprocess/job deadline before validating ancestry. The actual
+previous-base ancestor check remains mandatory; unrelated ancestry still stops.
 An unexpected branch or PR head stops publication. One open data PR is created or
-updated; a manually closed unmerged PR pauses automation. After merge the next
-slot starts from latest main. A push followed by PR API failure is recoverable
+updated; a manually closed unmerged PR pauses automation. Canonical PR state is
+read again immediately before branch push, and after push immediately before PR creation/update. An unmerged
+close, different PR identity/lifecycle or unexpected head stops further writes.
+Push-success/API-failure recovery repeats the same PR gate without recollection.
+These are last-observed checks, not an atomic Git/API transaction: a close after
+the pre-push observation can leave that push on the branch, but if observed at
+the post-push gate it prevents PR mutation; subsequent recovery stays paused.
+After merge the next slot starts from latest main. A push followed by PR API failure is recoverable
 from commit metadata before any collection, including a rerun; changed base,
 expired data or conflicting sources instead stop for operator investigation.
 

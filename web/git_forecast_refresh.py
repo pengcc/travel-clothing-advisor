@@ -114,6 +114,10 @@ class GitHub:
         remote = self.git('ls-remote', 'origin', 'refs/heads/main', f'refs/heads/{BRANCH}').decode()
         refs = dict((ref, sha) for sha, ref in (line.split() for line in remote.splitlines()))
         base, head = refs['refs/heads/main'], refs.get(f'refs/heads/{BRANCH}')
+        # A shallow boundary can hide a genuine previous-base ancestor even
+        # after fetching the old bot head. Keep the gate, fetch the actual graph.
+        if self.git('rev-parse', '--is-shallow-repository').strip() == b'true':
+            self.git('fetch', '--unshallow', '--no-tags', 'origin', base)
         for sha in (base, head):
             if sha:
                 self.git('fetch', '--no-tags', 'origin', sha)
@@ -195,6 +199,26 @@ class GitHub:
             self.api(f'repos/{REPO}/pulls', 'POST', dict(payload, head=BRANCH, base='main'))
 
 
+def publication_prs(github, expected, initial):
+    """Last-observed lifecycle control; Git push and PR API are not atomic."""
+    current = github.prs()
+    opened = [p for p in current if p['state'] == 'open']
+    if len(opened) > 1:
+        raise ValueError('Duplicate data PRs')
+    if any(p['state'] == 'closed' and not p['merged_at'] for p in current):
+        raise ValueError('Data publication manually paused')
+    if opened and opened[0]['head']['sha'] != expected:
+        raise ValueError('PR head drift')
+    def lifecycle(rows):
+        # Open PR head changes from our push are expected; all other lifecycle
+        # changes (including merge/new PR) require a fresh reconciliation.
+        return sorted((p['number'], p['state'], p['merged_at'],
+                       p['head']['sha'] if p['state'] != 'open' else '') for p in rows)
+    if lifecycle(current) != lifecycle(initial):
+        raise ValueError('PR lifecycle changed during publication')
+    return current
+
+
 def reconcile(github, clock, run_id, attempt, *, collect=forecast_update):
     """One collection, bounded offline reassembly; injectable GitHub/clock for regressions."""
     now = clock()
@@ -224,7 +248,8 @@ def reconcile(github, clock, run_id, attempt, *, collect=forecast_update):
                 raise ValueError('Recovery base changed; independent revalidation required')
             if github.refs() != (base, expected):
                 raise ValueError('Recovery refs changed')
-            github.publish_pr(expected, meta, prs)
+            latest_prs = publication_prs(github, expected, prs)
+            github.publish_pr(expected, meta, latest_prs)
         return 'already-published'
     admit(github.runs(now), run_id, attempt, now)
     with tempfile.TemporaryDirectory(prefix='.forecast-run-', dir=github.root) as temp:
@@ -258,8 +283,10 @@ def reconcile(github, clock, run_id, attempt, *, collect=forecast_update):
                 continue
             # Date/anchor/source/history validation immediately before the push.
             forecast_export(sources, latest, t / f'final-{iteration}', clock, day, branch)
+            publication_prs(github, expected, prs)
             github.push(head, expected)
-            github.publish_pr(head, meta, prs)
+            latest_prs = publication_prs(github, head, prs)
+            github.publish_pr(head, meta, latest_prs)
             return 'published'
         raise ValueError('Main repeatedly changed; no publication')
 

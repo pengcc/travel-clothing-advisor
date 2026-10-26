@@ -36,9 +36,10 @@ class FakeGitHub:
         self.run_rows = [dict(id=1, created_at=now.astimezone(timezone.utc).isoformat(),
                               event='schedule', conclusion=None)]
         self.fail_api = False
+        self.commits = 0
 
     def prs(self):
-        return self.pr_list
+        return deepcopy(self.pr_list)
 
     def refs(self):
         self.reads += 1
@@ -64,12 +65,11 @@ class FakeGitHub:
 
     def commit(self, base, assembled, original, meta, temporary):
         self.pending_meta = meta
-        self.pending = self.root / 'pending'
-        if self.pending.exists():
-            shutil.rmtree(self.pending)
+        self.commits += 1
+        self.pending = self.root / f'pending-{self.commits}'
         shutil.copytree(assembled, self.pending)
         self.writes.append('commit')
-        return 'new-head'
+        return self.pending.name
 
     def push(self, head, expected):
         if self.head != expected:
@@ -77,12 +77,15 @@ class FakeGitHub:
         self.head, self.meta = head, self.pending_meta
         self.branch = self.pending
         self.writes.append('push')
+        for pr in self.pr_list:
+            if pr['state'] == 'open':
+                pr['head']['sha'] = head
 
     def publish_pr(self, head, meta, prs):
         if self.fail_api:
             raise ValueError('API failure')
         self.writes.append('pr')
-        self.pr_list = [dict(state='open', head=dict(sha=head), merged_at=None)]
+        self.pr_list = [dict(number=1, state='open', head=dict(sha=head), merged_at=None)]
 
 
 class RefreshTests(unittest.TestCase):
@@ -336,6 +339,164 @@ class RefreshTests(unittest.TestCase):
         with self.assertRaises(ValueError): self.run_refresh()
         self.assertEqual(len(self.calls), 10)
 
+    def second_slot(self):
+        self.now += timedelta(hours=8)
+        self.gh.run_rows[0]['conclusion'] = 'success'
+        self.gh.run_rows.append(dict(id=2, created_at=self.now.astimezone(timezone.utc).isoformat(),
+                                     event='schedule', conclusion=None))
+
+    def test_manual_close_during_collection_stops_before_branch_push(self):
+        self.assertEqual(self.run_refresh(), 'published')
+        self.second_slot()
+        old_head, old_tree = self.gh.head, data.tree(self.gh.branch)
+        self.gh.writes.clear()
+        self.gh.reads = 0
+        def close(n):
+            if n == 2:  # First refs read after acquisition; no ref change.
+                self.gh.pr_list[0].update(state='closed', merged_at=None)
+        self.gh.hook = close
+        with self.assertRaisesRegex(ValueError, 'manually paused'):
+            self.run_refresh(run_id=2)
+        self.assertNotIn('push', self.gh.writes)
+        self.assertNotIn('pr', self.gh.writes)
+        self.assertEqual(self.gh.head, old_head)
+        self.assertEqual(data.tree(self.gh.branch), old_tree)
+        self.assertEqual(len(self.calls), 20)  # One acquisition, no retry.
+
+    def test_close_after_push_blocks_pr_mutation_and_recovery_without_more_io(self):
+        self.assertEqual(self.run_refresh(), 'published')
+        self.second_slot()
+        self.gh.writes.clear()
+        push = self.gh.push
+        def close_after_push(head, expected):
+            push(head, expected)
+            self.gh.pr_list[0].update(state='closed', merged_at=None)
+        self.gh.push = close_after_push
+        with self.assertRaisesRegex(ValueError, 'manually paused'):
+            self.run_refresh(run_id=2)
+        self.assertEqual(self.gh.writes, ['commit', 'push'])
+        with self.assertRaisesRegex(ValueError, 'manually paused'):
+            self.run_refresh(run_id=2, attempt=2)
+        self.assertEqual(len(self.calls), 20)
+        self.assertNotIn('pr', self.gh.writes)
+
+    def test_api_failure_recovery_rechecks_close_before_pr_mutation(self):
+        self.assertEqual(self.run_refresh(), 'published')
+        self.second_slot()
+        self.gh.fail_api = True
+        with self.assertRaises(ValueError):
+            self.run_refresh(run_id=2)
+        self.gh.fail_api = False
+        writes, calls = list(self.gh.writes), len(self.calls)
+        prs = self.gh.prs
+        reads = 0
+        def close_on_recovery_gate():
+            nonlocal reads
+            reads += 1
+            if reads == 2:  # Initial recovery check was open; close at final API gate.
+                self.gh.pr_list[0].update(state='closed', merged_at=None)
+            return prs()
+        self.gh.prs = close_on_recovery_gate
+        with self.assertRaisesRegex(ValueError, 'manually paused'):
+            self.run_refresh(run_id=2, attempt=2)
+        self.assertEqual((self.gh.writes, len(self.calls)), (writes, calls))
+
+    def test_lifecycle_or_head_change_during_collection_stops_publication(self):
+        self.assertEqual(self.run_refresh(), 'published')
+        self.second_slot()
+        original = deepcopy(self.gh.pr_list)
+        for change in ('merge', 'head', 'replace'):
+            with self.subTest(change=change):
+                self.gh.pr_list = deepcopy(original)
+                before = list(self.gh.writes)
+                reads = 0
+                def changed_prs():
+                    nonlocal reads
+                    reads += 1
+                    rows = deepcopy(original)
+                    if reads >= 2:
+                        if change == 'merge': rows[0].update(state='closed', merged_at=NOW.isoformat())
+                        if change == 'head': rows[0]['head']['sha'] = 'unexpected-head'
+                        if change == 'replace': rows[0]['number'] = 999
+                    return rows
+                self.gh.prs = changed_prs
+                with self.assertRaises(ValueError):
+                    self.run_refresh(run_id=2)
+                self.assertNotIn('push', self.gh.writes[len(before):])
+                self.assertNotIn('pr', self.gh.writes[len(before):])
+
+    def test_real_shallow_clone_next_slot_builds_on_advanced_or_merged_main(self):
+        for merged in (False, True):
+            with self.subTest(merged=merged), tempfile.TemporaryDirectory(dir=self.root) as temp:
+                folder = Path(temp)
+                source, runner = folder/'origin', folder/'runner'
+                source.mkdir()
+                shutil.copytree(self.base, source/'weather-data')
+                def git(root, *args):
+                    return subprocess.check_output(['git', '-C', str(root), *args],
+                                                   stderr=subprocess.DEVNULL).decode().strip()
+                git(source, 'init', '-b', 'main')
+                git(source, 'config', 'user.name', 'Offline Test')
+                git(source, 'config', 'user.email', 'test@example.invalid')
+                git(source, 'add', '.')
+                git(source, 'commit', '-m', 'base A')
+                a = git(source, 'rev-parse', 'HEAD')
+                sources = folder/'sources'
+                self.now = NOW
+                self.collect(source/'weather-data', sources, self.clock)
+                assembled = folder/'assembled'
+                data.forecast_export(sources, source/'weather-data', assembled, self.clock, NOW.date())
+                prior = refresh.GitHub(source)
+                meta = dict(base=a, day=NOW.date().isoformat(), slot='am', run=1,
+                            first=NOW.isoformat(), acquired=NOW.isoformat())
+                c = prior.commit(a, assembled, data.tree(source/'weather-data'), meta, folder)
+                git(source, 'branch', refresh.BRANCH, c)
+                added = self.history(source/'weather-data')
+                retained = added.read_bytes()
+                git(source, 'add', 'weather-data')
+                git(source, 'commit', '-m', 'main B with additional history')
+                if merged:
+                    git(source, 'merge', '--no-ff', refresh.BRANCH, '-m', 'human merge')
+                b = git(source, 'rev-parse', 'HEAD')
+                subprocess.check_output(['git', 'clone', '--depth=1', '--branch=main',
+                                         source.as_uri(), str(runner)], stderr=subprocess.DEVNULL)
+                self.assertEqual(git(runner, 'rev-parse', '--is-shallow-repository'), 'true')
+                gh = refresh.GitHub(runner)
+                self.now = NOW + timedelta(hours=8)
+                gh.runs = lambda now: [dict(id=2, created_at=self.now.isoformat(),
+                                           event='schedule', conclusion=None)]
+                rows = [dict(number=1, state='closed' if merged else 'open',
+                             merged_at=NOW.isoformat() if merged else None, head=dict(sha=c))]
+                gh.prs = lambda: deepcopy(rows)
+                writes = []
+                def api(path, method='GET', payload=None):
+                    writes.append((method, payload))
+                    return dict(number=2)
+                gh.api = api
+                push = gh.push
+                def push_and_sync(head, expected):
+                    push(head, expected)
+                    if not merged: rows[0]['head']['sha'] = head
+                gh.push = push_and_sync
+                with patch.dict('os.environ', GH_TOKEN='synthetic-noncredential'):
+                    self.assertEqual(refresh.reconcile(gh, self.clock, 2, 1, collect=self.collect), 'published')
+                new_head = git(source, 'rev-parse', refresh.BRANCH)
+                self.assertEqual(git(runner, 'rev-parse', '--is-shallow-repository'), 'false')
+                gh.ancestor(a, b)  # Real check retained; no fake ancestry bypass.
+                self.assertEqual(git(runner, 'rev-parse', new_head+'^'), b)
+                self.assertEqual(gh.metadata(new_head)['base'], b)
+                self.assertEqual(git(source, 'rev-parse', 'main'), b)
+                output = gh.snapshot(new_head, folder/'published')
+                self.assertEqual((output/added.relative_to(source/'weather-data')).read_bytes(), retained)
+                self.assertEqual(len(data.forecast_batch(output, self.clock, self.now.date())), 10)
+                self.assertEqual(writes[0][0], 'POST' if merged else 'PATCH')
+                # Unrelated ancestry still fails closed.
+                unrelated_tree = git(source, 'rev-parse', 'main^{tree}')
+                orphan = subprocess.check_output(['git', '-C', str(source), 'commit-tree', unrelated_tree],
+                                                 input=b'unrelated\n', stderr=subprocess.DEVNULL).decode().strip()
+                git(runner, 'fetch', 'origin', orphan)
+                with self.assertRaises(ValueError): gh.ancestor(orphan, b)
+
     def test_verify_exact_refs_readonly_and_stale_evidence_rejected(self):
         self.assertEqual(self.run_refresh(), 'published')
         before = list(self.gh.writes)
@@ -424,6 +585,7 @@ class GitProtocolTests(unittest.TestCase):
         self.assertIn("github.ref == 'refs/heads/main'", raw)
         self.assertIn('cancel-in-progress: false', raw)
         self.assertIn('persist-credentials: false', raw)
+        self.assertIn('fetch-depth: 0', raw)
         self.assertIn('timeout-minutes: 5', raw)
         for absent in ('TRAVEL_P1_', 'WORKER_DSN', 'BLOB_WRITE', 'pull_request_target', 'enable-auto-merge', 'web.refresh_weather'):
             self.assertNotIn(absent, raw)
