@@ -37,3 +37,8 @@ data-update data-status data-export:
 .PHONY: history-status history-backfill
 history-status history-backfill:
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m web.history_commands $(patsubst history-%,%,$@) --history-dir "$(HISTORY_DIR)" --bundle-dir "$(DATA_DIR)" $(ARGS)
+
+# Explicit forecast-only IO; OUTPUT must be a new independent directory.
+.PHONY: forecast-update forecast-export
+forecast-update forecast-export:
+	$(PYTHON) -m web.data_commands $@ --bundle-dir "$(DATA_DIR)" --forecast-dir "$(FORECAST_DIR)" --output "$(OUTPUT)"
