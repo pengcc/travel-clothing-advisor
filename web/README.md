@@ -608,16 +608,13 @@ controls publication over stdin, with no HTTP write endpoint. Live uploads,
 protected deployment, real hosted visibility/cold-start/cost measurements and
 Production isolation remain unverified until separately authorized.
 
-### P1 automatic featured forecast (default disabled)
+### Legacy P1 compatibility (scheduler retired by #79)
 
-Issue #42 Plan v10's Production lifecycle code is separate from the S2 Preview
-publisher. See [the P1 runbook and evidence boundary](../docs/verification/issue42-p1.md).
-The site reads SQL-pinned immutable versions; the hourly worker owns downloads.
-Neither importing code nor merging the workflow enables resource creation,
-provider calls, writes or deployment. Ordinary-city/history automation is not
-implemented in P1. Real PostgreSQL tests and protected two-day operational
-acceptance require their own explicit targets/authorization; fixtures do not
-prove live ten-city data.
+The former hourly PostgreSQL/Blob worker is no longer dispatched by the workflow.
+Its modules and explicit non-Production opt-in readers remain for compatibility;
+Git `weather-data/` is the default deployment source. The old
+[P1 runbook](../docs/verification/issue42-p1.md) is historical evidence, not an
+instruction to operate another scheduler. No cloud resources or secrets are deleted.
 
 ## Git weather bundle
 
@@ -847,3 +844,114 @@ Record a fresh `history-status` result after separately authorized real batches.
 `data-export` still requires ten current forecasts and is not a history-only export.
 Merge, data publication and deployment remain separately authorized operations;
 main currently enables automatic Production deployment.
+
+
+### Git forecast data PR automation (#79)
+
+Implementation authority: [approved Implementation Plan v2](https://github.com/pengcc/travel-clothing-advisor/issues/79#issuecomment-6411741200).
+`.github/workflows/weather-refresh.yml` replaces the old P1 dispatcher. It declares
+`17 3,15 * * *` UTC (Germany winter 04:17/16:17, summer 05:17/17:17), with one
+non-cancelling concurrency group and a five-minute standard Linux job. It stays
+**disabled unless `TRAVEL_GIT_FORECAST_ENABLED` is explicitly `true`**. This PR
+neither sets that variable nor dispatches anything. No dependencies are installed
+by the job; the publisher uses Python stdlib, Git and runner `gh`.
+
+`make forecast-update OUTPUT=<new-independent-directory>` explicitly performs
+LIVE forecast IO; do not run it without separate authorization. It validates the
+fixed manifest hash before IO and uses a clean temporary store, ten maximum
+requests, one per city, four seconds/request and 45 seconds for prefetch. It never
+seeds today's Git forecast or calls history/GeoNames. Both daily slots acquire
+new sources. The original `data-update` remains a mixed manual command; it is
+never the scheduler entry point. `make forecast-export FORECAST_DIR=<sources>
+OUTPUT=<new-independent-directory>` is offline and does not replace either input.
+The automation assembles offline against an immutable exact main snapshot.
+
+P2 pins SHA-256 `a83aff9040b65aea52e319f465c35e65b170a100fcfeef6f8e59a7965e0775ac`
+to the raw manifest at reviewed `d4d91261ab11007cc7114e227880c6ab4dceec77`.
+Even formatting or population changes stop automation; updating this trust anchor
+requires separate review. Snapshot identities use these trusted request coordinates,
+not the upstream grid coordinates. P1 compares all ten validated acquisition times
+as UTC instants against latest main AND the existing bot branch. One newer source
+supersedes the whole candidate, with no push, PR mutation or second acquisition;
+equal time with differing bytes is a conflict. Main-only history additions can be
+reassembled offline. Every history path/hash and all non-forecast bytes survive;
+corrupt known history stops publication instead of being silently repaired. Unknown
+history objects are preserved; gzip JSON objects must pass bounded decode/checksum.
+This does not assert historical completeness or authorize history repair.
+
+Only `codex/weather-forecast-data` is written, by an exact-SHA lease; main is never
+pushed. Commit provenance, parent and forecast-only diff are checked before reuse.
+An unexpected branch or PR head stops publication. One open data PR is created or
+updated; a manually closed unmerged PR pauses automation. After merge the next
+slot starts from latest main. A push followed by PR API failure is recoverable
+from commit metadata before any collection, including a rerun; changed base,
+expired data or conflicting sources instead stop for operator investigation.
+
+Admission reads complete, bounded workflow-run history, before provider IO. Only
+the first two runs CREATED per UTC day may collect, counting failed/cancelled/
+skipped/disabled runs and manual dispatches. Reruns cannot collect; queued runs
+from an earlier UTC date fail. Incomplete pagination or unreadable history fails
+closed. At most 20 forecast HTTP attempts/UTC day; no retry or matrix. Earlier
+failed/cancelled runs conservatively block collection, including across midnight:
+without retained Retry-After information the publisher cannot prove cooldown has
+elapsed. This deliberately sacrifices automatic recovery. Investigate the exact
+run and obtain separately reviewed recovery authority; do not delete run history,
+reset ledgers, repeatedly dispatch or bypass the gate. Pagination is capped at ten
+100-item pages; reaching the bound also needs investigation before further IO.
+
+Before separately enabling anything, a maintainer must confirm free non-commercial
+Open-Meteo eligibility and shared provider usage, remaining shared GitHub Actions
+minutes and effective overage blocking, Vercel allowances, branch protections,
+required checks, and permission for Actions-created PRs. Two daily jobs bounded
+at five minutes estimate at most 310 minutes/31 days, excluding extra runs and
+checks; this estimate is not proof of zero spending. No PAT, new app, larger
+runner, persistent weather cache or long-lived artifact is added. Short-lived
+GITHUB_TOKEN has contents/PR write and actions read only in the trusted-main job;
+checkout does not retain it. Path gates constrain code, not token capabilities.
+No account settings are changed. Outputs are safe status classes; subprocess
+stderr/provider payloads are not echoed. Workflow run links and PR descriptions
+supply acquisition interval, exact base/head and zero-history-change evidence.
+
+A bot PR is pending data, not a deployment. Its changed head invalidates old review.
+Before EVERY manual merge, independently review its exact current base/head and
+run the read-only check from trusted implementation code:
+
+```text
+python3 -m web.git_forecast_refresh --verify <exact-current-main-sha> <exact-data-branch-sha>
+```
+
+This fetches Git objects and reads GitHub refs only: no weather IO, branch writes,
+approval, merge or deployment. Stale base/head evidence fails. If main has changed
+since assembly, stop and reassemble/review against the new main; never reuse a
+previous green check. Git provides no atomic cross-ref CAS: a base change after
+the final gate requires fresh independent review. Approve any waiting PR checks
+according to repository policy and verify their SHA; absent checks are not passes.
+GITHUB_TOKEN push/PR event behavior must not be used to bypass required checks.
+
+Every merge needs explicit human authority covering possible automatic Vercel
+Production deployment from main. No branch Preview is enabled. PR creation, merge,
+and READY deployment are separate outcomes. Without timely authorized merge and
+deployment there may be a midnight forecast gap; old forecasts remain expired and
+the existing truthful history/unavailable degradation applies. Workflow delay,
+provider failure or missing permission does not justify partial publication,
+paid upgrades, automatic merge, direct main writes or cloud resource deletion.
+Recovery for bad merged data requires separate pause/revert/deployment authority;
+reverting yesterday's forecast does not restore freshness.
+
+Legacy consumer inventory (retained, not removed by this implementation):
+
+| Component | Actual consumers retained |
+| --- | --- |
+| `web/refresh_weather.py` | Explicit legacy CLI; `test_lifecycle.py` |
+| `web/lifecycle.py` | `api/index.py` explicit opt-in, refresh worker, production_store; lifecycle tests/browser server |
+| `web/control_store.py` | Explicit API opt-in, refresh worker; PostgreSQL and lifecycle tests |
+| `web/production_store.py` | Explicit API opt-in, refresh worker; lifecycle tests |
+| `web/blob_store.py` | Explicit API Preview opt-in, publish_preview; blob/publication/lifecycle tests and publication browser server |
+| `web/publication.py` | API Preview opt-in, lifecycle, production_store, blob_store, publish_preview; publication tests/browser server |
+| `web/publish_preview.py` | Explicit manual CLI; publication tests |
+| `psycopg[binary]`, `vercel-blob` | Lazy database/Blob adapters and their integration tests; requirements retained |
+
+Shared forecasts/history/readonly/live validation and Git reader tests are retained.
+Deleting compatibility paths, dependencies, secrets, variables, PostgreSQL/Blob
+resources or remote data requires a separate task with consumer/backup/rollback
+review. Issue #42 and #74 historical records are not rewritten or closed here.

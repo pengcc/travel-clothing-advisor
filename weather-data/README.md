@@ -30,3 +30,21 @@ not prove first-launch freshness: all ten real same-day forecasts must pass the
 [final directory checks](../web/README.md#issue-38-publication-checks).
 The 2026-10-22 batch above is a dated acquisition record, not a claim of current
 forecast validity. City attribution: [GeoNames](https://www.geonames.org/).
+
+
+## Forecast-only automation (#79; disabled until separately authorized)
+
+The twice-daily Git updater is documented in [web/README.md](../web/README.md#git-forecast-data-pr-automation-79).
+It acquires a fresh complete ten-city batch per slot, preserves every existing
+history path and raw byte, and only proposes `weather-data/forecast/**` changes
+in one bot data PR. It never repairs history, merges or deploys. Corrupt history,
+city-manifest drift, partial/expired sources or newer existing acquisition times
+stop publication. The fixed city-manifest hash is reviewed implementation policy;
+metadata edits require separate trust-anchor review, even if only formatting.
+
+Data PR review must revalidate P1/P2 and history against the then-current exact
+main/head; a base or head change invalidates older evidence. Each merge and its
+possible automatic Production deployment needs explicit authorization. Default-off
+workflow code and offline fixtures do not establish live weather completeness,
+free quota, PR permissions, enabled scheduling or deployed freshness. Original
+source attribution and historical acquisition records above remain in force.

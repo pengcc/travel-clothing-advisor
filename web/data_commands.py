@@ -171,13 +171,24 @@ def _export(records, cities, forecasts, history, bundle, clock):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=['update', 'status', 'export'])
+    parser.add_argument('command', choices=['update', 'status', 'export', 'forecast-update', 'forecast-export'])
+    parser.add_argument('--output', help='New independent destination for forecast-only commands')
     parser.add_argument('--forecast-dir', default='.forecast-local')
     parser.add_argument('--history-dir', default='.history-local')
     parser.add_argument('--bundle-dir', default='weather-data')
     args = parser.parse_args(argv)
     clock = lambda: datetime.now(BERLIN)
     try:
+        if args.command in ('forecast-update', 'forecast-export'):
+            if not args.output:
+                raise ValueError('New output directory required')
+            if args.command == 'forecast-update':
+                result = forecast_update(args.bundle_dir, args.output, clock)
+            else:
+                result = forecast_export(args.forecast_dir, args.bundle_dir, args.output, clock,
+                                         clock().astimezone(BERLIN).date())
+            print(json.dumps(result, sort_keys=True))
+            return 0
         records, cities = records_at(args.bundle_dir)
         params = (cities, args.forecast_dir, args.history_dir, args.bundle_dir, clock)
         if args.command == 'status':
@@ -191,6 +202,160 @@ def main(argv=None):
     except (OSError, ValueError, TypeError, KeyError, Unavailable):
         print('Data command failed: metadata, storage or validation unavailable; retry after checking inputs.')
         return 1
+
+
+# Reviewed city-manifest bytes at main d4d91261ab11007cc7114e227880c6ab4dceec77.
+# Deliberately not derived from the manifest being checked.
+TRUSTED_CITIES_SHA256 = 'a83aff9040b65aea52e319f465c35e65b170a100fcfeef6f8e59a7965e0775ac'
+
+
+def trusted_records(root):
+    import hashlib
+    if hashlib.sha256((Path(root) / 'cities.json').read_bytes()).hexdigest() != TRUSTED_CITIES_SHA256:
+        raise ValueError('City trust anchor changed; separate review required')
+    return records_at(root)
+
+
+class Superseded(ValueError):
+    """An entire candidate batch is older than an existing valid source."""
+
+
+def forecast_batch(root, clock, day, *, required=True):
+    """Strict automation boundary: corrupt/ambiguous sources are not cache misses."""
+    from datetime import timezone
+    _, cities = trusted_records(root)
+    store = ReadOnlyDirectoryStore(root)
+    cache = Cache(store, clock, read_only=True)
+    expected = {forecast_key(c, day): c for c in cities}
+    # Reject unrecognised same-day source paths rather than misreading identity drift as absence.
+    for path in (Path(root) / 'forecast').rglob(day.isoformat() + '.json'):
+        name = str(path.relative_to(root))
+        if name not in expected:
+            raise ValueError('Unexpected same-day forecast identity')
+    result = {}
+    for name, city in expected.items():
+        raw = store.get(name)
+        if raw is None and not required:
+            continue
+        cached = cache.read(city, day)
+        if cached is None:
+            raise ValueError('Invalid or missing forecast source')
+        result[name] = (raw, cached[1].astimezone(timezone.utc))
+    if clock().astimezone(BERLIN).date() != day:
+        raise ValueError('Germany day changed')
+    return result
+
+
+def no_regression(candidate, existing):
+    for name, (raw, acquired) in existing.items():
+        new_raw, new_acquired = candidate[name]
+        if acquired > new_acquired:
+            raise Superseded('superseded')
+        if acquired == new_acquired and raw != new_raw:
+            raise ValueError('Equal acquisition time with conflicting bytes')
+
+
+def history_hashes(root, clock):
+    """Keep every history path, including unknown objects; fail on corrupt gzip/JSON."""
+    import gzip
+    import hashlib
+    from web.history import digest
+    result = {}
+    _, cities = trusted_records(root)
+    from web.live import IDS
+    known = {str(IDS.get(c['id'], c['id'])): c for c in cities}
+    library = Library(ReadOnlyDirectoryStore(root), clock, read_only=True)
+    for path in (Path(root) / 'history').rglob('*'):
+        if path.is_symlink():
+            raise ValueError('History symlink')
+        if not path.is_file():
+            continue
+        raw = path.read_bytes()
+        name = str(path.relative_to(root))
+        if name.endswith('.json.gz'):
+            # Unknown version objects are retained verbatim, but must be readable.
+            import io
+            with gzip.GzipFile(fileobj=io.BytesIO(raw)) as stream:
+                decoded = stream.read(200_001)
+            if len(decoded) > 200_000:
+                raise ValueError('Oversized history')
+            block = json.loads(decoded)
+            if block.get('sha256') != digest(block['body']):
+                raise ValueError('Corrupt historical checksum')
+            ident = block['body']['identity']
+            city = known.get(ident.get('city_id'))
+            if city and name.startswith('history/era5/temp-v1/'):
+                month = path.name.removesuffix('.json.gz')
+                if name != history_key(city, month) or library.read(city, month) is None:
+                    raise ValueError('Corrupt historical source')
+        result[name] = hashlib.sha256(raw).hexdigest()
+    return result
+
+
+def forecast_update(bundle, destination, clock, provider=None):
+    """Ten NEW acquisitions only; no history, GeoNames, seeds or retained ledger edits."""
+    from web.history import transport
+    bundle, destination = Path(bundle), Path(destination)
+    a, b = bundle.resolve(), destination.resolve()
+    if a == b or a in b.parents or b in a.parents or destination.exists():
+        raise ValueError('Use a new independent forecast store')
+    records, _ = trusted_records(bundle)  # Before any provider IO.
+    day = clock().astimezone(BERLIN).date()
+    history_hashes(bundle, clock)
+    with tempfile.TemporaryDirectory(prefix='.forecast-batch-', dir=destination.parent) as temporary:
+        store = Path(temporary) / 'sources'
+        stats = Cache(DirectoryStore(store), clock, daily_limit=10).prefetch(
+            records, provider=provider or transport, timeout=45)
+        trusted_records(bundle)
+        # Only source objects leave the ephemeral store, never its admission/manifest/lock.
+        destination.mkdir()
+        try:
+            for city in records_at(bundle)[1]:
+                name = forecast_key(city, day)
+                path = destination / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes((store / name).read_bytes())
+            (destination / 'cities.json').write_bytes((bundle / 'cities.json').read_bytes())
+            forecast_batch(destination, clock, day)
+        except BaseException:
+            shutil.rmtree(destination)
+            raise
+    return stats
+
+
+def forecast_export(sources, bundle, destination, clock, day, branch=None):
+    """Offline assembly on exact latest main; no writes to either input tree."""
+    sources, bundle, destination = map(Path, (sources, bundle, destination))
+    roots = [p.resolve() for p in (sources, bundle, destination)]
+    if destination.exists() or any(a == b or a in b.parents or b in a.parents
+                                  for i, a in enumerate(roots) for b in roots[i+1:]):
+        raise ValueError('Use distinct non-nested trees and a new destination')
+    before = tree(bundle)
+    hashes = history_hashes(bundle, clock)
+    candidate = forecast_batch(sources, clock, day)
+    no_regression(candidate, forecast_batch(bundle, clock, day, required=False))
+    if branch is not None:
+        no_regression(candidate, forecast_batch(branch, clock, day, required=False))
+    _, cities = trusted_records(bundle)
+    prefixes = tuple(forecast_key(c, day).rsplit('/', 2)[0] + '/' for c in cities)
+    objects = {n: raw for n, raw in before.items() if not n.startswith(prefixes)}
+    objects.update({n: raw for n, (raw, _) in candidate.items()})
+    try:
+        for name, raw in objects.items():
+            path = destination / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(raw)
+        forecast_batch(destination, clock, day)
+        if history_hashes(destination, clock) != hashes or tree(bundle) != before:
+            raise ValueError('History or base changed')
+        if {n: b for n, b in tree(destination).items() if not n.startswith('forecast/')} != {
+                n: b for n, b in before.items() if not n.startswith('forecast/')}:
+            raise ValueError('Non-forecast difference')
+    except BaseException:
+        if destination.exists():
+            shutil.rmtree(destination)
+        raise
+    return dict(cities=10, history_changes=0)
 
 
 if __name__ == '__main__':
