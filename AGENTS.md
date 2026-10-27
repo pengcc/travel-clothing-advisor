@@ -92,6 +92,6 @@ For product ambiguity, test the smallest representative real travel scenario tha
 
 ## Change and delivery boundary
 
-An explicit `keep local`, `no push`, or `no PR` instruction limits publication; it does not waive independent review or grant merge permission. **Merge, deployment, release, repository visibility/settings changes, retained external-data mutation and other material external effects require separate explicit user authorization.**
+An explicit `keep local`, `no push`, or `no PR` instruction limits publication; it does not waive independent review or grant merge permission. **Merge, deployment, release, repository visibility/settings changes, retained external-data mutation and other material external effects require separate explicit user authorization.** For routine forecast-only data PRs, the [Workflow Contract](docs/collaboration.md) may accept a narrowly bounded **standing** authorization that explicitly covers unattended merge and its automatic Vercel Production deployment effect. That authorization must be separately granted and recorded for the exact approved mechanism and checks before activation; it is never inferred from this rule, a plan, a clean review, or a merged implementation PR. All other PRs and material external effects retain individual authorization.
 
 Do not add application code, dependencies, CI, deployment/release machinery, repository publication tooling, worktree automation, hooks, Project Memory or a broader Skill tree without demonstrated target-owned need and execution authority.
