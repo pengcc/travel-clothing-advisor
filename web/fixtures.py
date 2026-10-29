@@ -33,7 +33,7 @@ SCENARIOS = {
                    packing_variation_summary='有一天偏暖，内搭轻薄、外套方便脱下。', packing_variation_kind='warm', reference_temperature_c=14),
     'split': dict(warmth_indicator_level=None, headline='轻薄与适中保暖都要准备，衣物方便增减',
                   packing_variation_notice='假设七天轻薄、七天需要适中保暖，没有单一穿法适合多数日子；请备轻薄内搭和可叠穿的外套。',
-                  packing_variation_summary='冷热分化明显，请备轻薄内搭和可叠穿外套。', packing_variation_kind='mixed', reference_temperature_c=None),
+                  packing_variation_summary='冷热分化明显，请备轻薄内搭和可叠穿外套。', packing_variation_kind='mixed', reference_temperature_c=None, daytime_temperature_range_c=[14, 24]),
 }
 DEFAULTS = ['colder', 'stable', 'warmer', 'split'] + ['stable'] * 6
 
