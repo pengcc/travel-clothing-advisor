@@ -1,4 +1,7 @@
-"""Trusted-main forecast data-PR publisher. No merge/deploy/settings operations.
+"""Trusted-main forecast data-PR publisher and gated automatic merge (#84).
+
+Merging is reachable only from the ``--auto-merge`` entry point, which rechecks
+schedule/first-attempt/switch from the runner environment. No deploy/settings operations.
 
 Only this explicit operator entry point performs IO. All subprocess output is
 captured; errors never echo provider responses, token-bearing stderr or payloads.
@@ -20,6 +23,7 @@ REPO = 'pengcc/travel-clothing-advisor'
 BRANCH = 'codex/weather-forecast-data'
 WORKFLOW = 'weather-refresh.yml'
 BOT_EMAIL = '41898282+github-actions[bot]@users.noreply.github.com'
+BOT_LOGIN = 'github-actions[bot]'
 MARKER = 'Travel-Forecast-v2: '
 
 
@@ -154,9 +158,15 @@ class GitHub:
         self.git('merge-base', '--is-ancestor', previous, base)
 
     def allowed(self, base, head):
-        names = self.git('diff', '--name-only', '-z', base, head).split(b'\0')
-        if any(not n.startswith(b'weather-data/forecast/') for n in names if n):
-            raise ValueError('Non-forecast diff')
+        # Raw, rename-free entries: ':old new oldsha newsha status' then path.
+        rows = [r for r in self.git('diff', '--raw', '--no-renames', '-z', base, head).split(b'\0') if r]
+        if len(rows) % 2:
+            raise ValueError('Unparseable diff')
+        for meta, name in zip(rows[::2], rows[1::2]):
+            old, new = meta.split()[:2]
+            if (not name.startswith(b'weather-data/forecast/') or
+                    {old.lstrip(b':'), new} - {b'100644', b'000000'}):
+                raise ValueError('Non-forecast diff')
 
     def commit(self, base, assembled, original, meta, temporary):
         env = dict(os.environ, GIT_INDEX_FILE=str(temporary / 'index'),
@@ -181,16 +191,72 @@ class GitHub:
         self.git('push', f'--force-with-lease=refs/heads/{BRANCH}:{expected or ""}',
                  'origin', f'{head}:refs/heads/{BRANCH}', env=self.remote_environment())
 
+    def pull(self, number):
+        return self.api(f'repos/{REPO}/pulls/{int(number)}')
+
+    def required_checks(self):
+        """Readable with GITHUB_TOKEN; the admin-only /protection endpoint is not used."""
+        branch = self.api(f'repos/{REPO}/branches/main')
+        names = set()
+        if branch['protected']:
+            rules = branch['protection'].get('required_status_checks') or {}
+            names.update(rules.get('contexts') or [])
+            names.update(c['context'] for c in rules.get('checks') or [])
+        for rule in self.pages(f'repos/{REPO}/rules/branches/main?'):
+            if rule['type'] == 'required_status_checks':
+                names.update(c['context'] for c in rule['parameters']['required_status_checks'])
+        return names
+
+    def check_results(self, head):
+        runs = self.pages(f'repos/{REPO}/commits/{head}/check-runs?filter=latest', 'check_runs')
+        status = self.api(f'repos/{REPO}/commits/{head}/status?per_page=100')
+        if status['total_count'] != len(status['statuses']):
+            raise ValueError('Incomplete commit statuses')
+        results = {}
+        for run in runs:
+            results.setdefault(run['name'], []).append(
+                run['status'] == 'completed' and run['conclusion'] == 'success')
+        for row in status['statuses']:
+            results.setdefault(row['context'], []).append(row['state'] == 'success')
+        return results
+
+    def merge(self, number, head):
+        # Exactly one call; a timeout or error is a failure, never retried.
+        self.api(f'repos/{REPO}/pulls/{int(number)}/merge', 'PUT',
+                 dict(sha=head, merge_method='squash'))
+
+    def confirm(self, number, base, head):
+        """Read-only post-merge check; detects (cannot prevent) an unexpected merge."""
+        pr = self.pull(number)
+        merged = pr['merge_commit_sha']
+        if not pr['merged'] or not merged:
+            raise ValueError('Merge not confirmed')
+        main, _ = self.refs()
+        self.git('fetch', '--no-tags', 'origin', merged)
+        self.ancestor(merged, main)
+        if base.encode() not in self.git('rev-list', '--parents', '-n', '1', merged).split()[1:]:
+            raise ValueError('Merge parent is not the verified base')
+        forecast = [self.git('rev-parse', f'{sha}:weather-data/forecast').strip() for sha in (merged, head)]
+        if forecast[0] != forecast[1]:
+            raise ValueError('Merged forecast tree differs from verified head')
+
+    def close(self, number):
+        self.api(f'repos/{REPO}/pulls/{int(number)}', 'PATCH', dict(state='closed'))
+
+    def comment(self, number, body):
+        self.api(f'repos/{REPO}/issues/{int(number)}/comments', 'POST', dict(body=body))
+
     def publish_pr(self, head, meta, prs):
         body = (f'Refs #79. Forecast-only batch {meta["day"]} / {meta["slot"]}; 10/10 cities.\n\n'
                 f'Acquisition UTC: {meta["first"]} through {meta["acquired"]}.\n'
                 f'Validated base: `{meta["base"]}`; head: `{head}`. History changes: 0.\n'
                 f'Run: https://github.com/{REPO}/actions/runs/{meta["run"]}\n\n'
                 'Offline source, city-anchor, freshness and history-byte gates passed at this base/head. '
-                'Independent Review and explicit human merge authorization required. Revalidate against '
+                'A manual merge requires independent Review and explicit human authorization. Revalidate against '
                 'CURRENT exact base/head before merge; an updated base invalidates this evidence. '
                 'Merge may automatically trigger Vercel Production; obtain authorization for that effect. '
-                'No checks is not passing checks. No bot approval or automatic merge.')
+                'No checks is not passing checks. No bot approval. Automatic merge happens only through '
+                'the separately authorized, default-off #84 gates; otherwise merge manually.')
         payload = dict(title=f'Weather forecast {meta["day"]} {meta["slot"]} (10 cities)', body=body)
         opened = [p for p in prs if p['state'] == 'open']
         if opened:
@@ -221,6 +287,7 @@ def publication_prs(github, expected, initial):
 
 def reconcile(github, clock, run_id, attempt, *, collect=forecast_update):
     """One collection, bounded offline reassembly; injectable GitHub/clock for regressions."""
+    github.published = None
     now = clock()
     day = now.astimezone(BERLIN).date()
     prs = github.prs()
@@ -287,6 +354,7 @@ def reconcile(github, clock, run_id, attempt, *, collect=forecast_update):
             github.push(head, expected)
             latest_prs = publication_prs(github, head, prs)
             github.publish_pr(head, meta, latest_prs)
+            github.published = (latest_base, head)
             return 'published'
         raise ValueError('Main repeatedly changed; no publication')
 
@@ -309,12 +377,109 @@ def verify(github, clock, base, head):
     return dict(base=base, head=head, cities=10, history_changes=0)
 
 
+def candidate(github, attempt):
+    """Job outputs for this run's own fresh publication only; never for reruns."""
+    if attempt != 1 or not getattr(github, 'published', None):
+        return None
+    base, head = github.published
+    opened = [p for p in github.prs() if p['state'] == 'open']
+    if len(opened) != 1 or opened[0]['head']['sha'] != head or github.refs() != (base, head):
+        raise ValueError('Published PR identity unconfirmed')
+    return dict(pr=opened[0]['number'], base=base, head=head)
+
+
+def verify_candidate(github, clock, number, base, head):
+    """Step A: read-only identity, path, data and required-check gates."""
+    pr = github.pull(number)
+    repos = (pr['head']['repo'] or {}).get('full_name'), pr['base']['repo']['full_name']
+    if not (pr['user']['login'] == BOT_LOGIN and pr['state'] == 'open' and not pr['draft'] and
+            repos == (REPO, REPO) and pr['head']['ref'] == BRANCH and
+            pr['base']['ref'] == 'main' and pr['head']['sha'] == head):
+        raise ValueError('Data PR identity mismatch')
+    prs = github.prs()
+    if [p['number'] for p in prs if p['state'] == 'open'] != [int(number)]:
+        raise ValueError('Duplicate or missing data PR')
+    if any(p['state'] == 'closed' and not p['merged_at'] for p in prs):
+        raise ValueError('Data publication manually paused')
+    github.allowed(base, head)
+    result = verify(github, clock, base, head)
+    required = github.required_checks()
+    results = github.check_results(head)
+    # Missing, pending, skipped or failed results are all non-passing.
+    if any(not results.get(name) or not all(results[name]) for name in required):
+        raise ValueError('Required checks not successful')
+    return dict(result, pr=int(number), required_checks=sorted(required))
+
+
+def merge_permitted(env):
+    return (env.get('GITHUB_EVENT_NAME') == 'schedule' and env.get('GITHUB_RUN_ATTEMPT') == '1' and
+            env.get('TRAVEL_FORECAST_AUTO_MERGE_ENABLED') == 'true' and
+            env.get('GITHUB_REPOSITORY') == REPO and env.get('GITHUB_REF') == 'refs/heads/main')
+
+
+def auto_merge(github, clock, env, number, base, head):
+    """Step B: the only caller of GitHub.merge."""
+    if not merge_permitted(env):
+        raise ValueError('Automatic merge not permitted in this run')
+    verify_candidate(github, clock, number, base, head)
+    pr = github.pull(number)
+    if pr['state'] != 'open' or pr['head']['sha'] != head or github.refs() != (base, head):
+        raise ValueError('PR closed or revisions changed before merge')
+    github.merge(number, head)
+    github.confirm(number, base, head)
+    return dict(pr=int(number), base=base, head=head, merged=True)
+
+
+def close_candidate(github, number, note):
+    """Failure close = persistent pause (reconcile stops on a closed, unmerged data PR)."""
+    pr = github.pull(number)
+    if pr['head']['ref'] != BRANCH or (pr['head']['repo'] or {}).get('full_name') != REPO:
+        raise ValueError('Not the data PR')
+    if pr['merged']:
+        raise ValueError('Already merged; cannot pause by closing')
+    if pr['state'] == 'open':
+        github.close(number)
+    github.comment(number, note)
+
+
 def main(argv=None):
     import argparse
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--verify', nargs=2, metavar=('EXACT_BASE', 'EXACT_HEAD'),
                         help='Read-only current data-PR check, no collection or publication')
+    parser.add_argument('--auto-merge-verify', nargs=3, metavar=('PR', 'BASE', 'HEAD'),
+                        help='Step A diagnostic gates; never merges')
+    parser.add_argument('--auto-merge', nargs=3, metavar=('PR', 'BASE', 'HEAD'),
+                        help='Step B; permitted only by the runner environment')
+    parser.add_argument('--auto-merge-close', metavar='PR',
+                        help='Close the data PR after a failed, timed-out or cancelled job')
     args = parser.parse_args(argv)
+    env = os.environ
+    clock = lambda: datetime.now(BERLIN)
+    errors = (ValueError, OSError, KeyError, TypeError, Unavailable, subprocess.SubprocessError)
+    if args.auto_merge_verify or args.auto_merge:
+        step = 'verify' if args.auto_merge_verify else 'merge'
+        try:
+            if args.auto_merge:
+                result = auto_merge(GitHub(), clock, env, *args.auto_merge)
+            else:
+                result = verify_candidate(GitHub(), clock, *args.auto_merge_verify)
+            print(json.dumps(result, sort_keys=True))
+            return 0
+        except errors:
+            print(f'Forecast auto-merge {step} stopped: gate, revision, check or GitHub state failed')
+            return 1
+    if args.auto_merge_close:
+        run = f"{env.get('GITHUB_SERVER_URL')}/{REPO}/actions/runs/{env.get('GITHUB_RUN_ID')}"
+        note = (f'Automatic merge stopped; this data PR is closed unmerged, which pauses forecast '
+                f'publication. Run: {run}. Step outcomes: verify={env.get("VERIFY_OUTCOME") or "not run"}, '
+                f'merge={env.get("MERGE_OUTCOME") or "not run"}. Reopen only after investigating.')
+        try:
+            close_candidate(GitHub(), args.auto_merge_close, note)
+            print('Forecast data PR closed (paused)')
+        except errors:
+            print('Forecast data PR close failed; operator action required')
+        return 1
     if args.verify:
         try:
             print(json.dumps(verify(GitHub(), lambda: datetime.now(BERLIN), *args.verify), sort_keys=True))
@@ -323,21 +488,24 @@ def main(argv=None):
             print('Forecast verification stopped: stale revisions or invalid data')
             return 1
     # Defense in depth; the workflow also gates these before granting the job IO.
-    env = os.environ
     if not (env.get('TRAVEL_GIT_FORECAST_ENABLED') == 'true' and
             env.get('GITHUB_REPOSITORY') == REPO and env.get('GITHUB_REF') == 'refs/heads/main' and
             env.get('GITHUB_EVENT_NAME') in ('schedule', 'workflow_dispatch')):
         print('Forecast publication disabled or untrusted context')
         return 1
     try:
-        result = reconcile(GitHub(), lambda: datetime.now(BERLIN),
-                           int(env['GITHUB_RUN_ID']), int(env['GITHUB_RUN_ATTEMPT']))
+        github, attempt = GitHub(), int(env['GITHUB_RUN_ATTEMPT'])
+        result = reconcile(github, clock, int(env['GITHUB_RUN_ID']), attempt)
         print('Forecast publication: ' + result)
+        found = candidate(github, attempt)
+        if found and env.get('GITHUB_OUTPUT'):
+            with open(env['GITHUB_OUTPUT'], 'a') as output:
+                output.writelines(f'{k}={v}\n' for k, v in found.items())
         return 0
     except Superseded:
         print('Forecast publication: superseded; no branch or PR writes')
         return 0
-    except (ValueError, OSError, KeyError, TypeError, Unavailable, subprocess.SubprocessError):
+    except errors:
         print('Forecast publication stopped: validation, budget, cooldown or GitHub state unavailable')
         return 1
 

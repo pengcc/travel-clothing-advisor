@@ -536,6 +536,172 @@ class RefreshTests(unittest.TestCase):
                                  self.clock, self.now.date())
 
 
+
+class MergeGitHub(FakeGitHub):
+    """Adds the #84 PR/check/merge surface; records every write."""
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.required, self.results = set(), {}
+        self.merges, self.closed, self.comments = [], [], []
+        self.pull_hook = lambda n: None
+        self.pulls = 0
+        self.overrides = {}
+
+    def pull(self, number):
+        self.pulls += 1
+        self.pull_hook(self.pulls)
+        pr = next(p for p in self.pr_list if p['number'] == int(number))
+        row = dict(number=pr['number'], state=pr['state'], draft=False, merged=bool(pr['merged_at']),
+                   merge_commit_sha='merge-sha' if pr['merged_at'] else None,
+                   user=dict(login='github-actions[bot]'),
+                   head=dict(ref=refresh.BRANCH, sha=pr['head']['sha'], repo=dict(full_name=refresh.REPO)),
+                   base=dict(ref='main', repo=dict(full_name=refresh.REPO)))
+        for key, value in self.overrides.items():
+            row[key] = value(row) if callable(value) else value
+        return row
+
+    def required_checks(self):
+        if self.required is None:
+            raise ValueError('rules unreadable')
+        return set(self.required)
+
+    def check_results(self, head):
+        return deepcopy(self.results)
+
+    def merge(self, number, head):
+        self.merges.append((int(number), head))
+        if self.fail_api:
+            raise ValueError('merge API failure')
+        self.pr_list[0].update(state='closed', merged_at=NOW.isoformat())
+
+    def confirm(self, number, base, head):
+        self.writes.append('confirmed')
+
+    def close(self, number):
+        self.closed.append(int(number))
+        self.pr_list[0]['state'] = 'closed'
+
+    def comment(self, number, body):
+        self.comments.append(body)
+
+
+SCHEDULE = dict(GITHUB_EVENT_NAME='schedule', GITHUB_RUN_ATTEMPT='1',
+                TRAVEL_FORECAST_AUTO_MERGE_ENABLED='true', GITHUB_REPOSITORY=refresh.REPO,
+                GITHUB_REF='refs/heads/main')
+
+
+class AutoMergeTests(unittest.TestCase):
+    # Reuse the fixtures without re-running every inherited RefreshTests case.
+    provider, collect, prepare, history, newer_main, run_refresh = (
+        RefreshTests.provider, RefreshTests.collect, RefreshTests.prepare,
+        RefreshTests.history, RefreshTests.newer_main, RefreshTests.run_refresh)
+
+    def setUp(self):
+        RefreshTests.setUp(self)
+        self.gh = MergeGitHub(self.root, self.base, self.now)
+        self.assertEqual(self.run_refresh(), 'published')
+        self.found = refresh.candidate(self.gh, 1)
+        self.args = (self.found['pr'], self.found['base'], self.found['head'])
+
+    def merge(self, env=SCHEDULE):
+        return refresh.auto_merge(self.gh, self.clock, env, *self.args)
+
+    def refused(self, env=SCHEDULE):
+        with self.assertRaises(ValueError):
+            self.merge(env)
+        self.assertEqual(self.gh.merges, [])
+
+    def test_candidate_only_for_this_runs_first_attempt_publication(self):
+        self.assertEqual(self.found, dict(pr=1, base=self.gh.main.name, head=self.gh.head))
+        self.assertIsNone(refresh.candidate(self.gh, 2))
+        self.assertEqual(self.run_refresh(), 'already-published')
+        self.assertIsNone(refresh.candidate(self.gh, 1))
+        self.gh.published = (self.gh.main.name, 'other-head')
+        with self.assertRaises(ValueError):
+            refresh.candidate(self.gh, 1)
+
+    def test_schedule_merges_exact_head_once_then_confirms(self):
+        self.assertTrue(self.merge()['merged'])
+        self.assertEqual(self.gh.merges, [(1, self.gh.head)])
+        self.assertEqual(self.gh.writes[-1], 'confirmed')
+        self.assertEqual(len(self.calls), 10)
+
+    def test_dispatch_switch_off_reruns_and_forged_arguments_never_merge(self):
+        for change in (dict(GITHUB_EVENT_NAME='workflow_dispatch'),
+                       dict(TRAVEL_FORECAST_AUTO_MERGE_ENABLED='false'),
+                       dict(TRAVEL_FORECAST_AUTO_MERGE_ENABLED=''),
+                       dict(GITHUB_RUN_ATTEMPT='2'),
+                       dict(GITHUB_REF='refs/heads/other')):
+            with self.subTest(change=change):
+                self.refused(dict(SCHEDULE, **change))
+        # Step A alone (dispatch, switch off) diagnoses but has no merge path.
+        self.assertEqual(refresh.verify_candidate(self.gh, self.clock, *self.args)['pr'], 1)
+        # CLI arguments cannot override the runner environment.
+        env = dict(SCHEDULE, GITHUB_EVENT_NAME='workflow_dispatch')
+        with patch.object(refresh, 'GitHub', lambda: self.gh), patch.dict('os.environ', env, clear=True):
+            argv = ['--auto-merge', *map(str, self.args)]
+            self.assertEqual(refresh.main(argv + ['--auto-merge-verify', *map(str, self.args)]), 1)
+            self.assertEqual(refresh.main(argv), 1)
+        self.assertEqual(self.gh.merges, [])
+
+    def test_identity_path_data_and_check_gates_refuse(self):
+        cases = dict(author=lambda: self.gh.overrides.update(user=dict(login='someone')),
+                     branch=lambda: self.gh.overrides.update(head=lambda r: dict(r['head'], ref='other')),
+                     base=lambda: self.gh.overrides.update(base=lambda r: dict(r['base'], ref='dev')),
+                     fork=lambda: self.gh.overrides.update(head=lambda r: dict(r['head'], repo=None)),
+                     draft=lambda: self.gh.overrides.update(draft=True),
+                     duplicate=lambda: self.gh.pr_list.append(dict(number=2, state='open', head=dict(sha='x'), merged_at=None)),
+                     paused=lambda: self.gh.pr_list.append(dict(number=0, state='closed', head=dict(sha='x'), merged_at=None)),
+                     path=lambda: setattr(self.gh, 'allowed', lambda b, h: (_ for _ in ()).throw(ValueError('path'))),
+                     stale_base=lambda: setattr(self.gh, 'main', self.newer_main()),
+                     check_missing=lambda: setattr(self.gh, 'required', {'ci'}),
+                     check_pending=lambda: (setattr(self.gh, 'required', {'ci'}), self.gh.results.update(ci=[False])),
+                     check_mixed=lambda: (setattr(self.gh, 'required', {'ci'}), self.gh.results.update(ci=[True, False])),
+                     rules_unreadable=lambda: setattr(self.gh, 'required', None))
+        for name, apply in cases.items():
+            with self.subTest(name):
+                self.setUp()
+                apply()
+                self.refused()
+        self.setUp()
+        self.gh.required, self.gh.results = {'ci'}, dict(ci=[True])
+        self.assertTrue(self.merge()['merged'])
+
+    def test_close_or_head_change_after_verification_prevents_merge(self):
+        def closed(n):
+            if n == 2: self.gh.pr_list[0]['state'] = 'closed'
+        def moved(n):
+            if n == 2: self.gh.pr_list[0]['head']['sha'] = 'new-head'
+        for hook in (closed, moved):
+            with self.subTest(hook.__name__):
+                self.setUp()
+                self.gh.pull_hook = hook
+                self.refused()
+
+    def test_merge_api_failure_is_not_retried(self):
+        self.gh.fail_api = True
+        with self.assertRaises(ValueError):
+            self.merge()
+        self.assertEqual(len(self.gh.merges), 1)
+
+    def test_failure_close_pauses_next_round_and_merged_pr_cannot_close(self):
+        refresh.close_candidate(self.gh, 1, 'note')
+        self.assertEqual((self.gh.closed, self.gh.comments), ([1], ['note']))
+        self.now += timedelta(hours=8)
+        with self.assertRaisesRegex(ValueError, 'paused'):
+            self.run_refresh(run_id=2)
+        self.setUp()
+        self.merge()
+        with self.assertRaises(ValueError):
+            refresh.close_candidate(self.gh, 1, 'note')
+        self.assertEqual(self.gh.closed, [])
+        self.setUp()
+        self.gh.overrides.update(head=lambda r: dict(r['head'], ref='feature'))
+        with self.assertRaises(ValueError):
+            refresh.close_candidate(self.gh, 1, 'note')
+        self.assertEqual(self.gh.closed, [])
+
+
 class GitProtocolTests(unittest.TestCase):
     def test_complete_bounded_pagination_and_fail_closed(self):
         gh = refresh.GitHub()
@@ -570,6 +736,22 @@ class GitProtocolTests(unittest.TestCase):
             self.assertEqual(git('diff', '--name-only', base, head), 'weather-data/forecast/source.json')
             (assembled/'cities.json').write_bytes(b'changed')
             with self.assertRaises(ValueError): gh.commit(base, assembled, data.tree(root/'weather-data'), meta, root)
+            git('checkout', '-q', '-b', 'shapes', head)
+            git('mv', 'weather-data/forecast/source.json', 'weather-data/forecast/renamed.json')
+            git('commit', '-qm', 'rename inside forecast')
+            gh.allowed(head, git('rev-parse', 'HEAD'))  # rename-free view: delete + add
+            git('mv', 'weather-data/forecast/renamed.json', 'weather-data/moved.json')
+            git('commit', '-qm', 'rename out of forecast')
+            with self.assertRaises(ValueError): gh.allowed(head, git('rev-parse', 'HEAD'))
+            git('checkout', '-q', head)
+            (root/'weather-data/forecast/source.json').chmod(0o755)
+            git('commit', '-qam', 'executable')
+            with self.assertRaises(ValueError): gh.allowed(head, git('rev-parse', 'HEAD'))
+            git('checkout', '-q', head)
+            (root/'weather-data/forecast/link').symlink_to('source.json')
+            git('add', '.'); git('commit', '-qm', 'symlink')
+            with self.assertRaises(ValueError): gh.allowed(head, git('rev-parse', 'HEAD'))
+            git('checkout', '-q', 'main')
             commands = []
             gh.git = lambda *a, **k: commands.append((a,k))
             with patch.dict('os.environ', GH_TOKEN='synthetic-noncredential'):
@@ -590,4 +772,16 @@ class GitProtocolTests(unittest.TestCase):
         for absent in ('TRAVEL_P1_', 'WORKER_DSN', 'BLOB_WRITE', 'pull_request_target', 'enable-auto-merge', 'web.refresh_weather'):
             self.assertNotIn(absent, raw)
         import re
-        self.assertEqual(len(re.findall(r'uses: actions/[\w-]+@[0-9a-f]{40}', raw)), 2)
+        self.assertEqual(len(re.findall(r'uses: actions/[\w-]+@[0-9a-f]{40}', raw)), 4)
+        automerge = raw.split('\n  automerge:\n', 1)[1]
+        self.assertIn('needs: refresh', automerge)
+        self.assertIn("if: github.event_name == 'schedule' && github.run_attempt == 1 && "
+                      "vars.TRAVEL_FORECAST_AUTO_MERGE_ENABLED == 'true'", automerge)
+        self.assertIn('if: ${{ failure() || cancelled() }}', automerge)
+        self.assertEqual(automerge.count('--auto-merge "$PR"'), 1)
+        self.assertLess(automerge.index('--auto-merge-verify'), automerge.index('--auto-merge "$PR"'))
+        self.assertLess(automerge.index('--auto-merge "$PR"'), automerge.index('--auto-merge-close'))
+        for permission in ('contents: write', 'pull-requests: write', 'checks: read', 'statuses: read'):
+            self.assertIn(permission, automerge)
+        self.assertNotIn('actions: write', raw)
+        self.assertNotIn('${{ needs.refresh.outputs', automerge.split('steps:', 1)[1])

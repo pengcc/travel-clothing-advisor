@@ -937,8 +937,9 @@ the final gate requires fresh independent review. Approve any waiting PR checks
 according to repository policy and verify their SHA; absent checks are not passes.
 GITHUB_TOKEN push/PR event behavior must not be used to bypass required checks.
 
-Every merge needs explicit human authority covering possible automatic Vercel
-Production deployment from main. No branch Preview is enabled. PR creation, merge,
+Every manual merge needs explicit human authority covering possible automatic Vercel
+Production deployment from main (the only exception is the separately authorized
+automatic merge below). No branch Preview is enabled. PR creation, merge,
 and READY deployment are separate outcomes. Without timely authorized merge and
 deployment there may be a midnight forecast gap; old forecasts remain expired and
 the existing truthful history/unavailable degradation applies. Workflow delay,
@@ -946,6 +947,67 @@ provider failure or missing permission does not justify partial publication,
 paid upgrades, automatic merge, direct main writes or cloud resource deletion.
 Recovery for bad merged data requires separate pause/revert/deployment authority;
 reverting yesterday's forecast does not restore freshness.
+
+### Automatic merge of forecast data PRs (#84, default off)
+
+Implementation authority: [approved Implementation Plan v6](https://github.com/pengcc/travel-clothing-advisor/issues/84#issuecomment-6480606968).
+The `automerge` job in the same workflow runs only when `refresh` emitted a
+candidate: this run's own `published` result on its first attempt, with the single
+open data PR number, base and head confirmed by re-reading the API. Reruns,
+`already-published`, `unchanged`, `superseded` and failures emit no candidate.
+
+- **Step A (`--auto-merge-verify`, always runs, never merges):** bot author,
+  same-repository non-draft open PR from `codex/weather-forecast-data` to `main` at
+  the exact base/head; exactly one open data PR and no paused one; a rename-free
+  diff of regular files under `weather-data/forecast/` only; the existing `verify`
+  data gates; and every applicable Required Check completed successfully.
+- **Step B (`--auto-merge`)** runs only when the step condition AND the code (from
+  `GITHUB_EVENT_NAME`, `GITHUB_RUN_ATTEMPT` and the step `env`; never CLI arguments)
+  both see `schedule`, attempt 1 and `TRAVEL_FORECAST_AUTO_MERGE_ENABLED=true`. It
+  repeats Step A, re-reads open state and revisions, then calls
+  `PUT /pulls/{n}/merge` with `sha=<head>` (squash) exactly once, with no retry, and
+  confirms read-only: merged, parent is the verified base, merge commit on `main`,
+  and an identical `weather-data/forecast` tree. Dispatch and switch-off runs are diagnostics only.
+- **Failure close:** on any failure, timeout or cancellation (`failure() ||
+  cancelled()`) the data PR is closed unmerged with a comment naming the run and
+  step outcomes. The existing publisher treats a closed, unmerged data PR as a pause,
+  so collection and merging stop. A failed diagnostic on dispatch also closes it.
+  Rerunning only a failed `automerge` job reuses the first attempt's outputs: it can
+  never merge, and if a newer head has been pushed since, its Step A fails and the
+  close pauses the current PR. A run cancelled before the job starts closes nothing,
+  but any later merge still requires a new head passing Step A and Step B.
+
+Required Checks are read only from GITHUB_TOKEN-readable endpoints
+(`branches/main` protection summary and `rules/branches/main`), never the admin-only
+`/protection` endpoint; HEAD results come from check runs and commit statuses.
+`main` currently has none, so the data gates are the merge gate. A Required Check
+added later normally does not run on a GITHUB_TOKEN-created PR, so automatic merge
+then fails closed (closes the PR); this is intended.
+
+**Controls.** Immediate pause: close the data PR (Step B re-reads it before merging).
+Stop later runs: set `TRAVEL_FORECAST_AUTO_MERGE_ENABLED` to anything but `true`
+(read at job start; it cannot stop a job already running). The only recovery is
+for the maintainer to investigate and **reopen** the closed PR; reopened stale data
+is never merged as-is, only a later scheduled head that passes every gate.
+
+**Accepted residual risks** (no automatic backstop; handled through the job failure
+notification and the operator): (1) the close step cannot complete (close API or
+permission failure, lost runner); (2) the PR merged but post-merge confirmation is
+abnormal; (3) Vercel Production deployment fails or is delayed: Production keeps
+its last successful deployment and data may be stale, with no detection or
+recovery here, and an `unchanged` round triggers no deployment; (4) the base race:
+the merge API locks the head, not the base. GitHub sends schedule failure
+notifications only to the user who last changed the cron, subject to their settings.
+
+Before setting the switch, the maintainer must verify: GITHUB_TOKEN can merge
+(squash) and close PRs and the Actions setting allows it; the rules/check endpoints
+are readable by GITHUB_TOKEN; failure notifications actually arrive; Vercel's
+Production branch and deployment behavior; and Actions minutes (the job is at most
+5 minutes, only with a candidate, about 310 minutes/month at most). Then the owner
+must record standing authorization for this exact implementation under
+`docs/collaboration.md`. Offline tests do not prove token permissions, real merges
+or deployments; a controlled real validation is required, including that a timed-out
+job still runs the close step.
 
 Legacy consumer inventory (retained, not removed by this implementation):
 
