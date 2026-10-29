@@ -43,7 +43,8 @@ print(json.dumps(dict(advice=split,near13=case.advice(),context=dict(window(NOW)
   check(notice.includes('过去五年')&&!notice.includes('2026-11'),'no future cold date');
   check((await page.locator('#resultNotice').textContent()).includes('非这趟行程的预报'),'reference caveat');
   check(await page.locator('#resultWarmthMark svg').count()===0,'no fabricated main warmth bars');
-  check((await page.locator('#tempText').textContent()).includes('白天冷暖差异较大'),'no fabricated temperature');
+  const tempText=await page.locator('#tempText').textContent();
+  check(/约 -?\d+–-?\d+°C/.test(tempText)&&tempText.includes('冷暖差异较大')&&!tempText.includes('中间水平'),'split shows observed range, no fabricated median');
   await page.locator('#copyAdvice').click();
   const copied=await page.evaluate(()=>navigator.clipboard.readText());
   check(copied.includes('五年')&&copied.includes('非这趟行程的预报'),'copied advice keeps caveat');

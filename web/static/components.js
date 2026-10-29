@@ -91,7 +91,8 @@ export function formatAdviceCopy(data) {
   const adjust = data.preference === 'hot' && plan?.risks.some(risk => risk.includes('减薄内搭')) ? '怕热时可按上述偏暖方式调整。' : adjustment[data.preference];
   if (!plan?.guidance) lines.push('', `个人调整：${adjust}`);
   else lines.push('');
-  if (data.reference_temperature_c !== null) lines.push(`白天气温参考：约 ${data.reference_temperature_c}°C${historical ? '（历史样本）' : ''}，不是最高或最低气温。`);
+  if (data.reference_temperature_c === null && data.daytime_temperature_range_c) lines.push(`白天气温参考：约 ${data.daytime_temperature_range_c[0]}–${data.daytime_temperature_range_c[1]}°C${historical ? '（历史样本）' : ''}，冷暖差异较大。`);
+  else if (data.reference_temperature_c !== null) lines.push(`白天气温参考：约 ${data.reference_temperature_c}°C${historical ? '（历史样本）' : ''}，不是最高或最低气温。`);
   let caveat = '仅按气温，未评估雨、雪、风；出发前请复查。';
   if (historical) caveat = '历史冷暖不能预测此次旅行的具体日期。' + caveat;
   else if (data.caveat.includes('第8–14天')) caveat += '第8–14天不确定性更大，冷暖日期可能改变。';

@@ -336,6 +336,7 @@ class Service:
         copy_level = main if days else level(min(v for _,v in edges))
         copy_boundary = False
         ref = round(median(v for _,v in days),1) if days and main is not None else None
+        span = [round(min(v for _,v in days)), round(max(v for _,v in days))] if days else None
         if main is not None:
             headline = OUTER[main]
         elif days:
@@ -371,4 +372,4 @@ class Service:
             caveat += '第8–14天预报不确定性更大，偏冷偏暖日期也可能改变。'
         from web.advice_copy import packing_copy
         clipboard = packing_copy(copy_level, copy_events, split=copy_split, evening_only=not days, boundary=copy_boundary, preference=p['preference'])
-        return dict(packing_copy=clipboard, city=public_city(city), start=start, end=end, preference=p['preference'], view=p.get('view', 'trip'), mode='forecast', headline=headline, layers=layers, notices=notes, reference_temperature_c=ref, warmth_indicator_level=main, packing_variation_notice=notice, packing_variation_summary=summary, packing_variation_kind=notice_kind, weather_fetched_at=acquired.isoformat(timespec='seconds'), advice_generated_at=generated.isoformat(timespec='seconds'), source='Open-Meteo（气温预报）；GeoNames（城市）', data_status='fresh', data_version='temperature-v1-'+version, caveat=caveat, fixture=False)
+        return dict(packing_copy=clipboard, city=public_city(city), start=start, end=end, preference=p['preference'], view=p.get('view', 'trip'), mode='forecast', headline=headline, layers=layers, notices=notes, reference_temperature_c=ref, daytime_temperature_range_c=span, warmth_indicator_level=main, packing_variation_notice=notice, packing_variation_summary=summary, packing_variation_kind=notice_kind, weather_fetched_at=acquired.isoformat(timespec='seconds'), advice_generated_at=generated.isoformat(timespec='seconds'), source='Open-Meteo（气温预报）；GeoNames（城市）', data_status='fresh', data_version='temperature-v1-'+version, caveat=caveat, fixture=False)

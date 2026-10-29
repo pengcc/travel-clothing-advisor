@@ -16,6 +16,7 @@ def advise(library, city, p, now, clock, downloader=None, max_missing=0):
     values = [v for _,v in days]
     cold, warm = level(min(values)), level(max(values))
     ref = round(median(values),1) if main is not None else None
+    span = [round(min(values)), round(max(values))]
     usual_coat = {**OUTER, 4: '建议带适中外套', 5: '建议带保暖夹克或轻羽绒', 6: '建议带冬季保暖外套'}
     headline = usual_coat[main] if main is not None else f'历史冷暖分化，冷时{OUTER[cold]}，暖时减薄'
     layers = INNER[main] if main is not None else f'较冷时：{INNER[cold]}较暖时：{INNER[warm]}'
@@ -64,7 +65,7 @@ def advise(library, city, p, now, clock, downloader=None, max_missing=0):
         clipboard['boundary'] = '接近13°C厚度分界，按体感增减中间层。'
     return dict(packing_copy=clipboard, city=public_city(city), start=p['start'], end=p['end'], preference=p['preference'],
                 view='trip', mode='historical_reference', headline=headline, layers=layers,
-                notices=notes, reference_temperature_c=ref, warmth_indicator_level=main,
+                notices=notes, reference_temperature_c=ref, daytime_temperature_range_c=span, warmth_indicator_level=main,
                 packing_variation_notice=notice, packing_variation_summary=summary,
                 packing_variation_kind='mixed' if summary else None,
                 weather_fetched_at=times[0], history_fetched_at=times,

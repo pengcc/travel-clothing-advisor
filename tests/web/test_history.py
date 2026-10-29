@@ -243,6 +243,7 @@ class HistoryTests(unittest.TestCase):
         d=self.advice()
         self.assertIsNone(d['warmth_indicator_level'])
         self.assertIsNone(d['reference_temperature_c'])
+        self.assertEqual(d['daytime_temperature_range_c'],[0,24])
         self.assertEqual(d['packing_variation_kind'],'mixed')
         for field in ('headline','packing_variation_notice','packing_variation_summary'):
             self.assertIn('冬季保暖外套',d[field])

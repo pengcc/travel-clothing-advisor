@@ -221,7 +221,7 @@ async function showResult(params) {
     $('preferenceNote').classList.toggle('hidden', !isCity);
     $('preferenceNote').textContent = isCity ? '默认按正常冷热偏好推荐。' : '';
     $('tempTitle').textContent = historical ? '往年同期白天气温参考' : (data.fixture ? '白天的示例气温' : '白天气温参考');
-    $('tempText').textContent = data.reference_temperature_c === null ? (data.packing_variation_notice ? '白天冷暖差异较大，请按上方建议备衣。' : '今天白天已过，请参考剩余晚间的备衣建议。') : (data.fixture ? `模拟数值约 ${data.reference_temperature_c}°C，不代表真实气温。` : `${historical ? '过去五年同期样本' : '所选日期白天'}气温中间水平约 ${data.reference_temperature_c}°C。`);
+    $('tempText').textContent = data.reference_temperature_c === null ? (data.daytime_temperature_range_c ? (data.fixture ? `模拟数值约 ${data.daytime_temperature_range_c[0]}–${data.daytime_temperature_range_c[1]}°C，不代表真实气温。` : `${historical ? '过去五年同期样本' : '所选日期'}白天气温约 ${data.daytime_temperature_range_c[0]}–${data.daytime_temperature_range_c[1]}°C，冷暖差异较大，请按上方建议备衣。`) : data.packing_variation_notice ? '白天冷暖差异较大，请按上方建议备衣。' : '今天白天已过，请参考剩余晚间的备衣建议。') : (data.fixture ? `模拟数值约 ${data.reference_temperature_c}°C，不代表真实气温。` : `${historical ? '过去五年同期样本' : '所选日期白天'}气温中间水平约 ${data.reference_temperature_c}°C。`);
     const notes = data.notices.filter(note => !note.includes('今天仅使用查询时刻之后') && !note.includes('保暖需求接近'));
     // General thickness-boundary advice is not evidence of cooler mornings/evenings.
     const onlyEdgeGuidance = notes.every(note => note.includes('较凉') || note.startsWith('早晚示例：'));

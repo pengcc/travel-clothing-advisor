@@ -185,6 +185,7 @@ class LiveTests(unittest.TestCase):
         f=Fake(values=[24]*7+[14]*7)
         split=Service(f,lambda:NOW).advice(self.params(end='2026-10-29'))
         self.assertIsNone(split['reference_temperature_c'])
+        self.assertEqual(split['daytime_temperature_range_c'],[14,24])
         self.assertIsNone(split['warmth_indicator_level'])
         self.assertTrue(split['packing_variation_notice'])
 

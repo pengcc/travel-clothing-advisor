@@ -65,6 +65,7 @@ const base = process.env.UI_BASE_URL || 'http://127.0.0.1:8000';
     check(`${fixture} marker comes from response`, (await p.locator('#resultWarmthMark').textContent()).includes(label));
     check(`${fixture} notice visibility`, await p.locator('#spanRemind').isVisible() === notice);
     if (fixture === 'split') check('Split state has no invented bars', await p.locator('#resultWarmthMark svg').count() === 0);
+    if (fixture === 'split') check('Split fixture range is marked simulated', (await p.locator('#tempText').textContent()).includes('不代表真实气温'));
     const expectedDirection = {stable:null, colder:'cold', warmer:'warm', split:'mixed'}[fixture];
     const banner = p.locator('#spanRemind');
     if (notice) {
