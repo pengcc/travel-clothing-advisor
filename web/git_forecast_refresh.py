@@ -25,6 +25,7 @@ WORKFLOW = 'weather-refresh.yml'
 BOT_EMAIL = '41898282+github-actions[bot]@users.noreply.github.com'
 BOT_LOGIN = 'github-actions[bot]'
 MARKER = 'Travel-Forecast-v2: '
+ERRORS = (ValueError, OSError, KeyError, TypeError, Unavailable, subprocess.SubprocessError)
 
 
 def admit(runs, run_id, attempt, now):
@@ -378,13 +379,21 @@ def verify(github, clock, base, head):
 
 
 def candidate(github, attempt):
-    """Job outputs for this run's own fresh publication only; never for reruns."""
+    """Job outputs for this run's own fresh publication only; never for reruns.
+
+    An unconfirmed identity (moved main, PR drift, unreadable state) emits no candidate
+    instead of failing the run: no merge happens either way, and a failed run would
+    block all later admission.
+    """
     if attempt != 1 or not getattr(github, 'published', None):
         return None
     base, head = github.published
-    opened = [p for p in github.prs() if p['state'] == 'open']
-    if len(opened) != 1 or opened[0]['head']['sha'] != head or github.refs() != (base, head):
-        raise ValueError('Published PR identity unconfirmed')
+    try:
+        opened = [p for p in github.prs() if p['state'] == 'open']
+        if len(opened) != 1 or opened[0]['head']['sha'] != head or github.refs() != (base, head):
+            return None
+    except ERRORS:
+        return None
     return dict(pr=opened[0]['number'], base=base, head=head)
 
 
@@ -456,7 +465,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
     env = os.environ
     clock = lambda: datetime.now(BERLIN)
-    errors = (ValueError, OSError, KeyError, TypeError, Unavailable, subprocess.SubprocessError)
+    errors = ERRORS
     if args.auto_merge_verify or args.auto_merge:
         step = 'verify' if args.auto_merge_verify else 'merge'
         try:
@@ -473,7 +482,9 @@ def main(argv=None):
         run = f"{env.get('GITHUB_SERVER_URL')}/{REPO}/actions/runs/{env.get('GITHUB_RUN_ID')}"
         note = (f'Automatic merge stopped; this data PR is closed unmerged, which pauses forecast '
                 f'publication. Run: {run}. Step outcomes: verify={env.get("VERIFY_OUTCOME") or "not run"}, '
-                f'merge={env.get("MERGE_OUTCOME") or "not run"}. Reopen only after investigating.')
+                f'merge={env.get("MERGE_OUTCOME") or "not run"}. This failed run also blocks later collection '
+                f'under the admission rule: resuming needs both reopening this PR and the separately '
+                f'reviewed run-history recovery (web/README.md). Investigate first.')
         try:
             close_candidate(GitHub(), args.auto_merge_close, note)
             print('Forecast data PR closed (paused)')
@@ -498,6 +509,8 @@ def main(argv=None):
         result = reconcile(github, clock, int(env['GITHUB_RUN_ID']), attempt)
         print('Forecast publication: ' + result)
         found = candidate(github, attempt)
+        if result == 'published' and not found:
+            print('Automatic-merge candidate: none (publication identity unconfirmed)')
         if found and env.get('GITHUB_OUTPUT'):
             with open(env['GITHUB_OUTPUT'], 'a') as output:
                 output.writelines(f'{k}={v}\n' for k, v in found.items())

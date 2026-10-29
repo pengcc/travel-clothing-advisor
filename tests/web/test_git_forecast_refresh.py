@@ -616,9 +616,32 @@ class AutoMergeTests(unittest.TestCase):
         self.assertIsNone(refresh.candidate(self.gh, 2))
         self.assertEqual(self.run_refresh(), 'already-published')
         self.assertIsNone(refresh.candidate(self.gh, 1))
-        self.gh.published = (self.gh.main.name, 'other-head')
-        with self.assertRaises(ValueError):
-            refresh.candidate(self.gh, 1)
+        # Unconfirmed identity emits no candidate instead of failing the run (F2).
+        published = self.gh.published = (self.gh.main.name, self.gh.head)
+        for name, apply in dict(head=lambda: setattr(self.gh, 'published', (published[0], 'other-head')),
+                                main=lambda: setattr(self.gh, 'main', self.newer_main()),
+                                duplicate=lambda: self.gh.pr_list.append(
+                                    dict(number=2, state='open', head=dict(sha='x'), merged_at=None)),
+                                unreadable=lambda: setattr(self.gh, 'prs', lambda: {}['missing'])).items():
+            with self.subTest(name):
+                self.setUp()
+                self.gh.published = published
+                apply()
+                self.assertIsNone(refresh.candidate(self.gh, 1))
+
+    def test_unconfirmed_candidate_keeps_published_run_successful(self):
+        self.setUp()
+        output = self.root / 'github-output'
+        env = dict(SCHEDULE, TRAVEL_GIT_FORECAST_ENABLED='true', GITHUB_RUN_ID='1',
+                   GITHUB_OUTPUT=str(output))
+        def moved(gh, clock, run_id, attempt):
+            gh.published = (self.gh.main.name, self.gh.head)
+            self.gh.main = self.newer_main()
+            return 'published'
+        with patch.object(refresh, 'GitHub', lambda: self.gh), patch.object(refresh, 'reconcile', moved), \
+                patch.dict('os.environ', env, clear=True):
+            self.assertEqual(refresh.main([]), 0)
+        self.assertFalse(output.exists())
 
     def test_schedule_merges_exact_head_once_then_confirms(self):
         self.assertTrue(self.merge()['merged'])
@@ -703,6 +726,78 @@ class AutoMergeTests(unittest.TestCase):
 
 
 class GitProtocolTests(unittest.TestCase):
+    def test_required_checks_from_token_readable_protection_and_rulesets(self):
+        gh = refresh.GitHub()
+        def responses(branch, rules):
+            def api(path):
+                if path == f'repos/{refresh.REPO}/branches/main':
+                    return branch
+                self.assertTrue(path.startswith(f'repos/{refresh.REPO}/rules/branches/main?'))
+                return rules
+            return api
+        gh.api = responses(dict(protected=False, protection=dict(enabled=False)), [])
+        self.assertEqual(gh.required_checks(), set())
+        gh.api = responses(
+            dict(protected=True, protection=dict(required_status_checks=dict(
+                contexts=['legacy'], checks=[dict(context='app-check', app_id=1)]))),
+            [dict(type='deletion'), dict(type='required_status_checks', parameters=dict(
+                required_status_checks=[dict(context='ruleset-check')]))])
+        self.assertEqual(gh.required_checks(), {'legacy', 'app-check', 'ruleset-check'})
+        gh.api = responses(dict(protected=True, protection=dict()), [dict(type='required_status_checks')])
+        with self.assertRaises(KeyError): gh.required_checks()
+
+    def test_check_results_treat_non_success_and_incomplete_as_failing(self):
+        gh = refresh.GitHub()
+        runs = [dict(name='ok', status='completed', conclusion='success'),
+                dict(name='skip', status='completed', conclusion='skipped'),
+                dict(name='wait', status='in_progress', conclusion=None)]
+        statuses = [dict(context='ci', state='success'), dict(context='ci', state='pending'),
+                    dict(context='lint', state='failure')]
+        def api(path, total=len(statuses)):
+            if '/check-runs?' in path:
+                return dict(total_count=len(runs), check_runs=runs)
+            return dict(total_count=total, statuses=statuses)
+        gh.api = api
+        self.assertEqual(gh.check_results('h'), dict(ok=[True], skip=[False], wait=[False],
+                                                     ci=[True, False], lint=[False]))
+        gh.api = lambda path: api(path, total=101)
+        with self.assertRaises(ValueError): gh.check_results('h')
+
+    def test_confirm_requires_merged_squash_on_verified_base_with_identical_forecast(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            def git(*args, data=None):
+                return subprocess.check_output(['git', '-C', str(root), *args], input=data,
+                                               stderr=subprocess.DEVNULL).decode().strip()
+            git('init', '-b', 'main')
+            git('config', 'user.name', 'Offline Test')
+            git('config', 'user.email', 'test@example.invalid')
+            (root/'weather-data/forecast').mkdir(parents=True)
+            (root/'weather-data/forecast/source.json').write_bytes(b'old')
+            git('add', '.'); git('commit', '-qm', 'base')
+            base = git('rev-parse', 'HEAD')
+            (root/'weather-data/forecast/source.json').write_bytes(b'new')
+            git('commit', '-qam', 'bot head')
+            head = git('rev-parse', 'HEAD')
+            tree = git('rev-parse', f'{head}^{{tree}}')
+            squash = git('commit-tree', tree, '-p', base, data=b'squash')
+            wrong_parent = git('commit-tree', tree, '-p', head, data=b'wrong parent')
+            (root/'weather-data/forecast/source.json').write_bytes(b'other')
+            git('commit', '-qam', 'other forecast')
+            other = git('commit-tree', git('rev-parse', 'HEAD^{tree}'), '-p', base, data=b'other')
+            gh = refresh.GitHub(root)
+            real_git = gh.git
+            gh.git = lambda *a, **k: b'' if a[0] == 'fetch' else real_git(*a, **k)
+            def confirm(merged, sha, main=None):
+                gh.pull = lambda n: dict(merged=merged, merge_commit_sha=sha)
+                gh.refs = lambda: (main or sha, None)
+                gh.confirm(1, base, head)
+            confirm(True, squash)
+            for case in ((False, squash), (True, None), (True, wrong_parent), (True, other),
+                         (True, squash, base)):
+                with self.subTest(case=case), self.assertRaises(ValueError):
+                    confirm(*case)
+
     def test_complete_bounded_pagination_and_fail_closed(self):
         gh = refresh.GitHub()
         gh.api = lambda p: dict(total_count=101, workflow_runs=[{}]*100 if '&page=1' in p else [{}])

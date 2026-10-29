@@ -954,7 +954,10 @@ Implementation authority: [approved Implementation Plan v6](https://github.com/p
 The `automerge` job in the same workflow runs only when `refresh` emitted a
 candidate: this run's own `published` result on its first attempt, with the single
 open data PR number, base and head confirmed by re-reading the API. Reruns,
-`already-published`, `unchanged`, `superseded` and failures emit no candidate.
+`already-published`, `unchanged`, `superseded` and failures emit no candidate. If
+that confirmation fails (for example `main` moved seconds after the push), the run
+still succeeds as `published` with no candidate, so nothing merges and admission is
+not blocked; the open PR is updated by a later slot.
 
 - **Step A (`--auto-merge-verify`, always runs, never merges):** bot author,
   same-repository non-draft open PR from `codex/weather-forecast-data` to `main` at
@@ -986,9 +989,16 @@ then fails closed (closes the PR); this is intended.
 
 **Controls.** Immediate pause: close the data PR (Step B re-reads it before merging).
 Stop later runs: set `TRAVEL_FORECAST_AUTO_MERGE_ENABLED` to anything but `true`
-(read at job start; it cannot stop a job already running). The only recovery is
-for the maintainer to investigate and **reopen** the closed PR; reopened stale data
-is never merged as-is, only a later scheduled head that passes every gate.
+(read at job start; it cannot stop a job already running).
+
+**Recovery after a failure close.** The close step itself exits nonzero, so every
+failure close (including a failed dispatch diagnostic and a stale-rerun pause)
+also leaves a failed workflow run. Under the admission rule above, an earlier
+failed/cancelled run blocks all later collection, across midnight. Reopening the
+PR clears only the closed-PR pause; resuming publication needs **both** reopening
+the PR **and** the separately reviewed run-history recovery described in the
+publisher section. Investigate the run first. Reopened stale data is never merged
+as-is, only a later scheduled head that passes every gate.
 
 **Accepted residual risks** (no automatic backstop; handled through the job failure
 notification and the operator): (1) the close step cannot complete (close API or
