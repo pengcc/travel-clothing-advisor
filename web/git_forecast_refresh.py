@@ -63,8 +63,11 @@ def admit(runs, run_id, attempt, now):
         if (created, row['id']) >= current_position:
             continue
         # `updated_at` is the completion time of a finished run.
-        finished = max(created, datetime.fromisoformat(
-            row.get('updated_at', row['created_at']).replace('Z', '+00:00')))
+        updated = datetime.fromisoformat(
+            (row.get('updated_at') or row['created_at']).replace('Z', '+00:00'))
+        if updated.tzinfo is None:
+            raise Admission('Unverifiable run history')
+        finished = max(created, updated)
         if now - finished < ADMISSION_COOLDOWN:
             raise Admission('Cooldown after an earlier failed run has not elapsed')
     return 'am' if now.hour < 12 else 'pm'

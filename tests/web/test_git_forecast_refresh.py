@@ -356,6 +356,31 @@ class RefreshTests(unittest.TestCase):
         with self.assertRaisesRegex(refresh.Admission, 'Unverifiable'):
             refresh.admit([row(5, now - timedelta(hours=1), 'success', 'push'), current], 9, 1, now)
 
+    def test_admission_cooldown_across_utc_midnight_and_missing_updated_at(self):
+        def row(ident, created, conclusion, **extra):
+            return dict(id=ident, created_at=created.isoformat(), event='schedule',
+                        conclusion=conclusion, **extra)
+        now = datetime(2026, 10, 31, 0, 10, tzinfo=timezone.utc)
+        current = row(9, now, None)
+        # A failure that finished 20 minutes before midnight still blocks after it.
+        late = row(2, datetime(2026, 10, 30, 21, 0, tzinfo=timezone.utc), 'failure',
+                   updated_at=datetime(2026, 10, 30, 23, 50, tzinfo=timezone.utc).isoformat())
+        with self.assertRaisesRegex(refresh.Admission, 'Cooldown'):
+            refresh.admit([late, current], 9, 1, now)
+        later = now + timedelta(hours=6)
+        self.assertEqual(refresh.admit([late, row(9, later, None)], 9, 1, later), 'am')
+        # A run created on the previous UTC day is not in today's budget window.
+        stale_current = row(9, datetime(2026, 10, 30, 23, 59, tzinfo=timezone.utc), None)
+        with self.assertRaisesRegex(refresh.Admission, 'budget'):
+            refresh.admit([stale_current], 9, 1, now)
+        # Missing or null updated_at falls back to created_at; naive is unverifiable.
+        created = now - timedelta(hours=1)
+        for extra in ({}, {'updated_at': None}):
+            with self.assertRaisesRegex(refresh.Admission, 'Cooldown'):
+                refresh.admit([row(2, created, 'failure', **extra), current], 9, 1, now)
+        with self.assertRaisesRegex(refresh.Admission, 'Unverifiable'):
+            refresh.admit([row(2, created, 'failure', updated_at='2026-10-30T23:50:00'), current], 9, 1, now)
+
     def test_old_failure_no_longer_blocks_collection_end_to_end(self):
         self.gh.run_rows = [dict(id=1, created_at=(NOW - timedelta(days=3)).isoformat(),
                                  event='schedule', conclusion='failure'),
