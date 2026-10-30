@@ -897,15 +897,18 @@ from commit metadata before any collection, including a rerun; changed base,
 expired data or conflicting sources instead stop for operator investigation.
 
 Admission reads complete, bounded workflow-run history, before provider IO. Only
-the first two runs CREATED per UTC day may collect, counting failed/cancelled/
-skipped/disabled runs and manual dispatches. Reruns cannot collect; queued runs
-from an earlier UTC date fail. Incomplete pagination or unreadable history fails
-closed. At most 20 forecast HTTP attempts/UTC day; no retry or matrix. Earlier
-failed/cancelled runs conservatively block collection, including across midnight:
-without retained Retry-After information the publisher cannot prove cooldown has
-elapsed. This deliberately sacrifices automatic recovery. Investigate the exact
-run and obtain separately reviewed recovery authority; do not delete run history,
-reset ledgers, repeatedly dispatch or bypass the gate. Pagination is capped at ten
+the first two runs CREATED per UTC day may collect, counting failed/cancelled
+runs and manual dispatches; skipped (disabled) runs do not count. Reruns cannot
+collect; queued runs from an earlier UTC date fail. Incomplete pagination or
+unreadable history fails closed. At most 20 forecast HTTP attempts/UTC day; no
+retry or matrix. An earlier failed/cancelled run blocks collection only for
+`ADMISSION_COOLDOWN` (6 hours) after it finished, including across midnight;
+after that the next scheduled run may collect. The window is a fixed
+conservative pause: retained Retry-After information is unavailable. A refused
+run prints a fixed reason (rerun, daily budget, cooldown or unverifiable
+history) and exits nonzero; investigate it, do not delete run history, reset
+ledgers, repeatedly dispatch or bypass the gate. A manually closed, unmerged
+data PR remains a separate persistent pause. Pagination is capped at ten
 100-item pages; reaching the bound also needs investigation before further IO.
 
 Before separately enabling anything, a maintainer must confirm free non-commercial
@@ -993,12 +996,12 @@ Stop later runs: set `TRAVEL_FORECAST_AUTO_MERGE_ENABLED` to anything but `true`
 
 **Recovery after a failure close.** The close step itself exits nonzero, so every
 failure close (including a failed dispatch diagnostic and a stale-rerun pause)
-also leaves a failed workflow run. Under the admission rule above, an earlier
-failed/cancelled run blocks all later collection, across midnight. Reopening the
-PR clears only the closed-PR pause; resuming publication needs **both** reopening
-the PR **and** the separately reviewed run-history recovery described in the
-publisher section. Investigate the run first. Reopened stale data is never merged
-as-is, only a later scheduled head that passes every gate.
+also leaves a failed workflow run. Under the admission rule above, that run
+blocks collection for the 6-hour cooldown only. The closed, unmerged data PR is
+the persistent pause: reopening it is the operator action that resumes
+publication once the cooldown has elapsed. Investigate the run first. Reopened
+stale data is never merged as-is, only a later scheduled head that passes every
+gate.
 
 **Accepted residual risks** (no automatic backstop; handled through the job failure
 notification and the operator): (1) the close step cannot complete (close API or
