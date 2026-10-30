@@ -6,7 +6,7 @@ schedule/first-attempt/switch from the runner environment. No deploy/settings op
 Only this explicit operator entry point performs IO. All subprocess output is
 captured; errors never echo provider responses, token-bearing stderr or payloads.
 """
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 import json
 import os
 from pathlib import Path
@@ -25,33 +25,52 @@ WORKFLOW = 'weather-refresh.yml'
 BOT_EMAIL = '41898282+github-actions[bot]@users.noreply.github.com'
 BOT_LOGIN = 'github-actions[bot]'
 MARKER = 'Travel-Forecast-v2: '
+# An earlier failed/cancelled run blocks collection only for this long after it
+# finished. Retained provider headers are unavailable, so this is a conservative
+# fixed pause rather than proof of any Retry-After; it is shorter than the 12 h
+# gap between the two scheduled slots, so one failure cannot stop later days.
+ADMISSION_COOLDOWN = timedelta(hours=6)
 ERRORS = (ValueError, OSError, KeyError, TypeError, Unavailable, subprocess.SubprocessError)
 
 
+class Admission(ValueError):
+    """Admission refusal; the message is a fixed string that is safe to print."""
+
+
 def admit(runs, run_id, attempt, now):
-    """All runs count, including failed, cancelled and skipped jobs."""
+    """Failed, cancelled and manual runs count toward the budget; skipped
+    (disabled) runs do not. An earlier failure blocks only within the cooldown."""
     if attempt != 1:
-        raise ValueError('Rerun cannot collect')
-    today = now.astimezone(timezone.utc).date()
+        raise Admission('Rerun cannot collect')
+    now = now.astimezone(timezone.utc)
+    today = now.date()
     parsed = []
     for row in runs:
         created = datetime.fromisoformat(row['created_at'].replace('Z', '+00:00'))
         if created.tzinfo is None or row['event'] not in ('schedule', 'workflow_dispatch'):
-            raise ValueError('Unverifiable run history')
-        if created.astimezone(timezone.utc).date() == today:
+            raise Admission('Unverifiable run history')
+        if created.astimezone(timezone.utc).date() == today and row['conclusion'] != 'skipped':
             parsed.append((created, row['id'], row))
     parsed.sort(key=lambda x: (x[0], x[1]))
     rank = next((i for i, (_, ident, _) in enumerate(parsed) if ident == run_id), None)
     if rank is None or rank >= 2:
-        raise ValueError('Daily run budget unavailable')
-    # A prior failure might have received Retry-After exceeding this slot. Without
-    # retained provider headers we cannot prove cooldown elapsed: stop for the day.
+        raise Admission('Daily run budget unavailable')
     current_position = parsed[rank][:2]
-    if any(r['conclusion'] not in ('success', 'skipped') and
-           (datetime.fromisoformat(r['created_at'].replace('Z', '+00:00')), r['id']) < current_position
-           for r in runs):
-        raise ValueError('Prior cooldown cannot be proven elapsed')
-    return 'am' if now.astimezone(timezone.utc).hour < 12 else 'pm'
+    for row in runs:
+        if row['conclusion'] in ('success', 'skipped'):
+            continue
+        created = datetime.fromisoformat(row['created_at'].replace('Z', '+00:00'))
+        if (created, row['id']) >= current_position:
+            continue
+        # `updated_at` is the completion time of a finished run.
+        updated = datetime.fromisoformat(
+            (row.get('updated_at') or row['created_at']).replace('Z', '+00:00'))
+        if updated.tzinfo is None:
+            raise Admission('Unverifiable run history')
+        finished = max(created, updated)
+        if now - finished < ADMISSION_COOLDOWN:
+            raise Admission('Cooldown after an earlier failed run has not elapsed')
+    return 'am' if now.hour < 12 else 'pm'
 
 
 class GitHub:
@@ -482,9 +501,9 @@ def main(argv=None):
         run = f"{env.get('GITHUB_SERVER_URL')}/{REPO}/actions/runs/{env.get('GITHUB_RUN_ID')}"
         note = (f'Automatic merge stopped; this data PR is closed unmerged, which pauses forecast '
                 f'publication. Run: {run}. Step outcomes: verify={env.get("VERIFY_OUTCOME") or "not run"}, '
-                f'merge={env.get("MERGE_OUTCOME") or "not run"}. This failed run also blocks later collection '
-                f'under the admission rule: resuming needs both reopening this PR and the separately '
-                f'reviewed run-history recovery (web/README.md). Investigate first.')
+                f'merge={env.get("MERGE_OUTCOME") or "not run"}. This failed run also blocks collection '
+                f'for the admission cooldown; resuming needs reopening this PR. '
+                f'Investigate first (web/README.md).')
         try:
             close_candidate(GitHub(), args.auto_merge_close, note)
             print('Forecast data PR closed (paused)')
@@ -518,6 +537,9 @@ def main(argv=None):
     except Superseded:
         print('Forecast publication: superseded; no branch or PR writes')
         return 0
+    except Admission as exc:
+        print(f'Forecast publication not admitted: {exc}')
+        return 1
     except errors:
         print('Forecast publication stopped: validation, budget, cooldown or GitHub state unavailable')
         return 1

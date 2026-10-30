@@ -328,6 +328,80 @@ class RefreshTests(unittest.TestCase):
         self.assertEqual(self.calls, [])
         self.assertEqual(self.gh.writes, [])
 
+    def test_admission_cooldown_budget_and_skipped_runs(self):
+        now = datetime(2026, 10, 30, 12, 0, tzinfo=timezone.utc)
+        def row(ident, when, conclusion, event='schedule', **extra):
+            return dict(id=ident, created_at=when.isoformat(), event=event,
+                        conclusion=conclusion, **extra)
+        current = row(9, now, None)
+        # The observed outage: an old failure must not block later days.
+        old = row(1, now - timedelta(days=3), 'failure')
+        self.assertEqual(refresh.admit([old, current], 9, 1, now), 'pm')
+        # Within the cooldown (measured from completion) the failure still blocks.
+        recent = row(2, now - timedelta(hours=8), 'failure', updated_at=(now - timedelta(hours=2)).isoformat())
+        with self.assertRaisesRegex(refresh.Admission, 'Cooldown'):
+            refresh.admit([recent, current], 9, 1, now)
+        done = row(2, now - timedelta(hours=8), 'cancelled', updated_at=(now - timedelta(hours=6, minutes=1)).isoformat())
+        self.assertEqual(refresh.admit([done, current], 9, 1, now), 'pm')
+        # Skipped (disabled) runs do not consume the daily budget or block.
+        skipped = [row(n, now - timedelta(hours=n), 'skipped') for n in (3, 4, 5)]
+        self.assertEqual(refresh.admit(skipped + [current], 9, 1, now), 'pm')
+        # Two earlier same-day runs (any outcome) still exhaust the budget.
+        used = [row(3, now - timedelta(hours=3), 'success'), row(4, now - timedelta(hours=2), 'success', 'workflow_dispatch')]
+        with self.assertRaisesRegex(refresh.Admission, 'budget'):
+            refresh.admit(used + [current], 9, 1, now)
+        # Reruns and unverifiable history remain refused.
+        with self.assertRaisesRegex(refresh.Admission, 'Rerun'):
+            refresh.admit([current], 9, 2, now)
+        with self.assertRaisesRegex(refresh.Admission, 'Unverifiable'):
+            refresh.admit([row(5, now - timedelta(hours=1), 'success', 'push'), current], 9, 1, now)
+
+    def test_admission_cooldown_across_utc_midnight_and_missing_updated_at(self):
+        def row(ident, created, conclusion, **extra):
+            return dict(id=ident, created_at=created.isoformat(), event='schedule',
+                        conclusion=conclusion, **extra)
+        now = datetime(2026, 10, 31, 0, 10, tzinfo=timezone.utc)
+        current = row(9, now, None)
+        # A failure that finished 20 minutes before midnight still blocks after it.
+        late = row(2, datetime(2026, 10, 30, 21, 0, tzinfo=timezone.utc), 'failure',
+                   updated_at=datetime(2026, 10, 30, 23, 50, tzinfo=timezone.utc).isoformat())
+        with self.assertRaisesRegex(refresh.Admission, 'Cooldown'):
+            refresh.admit([late, current], 9, 1, now)
+        later = now + timedelta(hours=6)
+        self.assertEqual(refresh.admit([late, row(9, later, None)], 9, 1, later), 'am')
+        # A run created on the previous UTC day is not in today's budget window.
+        stale_current = row(9, datetime(2026, 10, 30, 23, 59, tzinfo=timezone.utc), None)
+        with self.assertRaisesRegex(refresh.Admission, 'budget'):
+            refresh.admit([stale_current], 9, 1, now)
+        # Missing or null updated_at falls back to created_at; naive is unverifiable.
+        created = now - timedelta(hours=1)
+        for extra in ({}, {'updated_at': None}):
+            with self.assertRaisesRegex(refresh.Admission, 'Cooldown'):
+                refresh.admit([row(2, created, 'failure', **extra), current], 9, 1, now)
+        with self.assertRaisesRegex(refresh.Admission, 'Unverifiable'):
+            refresh.admit([row(2, created, 'failure', updated_at='2026-10-30T23:50:00'), current], 9, 1, now)
+
+    def test_old_failure_no_longer_blocks_collection_end_to_end(self):
+        self.gh.run_rows = [dict(id=1, created_at=(NOW - timedelta(days=3)).isoformat(),
+                                 event='schedule', conclusion='failure'),
+                            dict(id=2, created_at=NOW.isoformat(), event='schedule', conclusion=None)]
+        self.assertEqual(self.run_refresh(run_id=2), 'published')
+        self.assertEqual(len(self.calls), 10)
+
+    def test_main_prints_fixed_admission_reason_only(self):
+        env = dict(TRAVEL_GIT_FORECAST_ENABLED='true', GITHUB_REPOSITORY=refresh.REPO,
+                   GITHUB_REF='refs/heads/main', GITHUB_EVENT_NAME='schedule',
+                   GITHUB_RUN_ATTEMPT='1', GITHUB_RUN_ID='7')
+        for exc, shown in ((refresh.Admission('Daily run budget unavailable'), 'Daily run budget unavailable'),
+                           (ValueError('secret-token-detail'), 'validation, budget, cooldown')):
+            with patch.dict('os.environ', env), patch.object(refresh, 'GitHub'), \
+                    patch.object(refresh, 'reconcile', side_effect=exc), \
+                    patch('sys.stdout') as out:
+                self.assertEqual(refresh.main([]), 1)
+            printed = ''.join(c.args[0] for c in out.write.call_args_list)
+            self.assertIn(shown, printed)
+            self.assertNotIn('secret-token-detail', printed)
+
     def test_push_then_pr_failure_recovers_without_collection_and_manual_close_pauses(self):
         self.gh.fail_api = True
         with self.assertRaises(ValueError): self.run_refresh()
