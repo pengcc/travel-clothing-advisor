@@ -137,6 +137,14 @@ class HistoryPrTests(unittest.TestCase):
         history_pr.run(self.args, self.clock, backfill=self.fake_backfill(['2024-04']))
         self.assertIn('data/history-20261024-2', self.branches())
 
+    def test_pr_body_reports_last_error_without_provider_message(self):
+        text = history_pr.body(220, dict(added=1, repaired=0, git_valid=221), dict(
+            stop_reason='provider_or_storage_failure',
+            run=dict(published=1, failed=1, http_requests=2, equivalent_calls=12,
+                     last_error=dict(stage='request', type='HTTPError', job='berlin/2022-09',
+                                     http_status=429, cooldown_seconds=300))))
+        self.assertIn('Last error: HTTPError during request for berlin/2022-09, HTTP status 429, cooldown 300s', text)
+
     def test_nothing_new_leaves_no_branch_or_pr(self):
         rc = history_pr.run(self.args, self.clock, backfill=self.fake_backfill([], stop='complete'))
         self.assertEqual(rc, 0)
