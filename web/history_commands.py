@@ -121,9 +121,37 @@ def backfill(cities, local, bundle, clock, *, download=False, seed=False,
                 new_valid=after['valid']-before['valid'])
 
 
+def export(cities, local, bundle, clock):
+    """Offline, history-only publication into the Git bundle.
+
+    Copies valid local months that are missing or invalid in Git. Valid Git bytes,
+    forecasts, the manifest and every non-history path are never touched.
+    """
+    roots = [Path(p).resolve() for p in (local, bundle)]
+    if any(a == b or a in b.parents or b in a.parents for a, b in (roots, roots[::-1])):
+        raise ValueError('Use distinct, non-nested history and bundle directories')
+    planned = []
+    for city in cities:
+        for month in MONTHS:
+            l, raw = inspect(local, city, month, clock)
+            g, _ = inspect(bundle, city, month, clock)
+            if 'unreadable' in (l, g):
+                raise OSError()
+            if l == 'valid' and g != 'valid':
+                planned.append((key(city, month), raw, g))
+    store = DirectoryStore(bundle)
+    for name, raw, _ in planned:
+        store.put(name, raw)
+    after = inventory(cities, local, bundle, clock)
+    git_valid = sum(b['git'] == 'valid' for r in after['cities'] for b in r['months'].values())
+    return dict(added=sum(s == 'missing' for _, _, s in planned),
+                repaired=sum(s == 'invalid' for _, _, s in planned),
+                git_valid=git_valid, total=600, http_requests=0)
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('command', choices=('status', 'backfill'))
+    parser.add_argument('command', choices=('status', 'backfill', 'export'))
     parser.add_argument('--history-dir', default='.history-local')
     parser.add_argument('--bundle-dir', default='weather-data')
     parser.add_argument('--seed', action='store_true', help='Local writes only: import valid Git blocks')
@@ -134,11 +162,17 @@ def main(argv=None):
     parser.add_argument('--monthly-calls', type=int, default=600)
     parser.add_argument('--timeout', type=float, default=30)
     args = parser.parse_args(argv)
-    if args.command == 'status' and (args.seed or args.download):
-        parser.error('status is strictly read-only')
+    if args.command != 'backfill' and (args.seed or args.download):
+        parser.error(f'{args.command} accepts neither --seed nor --download')
     try:
         _, cities = records_at(args.bundle_dir)
         clock = lambda: datetime.now(BERLIN)
+        if args.command == 'export':
+            result = export(cities, args.history_dir, args.bundle_dir, clock)
+            print(json.dumps(result, sort_keys=True))
+            print(f"{result['added']} added, {result['repaired']} repaired; "
+                  f"{result['git_valid']}/600 valid in Git", file=sys.stderr)
+            return 0
         if args.command == 'status':
             report = inventory(cities, args.history_dir, args.bundle_dir, clock)
         else:

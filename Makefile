@@ -34,11 +34,18 @@ data-update data-status data-export:
 	$(PYTHON) -m web.data_commands $(patsubst data-%,%,$@) --forecast-dir "$(FORECAST_DIR)" --history-dir "$(HISTORY_DIR)" --bundle-dir "$(DATA_DIR)"
 
 # Historical inventory is read-only; ARGS=--seed writes locally, ARGS=--download opts into LIVE IO.
-.PHONY: history-status history-backfill
-history-status history-backfill:
+# history-export is offline and history-only: copies valid local months missing from Git into weather-data/history.
+.PHONY: history-status history-backfill history-export
+history-status history-backfill history-export:
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m web.history_commands $(patsubst history-%,%,$@) --history-dir "$(HISTORY_DIR)" --bundle-dir "$(DATA_DIR)" $(ARGS)
 
 # Explicit forecast-only IO; OUTPUT must be a new independent directory.
 .PHONY: forecast-update forecast-export
 forecast-update forecast-export:
 	$(PYTHON) -m web.data_commands $@ --bundle-dir "$(DATA_DIR)" --forecast-dir "$(FORECAST_DIR)" --output "$(OUTPUT)"
+
+# Manual history data PR: new branch from origin/main, LIVE bounded ERA5 backfill, history-only export,
+# push and `gh pr create`; never merges. ARGS=--no-download skips live IO; each run targets all missing blocks and may need repeats (guards: 3600 units/run and day, 7200/month, 900 s) (override via ARGS; see web/README.md).
+.PHONY: history-pr
+history-pr:
+	$(PYTHON) -m web.history_pr --history-dir "$(HISTORY_DIR)" --bundle-dir "$(DATA_DIR)" $(ARGS)
