@@ -358,6 +358,7 @@ class Downloader:
                           hourly='temperature_2m', temperature_unit='celsius', timezone='Europe/Berlin',
                           timeformat='unixtime', start_date=(first-timedelta(days=1)).isoformat(),
                           end_date=(last+timedelta(days=1)).isoformat())
+            stage = 'request'
             try:
                 remaining = self.timeout-(self.timer()-started)
                 if remaining <= 0:
@@ -365,6 +366,7 @@ class Downloader:
                 data = self.provider(ARCHIVE, params, min(self.request_timeout,remaining))
                 if self.timer()-started >= self.timeout:
                     raise TimeoutError()
+                stage = 'validate'
                 self.library.publish(city,month,data)
                 self.stats['published'] += 1
             except (OSError, ValueError, Unavailable, TimeoutError) as exc:
@@ -378,6 +380,10 @@ class Downloader:
                         pass
                 ledger['cooldown_until'] = self.library.clock().timestamp()+retry
                 store.put(LEDGER, encode(ledger))
+                # Diagnostics only: exception class, HTTP status and job; never the provider's message.
+                self.stats['last_error'] = dict(
+                    stage=stage, type=type(exc).__name__, job=f"{city['id']}/{month}",
+                    http_status=exc.code if isinstance(exc, HTTPError) else None, cooldown_seconds=retry)
                 raise Unavailable('历史月份下载或验证失败，已暂停补取，请稍后重试。') from exc
         return self.stats.copy()
 

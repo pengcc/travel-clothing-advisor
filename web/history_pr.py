@@ -50,6 +50,10 @@ def body(before, exported, backfill):
         lines.append(f"- Download stop reason: `{backfill.get('stop_reason')}`; published {run.get('published', 0)}, "
                      f"failed {run.get('failed', 0)}, HTTP requests {run.get('http_requests', 0)}, "
                      f"weighted units {run.get('equivalent_calls', 0)}")
+        if run.get('last_error'):
+            err = run['last_error']
+            lines.append(f"- Last error: {err['type']} during {err['stage']} for {err['job']}, "
+                         f"HTTP status {err['http_status']}, cooldown {err['cooldown_seconds']:.0f}s")
     else:
         lines.append('- Download skipped (`--no-download`); only months already in the local store were exported.')
     lines += ['', 'Every object was revalidated (identity, checksum, full-month UTC coverage) before export; '

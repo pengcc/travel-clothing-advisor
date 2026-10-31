@@ -178,6 +178,22 @@ class HistoryTests(unittest.TestCase):
             with self.assertRaises(Unavailable):self.worker().fill(self.jobs())
         self.assertFalse(any(k.endswith('.gz') for k in self.store.objects))
         self.assertEqual(json.loads(self.store.get(LEDGER))['days']['2026-10-16'],6)
+    def test_failure_diagnostics_distinguish_request_from_validation(self):
+        self.provider.fail=TimeoutError()
+        worker=self.worker()
+        with self.assertRaises(Unavailable):worker.fill(self.jobs())
+        error=worker.stats['last_error']
+        self.assertEqual((error['stage'],error['type'],error['http_status']),('request','TimeoutError',None))
+        self.assertRegex(error['job'],r'^berlin/\d{4}-\d{2}$')
+        self.setUp()
+        self.provider.edge=float('nan')
+        worker=self.worker()
+        with self.assertRaises(Unavailable):worker.fill(self.jobs())
+        self.assertEqual(worker.stats['last_error']['stage'],'validate')
+        self.setUp()
+        worker=self.worker()
+        worker.fill(self.jobs())
+        self.assertNotIn('last_error',worker.stats)
     def test_quota_persistence_cooldown_and_no_retry(self):
         for status in (429,500,503):
             self.setUp()
@@ -186,6 +202,10 @@ class HistoryTests(unittest.TestCase):
             with self.assertRaises(Unavailable):worker.fill(self.jobs())
             self.assertEqual(len(self.provider.calls),1)
             self.assertEqual(worker.stats['failed'],1)
+            error=worker.stats['last_error']
+            self.assertEqual((error['stage'],error['type'],error['http_status'],error['cooldown_seconds']),
+                             ('request','HTTPError',status,600))
+            self.assertNotIn('upstream message',json.dumps(error))
             self.provider.fail=None
             with self.assertRaises(Unavailable):self.worker().fill(self.jobs())
             self.assertEqual(len(self.provider.calls),1)

@@ -883,7 +883,9 @@ at most 3600 units per day and 7200 per month, within 900 seconds. Serial calls 
 timeout likely to end a large run early; it then publishes what it validated, so filling the whole
 inventory may take several runs. Requests stay serial with a
 4-second limit and the failure cooldown (300 s or `Retry-After`) still applies; a failed run keeps the
-validated blocks it already downloaded. The lower-level `Downloader`/`history-backfill` defaults
+validated blocks it already downloaded and records `run.last_error` (stage `request` or
+`validate`, exception class, HTTP status, `city/month`, cooldown seconds; never the provider's
+message), which also appears in the PR body. The lower-level `Downloader`/`history-backfill` defaults
 (5 blocks, 60/day, 600/month) are unchanged.
 
 The forecast automation owns `weather-data/forecast/`; history PRs and forecast PRs touch
