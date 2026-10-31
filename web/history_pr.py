@@ -116,13 +116,13 @@ def main(argv=None):
     parser.add_argument('--bundle-dir', default='weather-data')
     parser.add_argument('--base', default='main')
     parser.add_argument('--no-download', action='store_true', help='Export months already in the local store; no live IO')
-    # Operator-run defaults, far below Open-Meteo's real limits (see web/README.md quota model):
-    # 600 units/day = 100 blocks = ~300 real calls; 3600 units/month = the whole 600-block inventory.
-    parser.add_argument('--max-blocks', type=int, default=50)
-    parser.add_argument('--batch-calls', type=int, default=300)
-    parser.add_argument('--daily-calls', type=int, default=600)
-    parser.add_argument('--monthly-calls', type=int, default=3600)
-    parser.add_argument('--timeout', type=float, default=240)
+    # One command fills everything missing. Limits only guard against runaway loops: a full 600-block
+    # inventory is 3600 units (~1800 real calls, under 20% of Open-Meteo's 10,000/day); monthly allows two.
+    parser.add_argument('--max-blocks', type=int, default=600)
+    parser.add_argument('--batch-calls', type=int, default=3600)
+    parser.add_argument('--daily-calls', type=int, default=3600)
+    parser.add_argument('--monthly-calls', type=int, default=7200)
+    parser.add_argument('--timeout', type=float, default=900)
     try:
         return run(parser.parse_args(argv))
     except Stop as exc:

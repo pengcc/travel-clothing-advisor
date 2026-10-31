@@ -872,15 +872,17 @@ before any commit; a provider failure, cooldown, timeout or budget stop still pu
 months that were downloaded and validated (the PR body records the stop reason).
 
 ```sh
-make history-pr                                   # defaults: 50 blocks/run, 300 units/run, 600 units/day, 3600/month, 240 s
+make history-pr                                   # fills ALL missing blocks in one run, one PR
 make history-pr ARGS='--no-download'              # export only what is already in .history-local
-make history-pr ARGS='--max-blocks 5 --batch-calls 30 --daily-calls 60 --monthly-calls 600 --timeout 30'  # the conservative lower-level defaults
+make history-pr ARGS='--max-blocks 20'            # small trial batch first
 ```
 
-`history-pr` deliberately uses larger operator defaults than `history-backfill`: 600 units/day is
-100 blocks (about 300 real calls, 3% of the provider's daily limit) and 3600 units/month equals the
-whole 600-block inventory. Requests stay serial with a 4-second limit and the failure cooldown
-(300 s or `Retry-After`) still applies. The lower-level `Downloader`/`history-backfill` defaults are unchanged.
+`history-pr` limits are runaway guards, not the provider limit: one run may download up to the
+whole 600-block inventory (3600 units, about 1800 real calls, under 20% of Open-Meteo's daily limit),
+at most 3600 units per day and 7200 per month, within 900 seconds. Requests stay serial with a
+4-second limit and the failure cooldown (300 s or `Retry-After`) still applies; a failed run keeps the
+validated blocks it already downloaded. The lower-level `Downloader`/`history-backfill` defaults
+(5 blocks, 60/day, 600/month) are unchanged.
 
 The forecast automation owns `weather-data/forecast/`; history PRs and forecast PRs touch
 disjoint paths. The real download needs the usual separate operator approval and
