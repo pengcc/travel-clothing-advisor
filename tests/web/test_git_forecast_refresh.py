@@ -402,6 +402,25 @@ class RefreshTests(unittest.TestCase):
             self.assertIn(shown, printed)
             self.assertNotIn('secret-token-detail', printed)
 
+    def test_main_prints_exception_class_and_fixed_reasons_only(self):
+        env = dict(TRAVEL_GIT_FORECAST_ENABLED='true', GITHUB_REPOSITORY=refresh.REPO,
+                   GITHUB_REF='refs/heads/main', GITHUB_EVENT_NAME='schedule',
+                   GITHUB_RUN_ATTEMPT='1', GITHUB_RUN_ID='7')
+        for exc, shown in ((ValueError('secret-token-detail'), '(ValueError)'),
+                           (KeyError('secret-token-detail'), '(KeyError)')):
+            with patch.dict('os.environ', env), patch.object(refresh, 'GitHub'), \
+                    patch.object(refresh, 'reconcile', side_effect=exc), patch('sys.stdout') as out:
+                self.assertEqual(refresh.main([]), 1)
+            printed = ''.join(c.args[0] for c in out.write.call_args_list)
+            self.assertIn(shown, printed)
+            self.assertNotIn('secret-token-detail', printed)
+        with patch.object(refresh, 'GitHub'), patch.object(
+                refresh, 'verify_candidate', side_effect=refresh.Admission('Required checks not successful')), \
+                patch('sys.stdout') as out:
+            self.assertEqual(refresh.main(['--auto-merge-verify', '1', 'b', 'h']), 1)
+        self.assertIn('Admission: Required checks not successful',
+                      ''.join(c.args[0] for c in out.write.call_args_list))
+
     def test_push_then_pr_failure_recovers_without_collection_and_manual_close_pauses(self):
         self.gh.fail_api = True
         with self.assertRaises(ValueError): self.run_refresh()
