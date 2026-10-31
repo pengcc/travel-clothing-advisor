@@ -22,11 +22,11 @@ class Stop(Exception):
     """Operator-facing precondition or safety failure."""
 
 
-def sh(*cmd, check=True):
+def sh(*cmd, check=True, strip=True):
     done = subprocess.run(cmd, capture_output=True, text=True)
     if check and done.returncode:
         raise Stop(f"{' '.join(cmd[:3])} failed: {(done.stderr or done.stdout).strip()[-400:]}")
-    return done.stdout.strip()
+    return done.stdout.strip() if strip else done.stdout
 
 
 def branch_name(day, exists):
@@ -84,7 +84,9 @@ def run(args, clock=lambda: datetime.now(BERLIN), backfill=hc.backfill, export=h
             if result.get('stop_reason') in ABORT:
                 raise Stop(f"Backfill stopped: {result['stop_reason']}; investigate before retrying.")
         exported = export(cities, args.history_dir, args.bundle_dir, clock)
-        paths = [line[3:] for line in sh('git', 'status', '--porcelain', '--untracked-files=all').splitlines()]
+        # -z keeps each entry's leading status columns and avoids path quoting.
+        status = sh('git', 'status', '--porcelain', '-z', '--untracked-files=all', strip=False)
+        paths = [entry[3:] for entry in status.split('\0') if entry]
         if not paths:
             print(f"Nothing new for Git ({git_before}/600 valid; stop reason: "
                   f"{result.get('stop_reason') if result else 'n/a'}). No branch or PR created.")
@@ -116,8 +118,9 @@ def main(argv=None):
     parser.add_argument('--bundle-dir', default='weather-data')
     parser.add_argument('--base', default='main')
     parser.add_argument('--no-download', action='store_true', help='Export months already in the local store; no live IO')
-    # One command fills everything missing. Limits only guard against runaway loops: a full 600-block
-    # inventory is 3600 units (~1800 real calls, under 20% of Open-Meteo's 10,000/day); monthly allows two.
+    # Limits only guard against runaway loops: a full 600-block inventory is 3600 units (~1800 real calls,
+    # under 20% of Open-Meteo's 10,000/day); monthly allows two. The 900 s timeout may end a run early;
+    # each run publishes what it validated, so a full fill may take several runs.
     parser.add_argument('--max-blocks', type=int, default=600)
     parser.add_argument('--batch-calls', type=int, default=3600)
     parser.add_argument('--daily-calls', type=int, default=3600)

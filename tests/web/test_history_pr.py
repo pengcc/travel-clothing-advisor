@@ -103,11 +103,11 @@ class HistoryPrTests(unittest.TestCase):
                               daily_calls=60, monthly_calls=600, timeout=30)
         _, self.cities = records_at(self.args.bundle_dir)
 
-    def sh(self, *cmd, check=True):
+    def sh(self, *cmd, check=True, strip=True):
         if cmd[0] == 'gh':
             self.gh.append(cmd)
             return 'https://github.example/pr/1' if cmd[1:3] == ('pr', 'create') else ''
-        return real_sh(*cmd, check=check)
+        return real_sh(*cmd, check=check, strip=strip)
 
     def fake_backfill(self, months, stop='max_blocks'):
         def run(cities, local, bundle, clock, **kw):
@@ -149,6 +149,20 @@ class HistoryPrTests(unittest.TestCase):
         rc = history_pr.run(self.args, self.clock, backfill=lambda *a, **k: self.fail('download'))
         self.assertEqual(rc, 0)
         self.assertIn('--no-download', [c for c in self.gh if c[1:3] == ('pr', 'create')][0][-1])
+
+    def test_repairing_a_tracked_invalid_month_is_in_scope(self):
+        # A modified tracked file is the first porcelain entry (` M path`); it must not be misparsed.
+        name = key(self.cities[0], '2024-02')
+        DirectoryStore(self.args.bundle_dir).put(name, b'broken')
+        git('add', '.', cwd=self.repo)
+        git('commit', '-m', 'broken month', cwd=self.repo)
+        git('push', 'origin', 'main', cwd=self.repo)
+        Library(DirectoryStore(self.local), self.clock).publish(self.cities[0], '2024-02', month_data('2024-02'))
+        self.args.no_download = True
+        self.assertEqual(history_pr.run(self.args, self.clock), 0)
+        files = real_sh('git', 'diff', '--name-only', 'main', 'data/history-20261024').split()
+        self.assertEqual(files, ['weather-data/' + name])
+        self.assertIn('repaired 1', [c for c in self.gh if c[1:3] == ('pr', 'create')][0][-1])
 
     def test_dirty_tree_and_abort_reasons_stop_cleanly(self):
         (self.repo / 'stray.txt').write_text('x')

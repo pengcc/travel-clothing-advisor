@@ -872,14 +872,16 @@ before any commit; a provider failure, cooldown, timeout or budget stop still pu
 months that were downloaded and validated (the PR body records the stop reason).
 
 ```sh
-make history-pr                                   # fills ALL missing blocks in one run, one PR
+make history-pr                                   # targets all missing blocks; one PR per run
 make history-pr ARGS='--no-download'              # export only what is already in .history-local
 make history-pr ARGS='--max-blocks 20'            # small trial batch first
 ```
 
-`history-pr` limits are runaway guards, not the provider limit: one run may download up to the
-whole 600-block inventory (3600 units, about 1800 real calls, under 20% of Open-Meteo's daily limit),
-at most 3600 units per day and 7200 per month, within 900 seconds. Requests stay serial with a
+`history-pr` limits are runaway guards, not the provider limit: one run may attempt the whole
+600-block inventory (3600 units, about 1800 real calls, under 20% of Open-Meteo's daily limit),
+at most 3600 units per day and 7200 per month, within 900 seconds. Serial calls make the 900 s
+timeout likely to end a large run early; it then publishes what it validated, so filling the whole
+inventory may take several runs. Requests stay serial with a
 4-second limit and the failure cooldown (300 s or `Retry-After`) still applies; a failed run keeps the
 validated blocks it already downloaded. The lower-level `Downloader`/`history-backfill` defaults
 (5 blocks, 60/day, 600/month) are unchanged.
