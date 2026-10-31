@@ -839,6 +839,48 @@ restore only for recovery, retaining current usage accounting and without runnin
 independent copies. Do not delete the ledger or replace valid months. Keep Git
 history unchanged; these commands provide no export or publication operation.
 
+#### Quota model (what each number means)
+
+| Number | What it is | Enforced by |
+| --- | --- | --- |
+| 600/min, 5,000/h, 10,000/day, 300,000/month | Open-Meteo free-tier limits per IP/application (non-commercial; [terms](https://open-meteo.com/en/terms), checked 2026-10-31; monthly not yet enforced upstream) | Open-Meteo |
+| 5 blocks, 30 units per run; 60 units/day; 600 units/month | **Project-internal, conservative** ceilings (defaults) | `Downloader` + `control/usage-v1.json` ledger in one local store |
+| 1 month block = 6 units | `Downloader.cost`: about 3 real calls (a month plus two padded days, about 14 days per call) times a 2x safety margin | `web/history.py` |
+
+The ledger only compares against the limits passed to the current run and does not store
+them, so `--daily-calls`/`--monthly-calls` overrides are legitimate but invisible later: a
+ledger above 600 for a month means an override was used, not a provider overrun. Counters
+are keyed by Germany calendar day/month and reset on their own. At the defaults, 600 units
+per month is 100 blocks and 60 per day is 10 blocks, so 312 missing blocks need about a
+month. Raising the daily/monthly limits is an operator choice that stays far below the
+provider's limits (a block is about 3 real calls); do it explicitly with `ARGS`, and never
+reset or delete the ledger.
+
+#### One-command history PR
+
+`make history-export` is offline: it copies valid local months that are missing or invalid in
+Git into `weather-data/history/` and touches nothing else (valid Git bytes, forecasts,
+manifest and README stay as they are).
+
+`make history-pr` runs the whole manual cycle: it refuses a dirty working tree, checks
+`gh auth`, fetches `origin/main`, creates `data/history-YYYYMMDD` (numeric suffix if taken),
+imports Git months, runs the bounded **LIVE** ERA5 backfill, exports history only, verifies
+every changed path is under `weather-data/history/`, commits, pushes and opens a PR, then
+returns to your starting branch. It never merges; merging to `main` triggers a Production
+deployment. With nothing new it creates no branch or PR. A storage/ledger/lock stop aborts
+before any commit; a provider failure, cooldown, timeout or budget stop still publishes the
+months that were downloaded and validated (the PR body records the stop reason).
+
+```sh
+make history-pr                                   # defaults: 5 blocks, 60 units/day, 600/month
+make history-pr ARGS='--no-download'              # export only what is already in .history-local
+make history-pr ARGS='--max-blocks 10 --batch-calls 60 --daily-calls 120'   # explicit larger batch
+```
+
+The forecast automation owns `weather-data/forecast/`; history PRs and forecast PRs touch
+disjoint paths. The real download needs the usual separate operator approval and
+non-commercial eligibility check.
+
 A fixture-tested tool or successful PR does not establish real 600/600 coverage.
 Record a fresh `history-status` result after separately authorized real batches.
 `data-export` still requires ten current forecasts and is not a history-only export.
