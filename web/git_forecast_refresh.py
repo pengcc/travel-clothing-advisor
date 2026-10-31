@@ -292,7 +292,7 @@ def publication_prs(github, expected, initial):
     if len(opened) > 1:
         raise ValueError('Duplicate data PRs')
     if any(p['state'] == 'closed' and not p['merged_at'] for p in current):
-        raise ValueError('Data publication manually paused')
+        raise Admission('Data publication manually paused')
     if opened and opened[0]['head']['sha'] != expected:
         raise ValueError('PR head drift')
     def lifecycle(rows):
@@ -315,7 +315,7 @@ def reconcile(github, clock, run_id, attempt, *, collect=forecast_update):
         raise ValueError('Duplicate data PRs')
     # Any manual close is a pause until separately reviewed operator recovery.
     if any(p['state'] == 'closed' and not p['merged_at'] for p in prs):
-        raise ValueError('Data publication manually paused')
+        raise Admission('Data publication manually paused')
     base, expected = github.refs()
     meta = github.metadata(expected)
     if meta:
@@ -382,10 +382,10 @@ def reconcile(github, clock, run_id, attempt, *, collect=forecast_update):
 def verify(github, clock, base, head):
     """Read-only pre-merge verification; refuses stale supplied revision evidence."""
     if github.refs() != (base, head):
-        raise ValueError('Base/head evidence stale')
+        raise Admission('Base/head evidence stale')
     meta = github.metadata(head)
     if not meta or meta['base'] != base:
-        raise ValueError('Reassemble/review data PR against current main first')
+        raise Admission('Reassemble/review data PR against current main first')
     github.allowed(base, head)
     with tempfile.TemporaryDirectory(prefix='.forecast-verify-', dir=github.root) as temp:
         t = Path(temp)
@@ -393,7 +393,7 @@ def verify(github, clock, base, head):
         sources = github.snapshot(head, t / 'sources')
         forecast_export(sources, latest, t / 'assembled', clock, clock().astimezone(BERLIN).date())
         if tree(t / 'assembled') != tree(sources) or github.refs() != (base, head):
-            raise ValueError('PR tree or revision evidence changed')
+            raise Admission('PR tree or revision evidence changed')
     return dict(base=base, head=head, cities=10, history_changes=0)
 
 
@@ -423,19 +423,19 @@ def verify_candidate(github, clock, number, base, head):
     if not (pr['user']['login'] == BOT_LOGIN and pr['state'] == 'open' and not pr['draft'] and
             repos == (REPO, REPO) and pr['head']['ref'] == BRANCH and
             pr['base']['ref'] == 'main' and pr['head']['sha'] == head):
-        raise ValueError('Data PR identity mismatch')
+        raise Admission('Data PR identity mismatch')
     prs = github.prs()
     if [p['number'] for p in prs if p['state'] == 'open'] != [int(number)]:
-        raise ValueError('Duplicate or missing data PR')
+        raise Admission('Duplicate or missing data PR')
     if any(p['state'] == 'closed' and not p['merged_at'] for p in prs):
-        raise ValueError('Data publication manually paused')
+        raise Admission('Data publication manually paused')
     github.allowed(base, head)
     result = verify(github, clock, base, head)
     required = github.required_checks()
     results = github.check_results(head)
     # Missing, pending, skipped or failed results are all non-passing.
     if any(not results.get(name) or not all(results[name]) for name in required):
-        raise ValueError('Required checks not successful')
+        raise Admission('Required checks not successful')
     return dict(result, pr=int(number), required_checks=sorted(required))
 
 
@@ -494,8 +494,10 @@ def main(argv=None):
                 result = verify_candidate(GitHub(), clock, *args.auto_merge_verify)
             print(json.dumps(result, sort_keys=True))
             return 0
-        except errors:
-            print(f'Forecast auto-merge {step} stopped: gate, revision, check or GitHub state failed')
+        except errors as exc:
+            reason = f': {exc}' if isinstance(exc, Admission) else ''
+            print(f'Forecast auto-merge {step} stopped: gate, revision, check or GitHub state failed '
+                  f'({type(exc).__name__}{reason})')
             return 1
     if args.auto_merge_close:
         run = f"{env.get('GITHUB_SERVER_URL')}/{REPO}/actions/runs/{env.get('GITHUB_RUN_ID')}"
@@ -540,8 +542,10 @@ def main(argv=None):
     except Admission as exc:
         print(f'Forecast publication not admitted: {exc}')
         return 1
-    except errors:
-        print('Forecast publication stopped: validation, budget, cooldown or GitHub state unavailable')
+    except errors as exc:
+        # Exception class only; other messages may carry provider or token detail.
+        print('Forecast publication stopped: validation, budget, cooldown or GitHub state '
+              f'unavailable ({type(exc).__name__})')
         return 1
 
 
