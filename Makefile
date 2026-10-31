@@ -45,7 +45,7 @@ forecast-update forecast-export:
 	$(PYTHON) -m web.data_commands $@ --bundle-dir "$(DATA_DIR)" --forecast-dir "$(FORECAST_DIR)" --output "$(OUTPUT)"
 
 # Manual history data PR: new branch from origin/main, LIVE bounded ERA5 backfill, history-only export,
-# push and `gh pr create`; never merges. ARGS=--no-download skips live IO; limits via ARGS (see web/README.md).
+# push and `gh pr create`; never merges. ARGS=--no-download skips live IO; operator defaults 50 blocks/run, 600 units/day, 3600/month (override via ARGS; see web/README.md).
 .PHONY: history-pr
 history-pr:
 	$(PYTHON) -m web.history_pr --history-dir "$(HISTORY_DIR)" --bundle-dir "$(DATA_DIR)" $(ARGS)
