@@ -285,15 +285,19 @@ class GitHub:
             self.api(f'repos/{REPO}/pulls', 'POST', dict(payload, head=BRANCH, base='main'))
 
 
-def publication_prs(github, expected, initial):
-    """Last-observed lifecycle control; Git push and PR API are not atomic."""
+def publication_prs(github, expected, initial, lagging=None):
+    """Last-observed lifecycle control; Git push and PR API are not atomic.
+
+    GitHub moves an open PR's head asynchronously after a push, so right after our own
+    push the PR may still show the previous head (`lagging`); that is not drift.
+    """
     current = github.prs()
     opened = [p for p in current if p['state'] == 'open']
     if len(opened) > 1:
         raise ValueError('Duplicate data PRs')
     if any(p['state'] == 'closed' and not p['merged_at'] for p in current):
         raise Admission('Data publication manually paused')
-    if opened and opened[0]['head']['sha'] != expected:
+    if opened and opened[0]['head']['sha'] not in (expected, lagging):
         raise ValueError('PR head drift')
     def lifecycle(rows):
         # Open PR head changes from our push are expected; all other lifecycle
@@ -372,7 +376,7 @@ def reconcile(github, clock, run_id, attempt, *, collect=forecast_update):
             forecast_export(sources, latest, t / f'final-{iteration}', clock, day, branch)
             publication_prs(github, expected, prs)
             github.push(head, expected)
-            latest_prs = publication_prs(github, head, prs)
+            latest_prs = publication_prs(github, head, prs, lagging=expected)
             github.publish_pr(head, meta, latest_prs)
             github.published = (latest_base, head)
             return 'published'
