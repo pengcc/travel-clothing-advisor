@@ -36,6 +36,7 @@ class FakeGitHub:
         self.run_rows = [dict(id=1, created_at=now.astimezone(timezone.utc).isoformat(),
                               event='schedule', conclusion=None)]
         self.fail_api = False
+        self.pr_head_lag = False
         self.commits = 0
 
     def prs(self):
@@ -78,7 +79,7 @@ class FakeGitHub:
         self.branch = self.pending
         self.writes.append('push')
         for pr in self.pr_list:
-            if pr['state'] == 'open':
+            if pr['state'] == 'open' and not self.pr_head_lag:
                 pr['head']['sha'] = head
 
     def publish_pr(self, head, meta, prs):
@@ -401,6 +402,18 @@ class RefreshTests(unittest.TestCase):
             printed = ''.join(c.args[0] for c in out.write.call_args_list)
             self.assertIn(shown, printed)
             self.assertNotIn('secret-token-detail', printed)
+
+    def test_open_pr_head_lagging_right_after_own_push_is_not_drift(self):
+        self.assertEqual(self.run_refresh(), 'published')
+        old_head = self.gh.head
+        self.now += timedelta(hours=8)
+        self.gh.run_rows[0]['conclusion'] = 'success'
+        self.gh.run_rows.append(dict(id=2, created_at=self.now.astimezone(timezone.utc).isoformat(),
+                                     event='schedule', conclusion=None))
+        self.gh.pr_head_lag = True  # GitHub updates the open PR head asynchronously after a push
+        self.assertEqual(self.run_refresh(run_id=2), 'published')
+        self.assertNotEqual(self.gh.head, old_head)
+        self.assertEqual(self.gh.writes[-2:], ['push', 'pr'])
 
     def test_main_prints_exception_class_and_fixed_reasons_only(self):
         env = dict(TRAVEL_GIT_FORECAST_ENABLED='true', GITHUB_REPOSITORY=refresh.REPO,
