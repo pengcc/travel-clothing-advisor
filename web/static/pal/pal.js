@@ -231,10 +231,11 @@
       try { res = await fetch('/api/pal', {cache: 'no-store', signal: ctl.signal}); }
       catch (e) { return transportFailed(); }
       if (res.status === 503) return showUnavailable('这个时间还没有可用的数据');
-      if (!res.ok) return transportFailed();
+      // Only a rejected fetch (network error, abort/timeout) keeps the screen; any other bad response is not usable data.
+      if (!res.ok) return showUnavailable('暂时无法读取数据');
       let data;
-      try { data = await res.json(); } catch (e) { return transportFailed(); }
-      if (!validData(data)) return transportFailed();
+      try { data = await res.json(); } catch (e) { return showUnavailable('暂时无法读取数据'); }
+      if (!validData(data)) return showUnavailable('暂时无法读取数据');
       if (Date.now() - Date.parse(data.weather_fetched_at) > MAX_AGE_MS) return showUnavailable('已经超过 48 小时没有新数据');
       apply(data);
     } finally { clearTimeout(timer); loading = false; }

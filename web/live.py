@@ -257,7 +257,8 @@ class Service:
             now = self.clock().astimezone(BERLIN)
             city = self._city_record('berlin', now)
             cached = None
-            for back in range(3):
+            # Local worker mode (no offline_cities) only supports today's snapshot.
+            for back in range(3 if self.offline_cities is not None else 1):
                 cached = self.forecasts.read_snapshot(city, now.date() - timedelta(days=back))
                 if cached is not None:
                     break

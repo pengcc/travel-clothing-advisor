@@ -123,6 +123,14 @@ const FORBIDDEN = /[雨风云晴阴雪]|太阳/;
     await page.unroute('**/api/pal');
     await page.route('**/api/pal', route => route.continue());
     await poke(); await settled('ready');                                  // recovers when data is back
+    for (const bad of [{status: 500, body: 'oops'}, {status: 200, body: 'not json'}, {status: 200, body: '{"days":[]}'}]) {
+      await page.unroute('**/api/pal');                                    // not a network error: never keep the screen
+      await page.route('**/api/pal', route => route.fulfill({status: bad.status, body: bad.body}));
+      await poke(); await settled('unavailable');
+      await page.unroute('**/api/pal');
+      await page.route('**/api/pal', route => route.continue());
+      await poke(); await settled('ready');
+    }
     await stale({weather_fetched_at: iso(Date.now() - 60 * 3600e3)});
     await poke(); await settled('unavailable');                            // older than 48 h: never shown
     await page.unroute('**/api/pal');

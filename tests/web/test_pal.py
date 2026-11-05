@@ -1,5 +1,5 @@
 """穿衣小伙伴 (Issue #101): pure build, Service.pal() snapshot rules, fixtures. No provider network."""
-from datetime import datetime, time, timedelta
+from datetime import date, datetime, time, timedelta
 import json
 import unittest
 from unittest.mock import patch
@@ -119,13 +119,20 @@ class BuildTests(PalCase):
         self.assertEqual(build(CITY, (flat, at(0, 20), 'v'), now, now)['days'][0]['swing'], 'none')
 
     def test_dst_change_days(self):
-        for day in (datetime(2026, 10, 25, 10, tzinfo=BERLIN), datetime(2026, 3, 29, 10, tzinfo=BERLIN)):
-            with self.subTest(day=day.date()):
-                data = forecast(day)
-                result = build(CITY, (data, day - timedelta(hours=1), 'v'), day, day)
+        # Temperature equals the local hour, so a wrong hour shift across the transition changes the medians.
+        for day in (date(2026, 10, 24), date(2026, 3, 28)):          # the day before the change
+            with self.subTest(day=day):
+                now = datetime.combine(day, time(20), BERLIN)
+                data = hourly(day, lambda local: float(local.hour))
+                result = build(CITY, (data, now - timedelta(hours=1), 'v'), now, now)
                 self.assertEqual(len(result['days']), 7)
-                self.assertTrue(result['days'][0]['slots'][0]['past'])
-                self.assertFalse(result['days'][1]['slots'][0]['past'])
+                change = result['days'][1]
+                self.assertEqual(change['date'], (day + timedelta(days=1)).isoformat())
+                slots = change['slots']
+                self.assertEqual([s['temperature_c'] for s in slots], [7, 14, 21])
+                self.assertEqual([s['level'] for s in slots], [level(7), level(14), level(21)])
+                self.assertFalse(any(s['past'] or s['partial'] for s in slots))
+                self.assertTrue(all(s['past'] for s in result['days'][0]['slots'][:2]))
 
 
 class ServiceSnapshotTests(PalCase):
@@ -224,9 +231,15 @@ class ModeTests(PalCase):
         now = at(0, 8)
         store = MemoryStore()
         put_snapshot(store, now.date() - timedelta(days=1), at(-1, 22, 22))
-        local = Service(forbidden, lambda: now, forecast_cache=Cache(store, lambda: now))   # no records, no manifest for today
+        # Real local worker shape: city records present, no offline_cities. The only
+        # snapshot is yesterday's, so the previous-day rule must not apply here.
+        local = Service(forbidden, lambda: now, forecast_cache=Cache(store, lambda: now),
+                        featured_records=RECORDS)
+        self.assertIsNone(local.offline_cities)
         with self.assertRaises(Unavailable):
             local.pal()
+        put_snapshot(store, now.date(), at(0, 7))                       # today's snapshot still works
+        self.assertFalse(local.pal()['stale'])
 
     def test_unexpected_failures_become_unavailable(self):
         self.make(at(0, 8))

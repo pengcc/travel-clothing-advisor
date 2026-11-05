@@ -1119,13 +1119,14 @@ sky conditions (Issue #103).
   page shows its date and time). It can differ from the new snapshot by a level
   or more, and from the homepage (which uses historical advice in that window).
   The page re-reads `/api/pal` every 30 minutes while visible and on return to
-  the foreground; a network error keeps the screen only while the data is under
-  48 hours old, an explicit 503 shows the unavailable state.
+  the foreground; only a network error or timeout keeps the screen, and only while
+  the data is under 48 hours old; a 503, any other bad response or invalid body
+  shows the unavailable state.
 - **Read modes**: only `independent_cities=True` services (Production
   `prepared_service`, local default) answer. Legacy modes (P1 reader, Blob
-  Preview, `readonly.service()` default) return 503, as does local worker mode
-  when only a previous-day snapshot exists (the city list comes from the
-  current day's manifest).
+  Preview, `readonly.service()` default) return 503. Local worker mode (no
+  offline city list) reads only today's snapshot, so a previous-day snapshot
+  alone also gives 503 there; Production is unaffected.
 - **No offline use**: responses are `Cache-Control: no-store` like the rest of
   the app, so the home-screen shortcut needs a network connection. No cookies,
   local storage or analytics.
