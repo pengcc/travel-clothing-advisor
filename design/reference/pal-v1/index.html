@@ -1,0 +1,940 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>穿衣小伙伴 · 原型</title>
+<style>
+  :root{--ink:#3a2f25;--bg1:#E3F6F1;--bg2:#B1E3DA}
+  *{box-sizing:border-box;margin:0}
+  body{
+    min-height:100vh;font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif;
+    color:var(--ink);background:linear-gradient(180deg,var(--bg1),var(--bg2));
+    display:flex;flex-direction:column;align-items:center;
+    padding:max(12px,env(safe-area-inset-top)) 14px max(16px,env(safe-area-inset-bottom));overflow-x:hidden;
+  }
+  body[data-level="1"]{--bg1:#FFF1C9;--bg2:#FFD98A}
+  body[data-level="2"]{--bg1:#F2F9DF;--bg2:#D9EDBC}
+  body[data-level="3"]{--bg1:#E3F6F1;--bg2:#B1E3DA}
+  body[data-level="4"]{--bg1:#E3F1FB;--bg2:#ADD8F2}
+  body[data-level="5"]{--bg1:#E6EAFA;--bg2:#B9C6F1}
+  body[data-level="6"]{--bg1:#EEE4FA;--bg2:#CEB9ED}
+  body{transition:background .6s}
+
+  h1{font-size:20px;margin-bottom:8px}
+
+  /* ============ 场景 ============ */
+  .scene{
+    position:relative;width:min(88vw,50vh,430px);aspect-ratio:1;border-radius:34px;overflow:hidden;
+    container-type:size;isolation:isolate;
+    box-shadow:0 10px 30px rgba(40,30,60,.18),0 0 0 4px rgba(255,255,255,.7);
+  }
+  .scene>*{position:absolute}
+  .sky{inset:0;opacity:0;transition:opacity 1s}
+  .sky.s0{background:linear-gradient(#ffc7ad,#ffe3c4 55%,#fff4dc)}
+  .sky.s1{background:linear-gradient(#7ec8ff,#c4e8ff 62%,#f2fbff)}
+  .sky.s2{background:linear-gradient(#303575,#7e65ad 58%,#ffad94)}
+  .scene[data-slot="0"] .s0,.scene[data-slot="1"] .s1,.scene[data-slot="2"] .s2{opacity:1}
+  /* 阴天/雨雪罩 */
+  .overcast{inset:0;background:rgba(110,120,140,0);transition:background 1s}
+  .scene[data-rain="light"] .overcast{background:rgba(120,130,150,.30)}
+  .scene[data-rain="mid"] .overcast{background:rgba(95,105,128,.50)}
+  .scene[data-rain="heavy"] .overcast{background:rgba(55,65,92,.66)}
+  .scene[data-rain="snow"] .overcast{background:rgba(190,200,218,.45)}
+  .scene[data-rain="cloudy"] .overcast{background:rgba(125,135,152,.38)}
+
+  .stars{inset:0 0 50% 0;opacity:0;transition:opacity 1s}
+  .scene[data-slot="2"] .stars{opacity:1}
+  .scene[data-slot="2"][data-rain="cloudy"] .stars,.scene[data-slot="2"][data-rain="mid"] .stars,.scene[data-slot="2"][data-rain="heavy"] .stars,.scene[data-slot="2"][data-rain="snow"] .stars{opacity:.15}
+  .stars i{position:absolute;width:4px;height:4px;border-radius:50%;background:#fff;animation:twinkle 2.4s ease-in-out infinite}
+  @keyframes twinkle{0%,100%{opacity:.25;transform:scale(.7)}50%{opacity:1;transform:scale(1.2)}}
+
+  .sun,.moon{width:22cqw;height:22cqw;transition:left 1.2s,top 1.2s,opacity 1s}
+  .sun{filter:drop-shadow(0 0 14px rgba(255,200,60,.9));animation:spin 30s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .moon{filter:drop-shadow(0 0 12px rgba(255,240,170,.8))}
+  .scene[data-slot="0"] .sun{left:3%;top:46%;opacity:1}
+  .scene[data-slot="1"] .sun{left:68%;top:4%;opacity:1}
+  .scene[data-slot="2"] .sun{left:68%;top:60%;opacity:0}
+  .scene .moon{left:70%;top:6%;opacity:0}
+  .scene[data-slot="2"] .moon{opacity:1}
+  .scene[data-rain="mid"] .sun,.scene[data-rain="heavy"] .sun,.scene[data-rain="mid"] .moon,.scene[data-rain="heavy"] .moon{opacity:0!important}
+  .scene[data-rain="light"] .sun,.scene[data-rain="snow"] .sun{opacity:.4!important}
+  .scene[data-rain="cloudy"]:not([data-slot="2"]) .sun{opacity:.2!important}
+  .scene[data-rain="cloudy"][data-slot="2"] .moon{opacity:.35!important}
+
+  .clouds{inset:0}
+  .cloud{position:absolute;animation:drift linear infinite;filter:drop-shadow(0 4px 4px rgba(40,50,80,.15))}
+  .cloud svg{display:block;width:100%;height:auto}
+  @keyframes drift{from{transform:translateX(-50cqw)}to{transform:translateX(130cqw)}}
+
+  .ground{left:-12%;right:-12%;bottom:-8%;height:22%;border-radius:50%;background:rgba(255,255,255,.4);transition:background .6s,box-shadow .6s}
+  .scene[data-rain="snow"] .ground{background:#fff;box-shadow:0 -6px 18px rgba(255,255,255,.9)}
+  .scene[data-slot="2"] .ground{background:rgba(255,255,255,.18)}
+  .scene[data-slot="2"][data-rain="snow"] .ground{background:#e3e9f6}
+  .shadow{left:25%;width:50%;bottom:7%;height:5%;border-radius:50%;background:rgba(40,30,60,.16);filter:blur(3px)}
+
+  .fx-back,.fx-front{inset:0;pointer-events:none}
+  .fx-back>*,.fx-front>*{position:absolute}
+
+  /* 人物（风会把整个人吹斜） */
+  .lean{inset:0;transform-origin:50% 96%}
+  .scene[data-wind="1"] .lean{animation:lean1 3.4s ease-in-out infinite}
+  .scene[data-wind="2"] .lean{animation:lean2 1.1s ease-in-out infinite}
+  @keyframes lean1{0%,100%{transform:rotate(1deg)}50%{transform:rotate(3.5deg)}}
+  @keyframes lean2{0%,100%{transform:rotate(8deg) skewX(-3deg)}35%{transform:rotate(12.5deg) skewX(-5deg)}70%{transform:rotate(9deg) skewX(-2deg)}}
+  .hero{position:absolute;left:8%;right:8%;top:8%;bottom:6%;transition:top .5s;transform-origin:50% 90%}
+  .scene[data-umb="1"] .hero{top:25%}
+  .hero img{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}
+  .hero img.pop{animation:pop .35s ease-out}
+  @keyframes pop{from{transform:scale(.88);opacity:.4}to{transform:scale(1);opacity:1}}
+
+  /* 每档冷热动作 */
+  [data-lv="1"] .hero{animation:fan 1.1s ease-in-out infinite}
+  @keyframes fan{0%,100%{transform:rotate(-3deg) translateY(0)}50%{transform:rotate(3deg) translateY(-6px)}}
+  [data-lv="2"] .hero{animation:hop 1.3s cubic-bezier(.3,.7,.4,1) infinite}
+  @keyframes hop{0%,100%{transform:translateY(0) scale(1,1)}40%,60%{transform:translateY(-6%) scale(.97,1.04)}90%{transform:translateY(0) scale(1.05,.95)}}
+  [data-lv="3"] .hero{animation:breathe 3.2s ease-in-out infinite}
+  @keyframes breathe{0%,100%{transform:scale(1,1)}50%{transform:scale(1.03,.97)}}
+  [data-lv="4"] .hero{animation:breathe 2.4s ease-in-out infinite}
+  [data-lv="5"] .hero{animation:shiver .22s linear infinite}
+  @keyframes shiver{0%{transform:translate(0,0)}25%{transform:translate(-.8%,.3%)}50%{transform:translate(.8%,-.3%)}75%{transform:translate(-.6%,-.3%)}100%{transform:translate(0,0)}}
+  [data-lv="6"] .hero{animation:shiver2 .14s linear infinite}
+  @keyframes shiver2{0%{transform:translate(0,0) rotate(0)}25%{transform:translate(-1.2%,.5%) rotate(-.8deg)}50%{transform:translate(1.2%,-.5%) rotate(.8deg)}75%{transform:translate(-1%,-.3%) rotate(-.5deg)}100%{transform:translate(0,0) rotate(0)}}
+
+  /* 冷热氛围：边缘光晕 */
+  .vig{inset:0;pointer-events:none;transition:box-shadow .8s;z-index:5}
+  [data-lv="1"] .vig{box-shadow:inset 0 0 60px 8px rgba(255,140,40,.45)}
+  [data-lv="2"] .vig{box-shadow:inset 0 0 50px rgba(255,200,80,.25)}
+  [data-lv="5"] .vig{box-shadow:inset 0 0 60px 6px rgba(130,170,255,.5)}
+  [data-lv="6"] .vig{box-shadow:inset 0 0 70px 10px rgba(150,190,255,.7)}
+
+  /* 小粒子 */
+  .sweat{width:3.4cqw;height:5cqw;background:#7fd0ff;border-radius:50% 50% 55% 55%/65% 65% 45% 45%;box-shadow:inset -2px -3px 0 #4fb4ee;opacity:0;animation:drip 1.6s ease-in infinite}
+  @keyframes drip{0%{opacity:0;transform:translateY(0) scale(.6)}15%{opacity:1}100%{opacity:0;transform:translateY(22cqh) scale(1)}}
+  .heat{width:16cqw;height:1.4cqw;border-radius:6px;background:rgba(255,140,60,.5);opacity:0;animation:rise 2.2s ease-out infinite}
+  @keyframes rise{0%{opacity:0;transform:translateY(0) scaleX(.6)}30%{opacity:.8}100%{opacity:0;transform:translateY(-14cqh) scaleX(1.2)}}
+  .spark{width:2.6cqw;height:2.6cqw;background:#ffd23f;border-radius:2px;opacity:0;animation:tw 1.8s ease-in-out infinite}
+  @keyframes tw{0%,100%{opacity:0;transform:rotate(45deg) scale(.3)}50%{opacity:1;transform:rotate(45deg) scale(1)}}
+  .heart{width:3.6cqw;height:3.6cqw;opacity:0;animation:floatup 3.6s ease-in infinite}
+  @keyframes floatup{0%{opacity:0;transform:translateY(0) scale(.5)}20%{opacity:.9}100%{opacity:0;transform:translateY(-20cqh) scale(1)}}
+  .puff{width:8cqw;height:8cqw;border-radius:50%;background:rgba(255,255,255,.9);filter:blur(1.5px);opacity:0;animation:puff 2.4s ease-out infinite}
+  @keyframes puff{0%{opacity:0;transform:translate(0,0) scale(.4)}25%{opacity:.9}100%{opacity:0;transform:translate(-9cqw,-16cqh) scale(1.6)}}
+
+  /* ---- 雨 ---- */
+  .drop{top:0;border-radius:3px;background:linear-gradient(to bottom,rgba(255,255,255,0),rgba(205,232,255,1));rotate:var(--rot);animation:fall linear infinite}
+  @keyframes fall{from{transform:translate(0,-18cqh)}to{transform:translate(calc(var(--dx)*1cqw),108cqh)}}
+  .ripple{width:11cqw;height:3cqw;border-radius:50%;border:2px solid rgba(255,255,255,.85);opacity:0;animation:ripple 1s ease-out infinite}
+  @keyframes ripple{0%{opacity:.9;transform:scale(.1)}100%{opacity:0;transform:scale(1.2)}}
+  .flash{inset:0;background:#fff;opacity:0;z-index:6;pointer-events:none;animation:flash 4.5s infinite}
+  @keyframes flash{0%,86%,100%{opacity:0}87%{opacity:.85}89%{opacity:.1}91%{opacity:.7}95%{opacity:0}}
+  .bolt{left:6%;top:6%;width:14cqw;opacity:0;animation:flash 4.5s infinite;z-index:6;filter:drop-shadow(0 0 8px #ffe66d)}
+  /* 雨伞 */
+  .umb{left:19%;width:62%;top:3%;opacity:0;transition:opacity .4s;transform-origin:50% 100%}
+  .scene[data-umb="1"] .umb{opacity:1;animation:umbsway 3s ease-in-out infinite}
+  .scene[data-rain="heavy"] .umb{animation:umbshake .35s linear infinite}
+  .scene[data-wind="2"][data-umb="1"] .umb{animation:umbwind .5s ease-in-out infinite}
+  @keyframes umbsway{0%,100%{transform:rotate(-2deg)}50%{transform:rotate(2deg)}}
+  @keyframes umbshake{0%,100%{transform:translate(0,0)}50%{transform:translate(.6%,.4%)}}
+  @keyframes umbwind{0%,100%{transform:rotate(-14deg)}50%{transform:rotate(-8deg)}}
+
+  /* ---- 雪 ---- */
+  .snowf{top:0;animation:fall linear infinite}
+  .snowf>span{display:block;border-radius:50%;background:#fff;box-shadow:0 0 6px rgba(120,160,255,.7);animation:sway 1.8s ease-in-out infinite alternate}
+  @keyframes sway{from{transform:translateX(-3cqw)}to{transform:translateX(3cqw)}}
+
+  /* ---- 风 ---- */
+  .gust,.leaf{animation:cross linear infinite;left:0}
+  @keyframes cross{0%{transform:translateX(-40cqw);opacity:0}8%{opacity:1}92%{opacity:1}100%{transform:translateX(130cqw);opacity:0}}
+  .gust svg{display:block;width:100%;height:auto;overflow:visible}
+  .gust path{fill:none;stroke:#fff;stroke-width:4.5;stroke-linecap:round;stroke-dasharray:55 100;filter:drop-shadow(0 0 1.5px rgba(40,100,170,.6));animation:draw linear infinite;animation-duration:inherit;animation-delay:inherit}
+  @keyframes draw{from{stroke-dashoffset:55}to{stroke-dashoffset:-100}}
+  .leaf svg{display:block;width:100%;height:auto;animation:tumble 1.3s linear infinite}
+  @keyframes tumble{0%{transform:translateY(0) rotate(0)}25%{transform:translateY(-5cqh) rotate(180deg)}50%{transform:translateY(2cqh) rotate(360deg)}75%{transform:translateY(-4cqh) rotate(540deg)}100%{transform:translateY(0) rotate(720deg)}}
+
+  /* ===== 布局对比 ===== */
+  .thermo,.rail{display:none}
+  body[data-layout="a"] .thermo,body[data-layout="ab"] .thermo{display:block}
+  body[data-layout="b"] .rail,body[data-layout="ab"] .rail{display:block}
+  body[data-layout="a"] .hud{display:none}
+  body[data-layout="b"] .slots,body[data-layout="ab"] .slots{display:none}
+  body[data-layout="b"] .hero,body[data-layout="ab"] .hero{bottom:15%}
+  body[data-layout="ab"] .hud-temp{display:none}
+  body[data-layout="ab"] .hud{padding:1.6cqw 3cqw 1.6cqw 2.2cqw}
+  body[data-layout="ab"] .hud-clock{font-size:5cqw}
+  body.compare .proto{display:none}
+
+  /* A：右侧温差温度计（三个标记：早/午/晚；亮起的一段＝温差） */
+  .thermo{right:3.5%;top:12%;height:66%;width:9cqw;z-index:7}
+  .th-time{display:none;position:absolute;right:-1.5cqw;top:-10cqw;z-index:4;background:rgba(255,255,255,.92);border-radius:4.5cqw;padding:1.2cqw 2.4cqw 1.2cqw 1.6cqw;align-items:center;gap:1.3cqw;font-weight:800;font-size:4.6cqw;line-height:1;letter-spacing:.02em;box-shadow:0 3px 10px rgba(40,30,60,.22);white-space:nowrap}
+  .th-time svg{width:6cqw;height:6cqw;flex:none}
+  body[data-layout="a"] .th-time{display:flex}
+  .thermo .tube{position:absolute;left:1.7cqw;right:1.7cqw;top:0;bottom:6.5cqw;border-radius:3cqw 3cqw 0 0;background:rgba(255,255,255,.92);box-shadow:0 3px 10px rgba(40,30,60,.22);border:.5cqw solid rgba(58,47,37,.75);border-bottom:0}
+  .thermo .trk{position:absolute;inset:.7cqw;border-radius:2.4cqw 2.4cqw 0 0;background:linear-gradient(to top,#cfe3ff,#e9f1ff 45%,#ffe9d2);opacity:.9}
+  .thermo .rng{position:absolute;left:.7cqw;right:.7cqw;border-radius:2cqw;transition:bottom .9s,height .9s,background .9s;box-shadow:0 0 2cqw rgba(255,255,255,.9)}
+  .thermo .tk{position:absolute;left:.7cqw;width:1.6cqw;height:.45cqw;background:rgba(58,47,37,.35)}
+  .thermo .bulb{position:absolute;left:0;right:0;bottom:0;height:9cqw;border-radius:50%;border:.5cqw solid rgba(58,47,37,.75);background:#999;transition:background .9s;box-shadow:0 3px 10px rgba(40,30,60,.22)}
+  .mk{position:absolute;left:calc(50% + var(--ox,0cqw));transform:translate(-50%,50%);width:7.4cqw;height:7.4cqw;border-radius:50%;border:.7cqw solid var(--mc,#888);background:#fff;padding:0;display:grid;place-items:center;
+      cursor:pointer;touch-action:manipulation;transition:bottom .9s,left .5s,width .3s,height .3s;z-index:1;color:#3a2f25;font:inherit}
+  .mk svg{width:70%;height:70%}
+  .mk.on{width:13.5cqw;height:13.5cqw;border-width:1cqw;z-index:3;box-shadow:0 3px 10px rgba(40,30,60,.3);animation:mkpop .35s ease-out}
+  .mk b{font-size:5.6cqw;font-weight:900;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  @keyframes mkpop{from{transform:translate(-50%,50%) scale(.8)}to{transform:translate(-50%,50%) scale(1)}}
+
+  /* B：底部拖动时间轨（拖太阳/月亮换早、午、晚） */
+  .rail{left:24%;right:4%;bottom:3.5%;height:11cqw;z-index:8;touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none;outline:none}
+  .rail .rl{position:absolute;left:3%;right:3%;top:50%;height:5cqw;margin-top:-2.5cqw;border-radius:3cqw;background:linear-gradient(90deg,#ffd9b0,#9fd3ff 50%,#4a4f8f);box-shadow:inset 0 0 0 .6cqw rgba(255,255,255,.85),0 2px 8px rgba(40,30,60,.25)}
+  .rail .rs{position:absolute;top:50%;width:2cqw;height:2cqw;margin:-1cqw 0 0 -1cqw;border-radius:50%;background:#fff;box-shadow:0 0 0 .5cqw rgba(58,47,37,.4)}
+  .rail .knob{position:absolute;top:50%;width:11cqw;height:11cqw;margin:-5.5cqw 0 0 -5.5cqw;border-radius:50%;background:#fff;border:.8cqw solid #3a2f25;display:grid;place-items:center;
+              box-shadow:0 4px 12px rgba(40,30,60,.35);transition:left .35s cubic-bezier(.3,1.3,.5,1)}
+  .rail .knob svg{width:68%;height:68%}
+  .rail .knob.drag{transition:none;cursor:grabbing;transform:scale(1.12)}
+  .rail .chev{position:absolute;top:50%;margin-top:-4.5cqw;font-size:8cqw;font-weight:900;color:#fff;text-shadow:0 1px 4px rgba(40,30,60,.55);display:none;line-height:1}
+  .rail .chev.l{left:-1cqw}.rail .chev.r{right:-1cqw}
+  .rail[data-hint="1"] .chev{display:block;animation:chev 1.2s ease-in-out infinite}
+  .rail[data-hint="1"] .chev.r{animation-delay:.6s}
+  .rail[data-hint="1"] .knob{animation:knobhint 1.6s ease-in-out infinite}
+  @keyframes chev{0%,100%{opacity:.25;transform:translateX(0)}50%{opacity:1;transform:translateX(1cqw)}}
+  @keyframes knobhint{0%,100%{box-shadow:0 4px 12px rgba(40,30,60,.35),0 0 0 0 rgba(255,138,61,.85)}60%{box-shadow:0 4px 12px rgba(40,30,60,.35),0 0 0 3.2cqw rgba(255,138,61,0)}}
+
+  /* 场景里的时间/温度信息牌 */
+  .hud{left:3.5%;top:3.5%;z-index:7;pointer-events:none;background:rgba(255,255,255,.86);border-radius:5.5cqw;padding:2cqw 3.4cqw 2cqw 2.6cqw;
+       box-shadow:0 3px 12px rgba(40,30,60,.22);display:flex;flex-direction:column;gap:.8cqw}
+  .hud-clock{display:flex;align-items:center;gap:1.8cqw;font-weight:800;font-size:5.6cqw;letter-spacing:.02em;line-height:1}
+  .hud-clock svg{width:7.2cqw;height:7.2cqw;flex:none}
+  .hud-temp{display:flex;align-items:center;gap:1.6cqw;font-weight:900;font-size:12.5cqw;line-height:1;letter-spacing:-.02em;font-variant-numeric:tabular-nums;transition:color .9s}
+  .hud-temp svg{width:6cqw;height:13cqw;flex:none}
+  .label{margin-top:10px;font-size:15px;font-weight:700;text-align:center}
+  .label small{display:block;font-weight:400;font-size:12px;opacity:.7;margin-top:2px}
+
+  /* ============ 早/午/晚 ============ */
+  .slots{display:flex;gap:10px;margin-top:10px}
+  .slot{width:106px;border:3px solid transparent;border-radius:20px;background:rgba(255,255,255,.55);padding:6px 4px 5px;text-align:center;font:inherit;color:inherit;cursor:pointer;transition:all .25s}
+  .slot[aria-pressed="true"]{background:#fff;border-color:rgba(58,47,37,.35);transform:translateY(-3px)}
+  .slot .ti{width:24px;height:24px;display:block;margin:0 auto 1px}
+  .slot .tm{display:flex;align-items:center;justify-content:center;gap:4px;font-size:12px;font-weight:700;letter-spacing:.02em;margin-bottom:1px}
+  .slot .tm svg{width:16px;height:16px}
+  .slot .tp{display:flex;align-items:center;justify-content:center;gap:3px;font-size:17px;font-weight:800;margin-top:1px}
+  .slot .tp svg{width:11px;height:23px}
+  .slot img{width:50px;height:50px;object-fit:contain;display:block;margin:0 auto}
+  .dots{display:flex;justify-content:center;gap:3px;height:8px;margin-top:3px}
+  .dots i{width:7px;height:7px;border-radius:50%;background:rgba(58,47,37,.7)}
+  .dots i.off{background:rgba(58,47,37,.15)}
+  .slots.calm .slot{opacity:.85}
+  body[data-layout="ab"] .slot{width:92px}
+  body[data-layout="ab"] .slot img,body[data-layout="ab"] .slot .dots{display:none}
+  .swing-hint{margin-top:6px;height:22px;display:flex;align-items:center;gap:6px;font-size:12px;opacity:.85}
+
+  /* ============ 多日条 ============ */
+  .strip{display:flex;gap:9px;margin-top:10px;padding:6px 4px 10px;max-width:100%;overflow-x:auto;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch}
+  .day{flex:none;width:82px;scroll-snap-align:center;background:rgba(255,255,255,.55);border:3px solid transparent;border-radius:22px;padding:7px 3px 6px;text-align:center;cursor:pointer;font:inherit;color:inherit;transition:transform .2s,background .2s}
+  .day[aria-pressed="true"]{background:#fff;border-color:rgba(58,47,37,.35);transform:translateY(-4px)}
+  .day img{width:54px;height:54px;object-fit:contain;display:block;margin:0 auto}
+  .day .name{display:block;font-size:13px;font-weight:700;margin-top:1px}
+  .day .rng{display:block;font-size:11px;font-weight:600;opacity:.75;margin-top:1px;white-space:nowrap}
+  .badges{display:flex;justify-content:center;gap:2px;height:22px;margin-top:3px}
+  .badges svg{width:22px;height:22px}
+
+  /* ============ 原型控件 ============ */
+  .proto{margin-top:8px;font-size:12px;opacity:.85;text-align:center;line-height:1.9;max-width:560px}
+  .proto b{margin-right:4px}
+  .proto button{font:inherit;border:1px solid rgba(58,47,37,.3);background:rgba(255,255,255,.6);border-radius:10px;padding:3px 9px;margin:1px;cursor:pointer}
+  .proto button[aria-pressed="true"]{background:#fff;border-color:#3a2f25;font-weight:700}
+
+  /* 声音开关：场景左下角的大喇叭。关闭时脉冲圈+图标晃动＝“点我”；开启后波纹流动 */
+  .snd{left:3.5%;bottom:3.5%;width:max(60px,16cqw);height:max(60px,16cqw);z-index:8;border:0;border-radius:50%;background:#fff;
+       box-shadow:0 4px 14px rgba(40,30,60,.28);display:grid;place-items:center;padding:0;cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+  .snd svg{width:58%;height:58%;overflow:visible}
+  .snd[aria-pressed="false"]::before,.snd[aria-pressed="false"]::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:4px solid #ff8a3d;opacity:0;animation:ring 1.6s ease-out infinite}
+  .snd[aria-pressed="false"]::after{animation-delay:.8s}
+  .snd[aria-pressed="false"] svg{animation:wiggle 2.4s ease-in-out infinite}
+  .snd[aria-pressed="true"]{background:#fff6dd;box-shadow:0 4px 14px rgba(40,30,60,.28),0 0 0 4px #ffc93c}
+  .snd[aria-pressed="true"].burst::after{content:"";position:absolute;inset:-4px;border-radius:50%;border:4px solid #4cb86a;animation:ring .8s ease-out 1}
+  .snd .w1,.snd .w2,.snd .w3{opacity:.2}
+  .snd[aria-pressed="true"] .w1{animation:wv 1.2s ease-in-out infinite}
+  .snd[aria-pressed="true"] .w2{animation:wv 1.2s ease-in-out .2s infinite}
+  .snd[aria-pressed="true"] .w3{animation:wv 1.2s ease-in-out .4s infinite}
+  @keyframes ring{0%{transform:scale(.92);opacity:.95}100%{transform:scale(1.55);opacity:0}}
+  @keyframes wiggle{0%,60%,100%{transform:rotate(0)}68%{transform:rotate(-12deg)}76%{transform:rotate(10deg)}84%{transform:rotate(-8deg)}92%{transform:rotate(5deg)}}
+  .snd.nudge{animation:nudge .6s ease-in-out}
+  @keyframes nudge{0%,100%{transform:scale(1)}25%{transform:scale(1.25)}50%{transform:scale(.95)}75%{transform:scale(1.15)}}
+  @keyframes wv{0%,100%{opacity:.15}40%{opacity:1}}
+
+  .paused *{animation-play-state:paused!important}
+  @media(prefers-reduced-motion:reduce){
+    *{animation:none!important}
+    .drop,.gust,.leaf,.snowf,.flash,.bolt{display:none}
+  }
+</style>
+</head>
+<body data-level="3">
+<h1 id="title">今天</h1>
+
+<div class="scene" id="scene">
+  <div class="sky s0"></div><div class="sky s1"></div><div class="sky s2"></div>
+  <div class="overcast"></div>
+  <div class="stars" id="stars"></div>
+  <div class="sun" id="sun"></div>
+  <div class="moon" id="moon"></div>
+  <div class="clouds" id="clouds"></div>
+  <div class="ground"></div>
+  <div class="fx-back" id="fxBack"></div>
+  <div class="shadow"></div>
+  <div class="lean">
+    <div class="hero"><img id="heroImg" alt=""></div>
+    <div class="umb" id="umb"></div>
+  </div>
+  <div class="fx-front" id="fxFront"></div>
+  <div class="vig"></div>
+  <div class="hud" id="hud" aria-hidden="true">
+    <div class="hud-clock">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#3a2f25" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10.5" fill="#fff"/><g stroke-width="1.4"><path d="M12 3v2M21 12h-2M12 21v-2M3 12h2"/></g><path d="M12 12V4.6"/><g id="hudHand" style="transform-origin:12px 12px;transition:transform 1s cubic-bezier(.4,0,.2,1)"><path d="M12 12V7" stroke-width="3"/></g></svg>
+      <span id="hudTime"></span>
+    </div>
+    <div class="hud-temp">
+      <svg viewBox="0 0 12 26"><rect x="3.5" y="1.5" width="5" height="17" rx="2.5" fill="#fff" stroke="#3a2f25" stroke-width="1.2"/><rect id="hudMerc" x="5" y="3" width="2" height="16" rx="1" style="transform-origin:6px 19px;transition:transform .9s cubic-bezier(.4,0,.2,1),fill .9s"/><circle id="hudBulb" cx="6" cy="21" r="4" stroke="#3a2f25" stroke-width="1.2" style="transition:fill .9s"/></svg>
+      <span id="hudT"></span>
+    </div>
+  </div>
+  <div class="flash" id="flash" hidden></div>
+  <div class="thermo" id="thermo" aria-hidden="true">
+    <div class="th-time" id="thTime"><svg viewBox="0 0 24 24" fill="none" stroke="#3a2f25" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10.5" fill="#fff"/><path d="M12 12V4.6"/><g id="thHand" style="transform-origin:12px 12px;transition:transform 1s cubic-bezier(.4,0,.2,1)"><path d="M12 12V7" stroke-width="3"/></g></svg><span id="thTimeT"></span></div>
+    <div class="tube" id="tube"><div class="trk"></div><div class="rng" id="thRng"></div>
+      <i class="tk" style="bottom:12.5%"></i><i class="tk" style="bottom:37.5%"></i><i class="tk" style="bottom:62.5%"></i><i class="tk" style="bottom:87.5%"></i></div>
+    <div class="bulb" id="thBulb"></div>
+  </div>
+  <div class="rail" id="rail" data-hint="1" role="slider" aria-label="时间：早、午、晚" aria-valuemin="0" aria-valuemax="2" tabindex="0">
+    <div class="rl"></div>
+    <span class="rs" style="left:12%" id="rs0"></span><span class="rs" style="left:50%" id="rs1"></span><span class="rs" style="left:88%" id="rs2"></span>
+    <span class="chev l">‹</span><span class="chev r">›</span>
+    <div class="knob" id="knob"></div>
+  </div>
+  <button class="snd" id="bSound" aria-pressed="false" aria-label="打开声音" title="打开声音"></button>
+</div>
+<div class="label" id="label"></div>
+
+<div class="slots" id="slots"></div>
+
+<div class="strip" id="strip" role="list"></div>
+
+<div class="proto">
+  原型演示 · 示例数据（非真实预报）· 声音每次播一小段后淡出，点小动物可重听<br>
+  <b>午间</b><span id="cLv"></span><br>
+  <b>布局</b><span id="cLayout"></span><br>
+  <b>温差</b><span id="cSwing"></span>
+  <b>降水</b><span id="cRain"></span><br>
+  <b>风</b><span id="cWind"></span><br>
+  <b>声音</b><input type="range" id="vol" min="0" max="100" value="70" aria-label="音量" style="vertical-align:middle;width:110px">
+  <button id="bThunder" aria-pressed="true">雷声</button>
+  <button id="bAuto" aria-pressed="true">自动切时段</button>
+  <button id="bMotion" aria-pressed="true">动画开</button>
+</div>
+
+<script>
+const LABELS = {1:'清爽透气',2:'轻薄衣物',3:'薄外套',4:'中等厚度',5:'保暖外套',6:'厚实保暖'};
+const RAINNAME = {none:'晴天',cloudy:'阴天',light:'小雨',mid:'中雨',heavy:'大雨',snow:'下雪'};
+const WINDNAME = ['无风','微风','大风'];
+const DAYNAMES = ['今天','明天','周三','周四','周五','周六','周日'];
+const SLOTNAMES = ['早','午','晚'];
+// 每天：早/午/晚 三段冷热档位 + 降水 + 风
+const WEEK = [
+  {slots:[5,3,4], t:[7,18,12],   rain:'none',  wind:1},   // 早晚冷、中午暖（大温差）
+  {slots:[4,4,5], t:[12,14,8],   rain:'light', wind:0},
+  {slots:[5,5,6], t:[6,7,2],     rain:'mid',   wind:1},
+  {slots:[6,5,6], t:[1,6,2],     rain:'heavy', wind:2},   // 冷 + 大雨 + 大风
+  {slots:[3,3,3], t:[17,19,17],  rain:'cloudy',wind:0},   // 阴天
+  {slots:[2,1,2], t:[25,31,26],  rain:'none',  wind:0},   // 热
+  {slots:[5,4,5], t:[-2,1,-1],   rain:'snow',  wind:2},   // 风雪
+];
+const ICON = n => `../../../web/static/icons/warmth/2x/warmth-l${n}.png`;
+const swingBig = w => Math.max(...w.slots) - Math.min(...w.slots) >= 2;
+const $ = id => document.getElementById(id);
+const rand = (a,b) => a + Math.random()*(b-a);
+
+/* ---------- SVG 素材 ---------- */
+const SVG = {
+  sun:`<svg viewBox="0 0 32 32"><g stroke="#f5a623" stroke-width="2.5" stroke-linecap="round"><path d="M16 2v4M16 26v4M2 16h4M26 16h4M6 6l3 3M23 23l3 3M26 6l-3 3M9 23l-3 3"/></g><circle cx="16" cy="16" r="7" fill="#ffc93c"/></svg>`,
+  sunrise:`<svg viewBox="0 0 32 32"><path d="M2 25h28" stroke="#c98a5a" stroke-width="2.5" stroke-linecap="round"/><path d="M8 25a8 8 0 0 1 16 0z" fill="#ffb347"/><g stroke="#f5a623" stroke-width="2.5" stroke-linecap="round"><path d="M16 6v3M5 13l2 2M27 13l-2 2"/></g></svg>`,
+  moon:`<svg viewBox="0 0 32 32"><path d="M22 3a13 13 0 1 0 8 22A11 11 0 0 1 22 3z" fill="#ffe27a"/></svg>`,
+  cloud:c=>`<svg viewBox="0 0 200 100"><g fill="${c}"><circle cx="58" cy="62" r="30"/><circle cx="100" cy="46" r="40"/><circle cx="146" cy="63" r="28"/><rect x="46" y="62" width="114" height="30" rx="15"/></g></svg>`,
+  bolt:`<svg viewBox="0 0 24 40"><path d="M14 0 2 22h8l-3 18L22 16h-8z" fill="#ffe66d" stroke="#f5b800" stroke-width="1.5" stroke-linejoin="round"/></svg>`,
+  umb:`<svg viewBox="0 0 200 120"><path d="M100 4v8" stroke="#c77c0c" stroke-width="5" stroke-linecap="round"/><path d="M8 84C20 26 66 10 100 10s80 16 92 74c-12-12-24-12-36 0-12-12-24-12-28 0-4-12-16-12-28 0-12-12-24-12-28 0-12-12-24-12-36 0z" fill="#ffc93c" stroke="#e0a010" stroke-width="3" stroke-linejoin="round"/><path d="M100 12C86 38 78 60 72 84M100 12C114 38 122 60 128 84" fill="none" stroke="#e0a010" stroke-width="2.5" opacity=".7"/><path d="M100 84v26a8 8 0 0 1-16 0" fill="none" stroke="#a66a14" stroke-width="5" stroke-linecap="round"/></svg>`,
+  leaf:c=>`<svg viewBox="0 0 32 26"><path d="M2 20C2 8 14 1 30 3 30 17 20 26 4 23z" fill="${c}"/><path d="M4 22C12 14 20 9 28 5" stroke="rgba(0,0,0,.25)" stroke-width="1.6" fill="none"/></svg>`,
+  gust:`<svg viewBox="0 0 180 50" preserveAspectRatio="none"><path pathLength="100" d="M2 30C30 6 62 52 92 28S150 8 170 26c6 5-2 12-9 8"/></svg>`,
+  heart:`<svg viewBox="0 0 24 22"><path d="M12 21C-4 10 3-2 12 6c9-8 16 4 0 15z" fill="#ff8fa3"/></svg>`,
+};
+/* 日条上的小徽章（不识字也能看懂：云+雨滴数＝雨大小；风卷线数＝风大小） */
+function badgeRain(r){
+  if(r==='none') return `<svg viewBox="0 0 26 26"><g stroke="#f5a623" stroke-width="2" stroke-linecap="round"><path d="M13 2v3M13 21v3M2 13h3M21 13h3M5.2 5.2l2 2M18.8 18.8l2 2M20.8 5.2l-2 2M7.2 18.8l-2 2"/></g><circle cx="13" cy="13" r="5.2" fill="#ffc93c"/></svg>`;
+  const dark = r==='heavy' ? '#5f6b84' : r==='mid' ? '#8d99b0' : '#b9c3d3';
+  const cloud = `<path d="M7 16a4 4 0 0 1 .5-8A6 6 0 0 1 19 9.5a3.5 3.5 0 0 1 .5 6.5z" fill="${dark}"/>`;
+  if(r==='cloudy') return `<svg viewBox="0 0 26 26"><path d="M7 19a4.5 4.5 0 0 1 .5-9A6.5 6.5 0 0 1 20 11.5a3.8 3.8 0 0 1 .5 7.5z" fill="#aab4c4"/></svg>`;
+  if(r==='snow') return `<svg viewBox="0 0 26 26">${cloud}<g fill="#fff" stroke="#8aa8e8" stroke-width="1.2"><circle cx="8" cy="21" r="2"/><circle cx="14" cy="23" r="2"/><circle cx="20" cy="21" r="2"/></g></svg>`;
+  const n = {light:1,mid:2,heavy:3}[r];
+  const xs = {1:[14],2:[10,17],3:[8,14,20]}[n];
+  const w = r==='heavy'?2.6:2;
+  return `<svg viewBox="0 0 26 26">${cloud}<g stroke="#3d9be0" stroke-width="${w}" stroke-linecap="round">${xs.map(x=>`<path d="M${x} 19l-1.5 5"/>`).join('')}</g></svg>`;
+}
+function badgeWind(n){
+  if(!n) return '';
+  const c = n===2?'#2f6fb8':'#6aa8dc', w = n===2?2.6:2;
+  return `<svg viewBox="0 0 26 26" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round"><path d="M3 10h13a3.5 3.5 0 1 0-3.5-3.5"/>${n===2?'<path d="M3 16h18a3.5 3.5 0 1 1-3.5 3.5"/>':''}</svg>`;
+}
+function badgeSwing(){
+  return `<svg viewBox="0 0 26 26" fill="none" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M8 21V6M4 10l4-4 4 4" stroke="#e0613b"/><path d="M18 5v15M14 16l4 4 4-4" stroke="#3a7bd5"/></svg>`;
+}
+const SLOT_TIMES = ['07:00','13:00','20:00'], SLOT_HOURS = [7,13,20];
+const BASE_T = {1:30,2:24,3:18,4:13,5:7,6:1};            // 手动改档位时的示意温度
+function clockSVG(h){
+  const a = (h%12)*30;
+  return `<svg viewBox="0 0 24 24" fill="none" stroke="#3a2f25" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10" fill="#fff"/><path d="M12 12V5.5"/><path d="M12 12l4.6 0" transform="rotate(${a-90} 12 12)" stroke-width="2.6"/></svg>`;
+}
+function thermoSVG(t){
+  const f = Math.min(1, Math.max(.12, (t+5)/40)), hue = Math.round(210 - 200*Math.min(1, Math.max(0,(t+5)/40)));
+  const top = 3 + 15*(1-f), col = `hsl(${hue} 80% 52%)`;
+  return `<svg viewBox="0 0 12 26"><rect x="3.5" y="1.5" width="5" height="17" rx="2.5" fill="#fff" stroke="#3a2f25" stroke-width="1.4"/><circle cx="6" cy="21" r="4" fill="${col}" stroke="#3a2f25" stroke-width="1.4"/><rect x="5" y="${top.toFixed(1)}" width="2" height="${(19-top).toFixed(1)}" rx="1" fill="${col}"/></svg>`;
+}
+const fmtT = t => (t<0?'−':'')+Math.abs(t)+'°';
+const dotsHTML = n => '<span class="dots">'+[1,2,3,4,5,6].map(k=>`<i class="${k>n?'off':''}"></i>`).join('')+'</span>';
+
+/* ---------- 状态 ---------- */
+const S = {day:0, slot:1, auto:true, motion:true, w:null};
+let timer = null, keyW = '', keyL = '', lastSrc = '';
+
+function load(i){
+  if(S.w && $('strip').children[S.day]) $('strip').children[S.day].innerHTML = tileInner(WEEK[S.day], S.day);
+  S.day = i; S.w = structuredClone(WEEK[i]);
+  S.slot = swingBig(S.w) ? 0 : 1; S.auto = true;
+  if(typeof popSound==='function') popSound();
+  if(typeof replay==='function' && A.on) replay();
+  $('bAuto').setAttribute('aria-pressed', true);
+  render();
+}
+function setNoon(n){
+  const big = swingBig(S.w);
+  S.w.slots = big ? (n>=5 ? [n,n-2,n-1] : [n+2,n,n+1]) : [n,n,n];
+  S.w.t = S.w.slots.map(l=>BASE_T[l]);
+  render(); replay();
+}
+function setSwing(big){
+  const n = S.w.slots[1];
+  S.w.slots = big ? (n>=5 ? [n,n-2,n-1] : [n+2,n,n+1]) : [n,n,n];
+  S.w.t = S.w.slots.map(l=>BASE_T[l]);
+  S.slot = big ? 0 : 1; render(); replay();
+}
+setInterval(()=>{ if(S.motion && S.auto && swingBig(S.w)){ S.slot=(S.slot+1)%3; render(); } }, 3400);
+
+/* ---------- 天气粒子 ---------- */
+const RAIN = {
+  light:{n:16,dur:[1.5,2.2],len:14,w:2,   op:.7, dx:3},
+  mid:  {n:46,dur:[.9,1.3], len:20,w:3,   op:.85,dx:6},
+  heavy:{n:96,dur:[.5,.8],  len:30,w:3.6, op:.95,dx:10},
+};
+const WINDDX = [0,7,26];
+const CLOUDS = {
+  none: {n:2,color:'#fff',   w:[24,32],top:[2,16], op:.95},
+  cloudy:{n:4,color:'#c9d0db',w:[36,50],top:[0,24], op:1},
+  light:{n:2,color:'#e1e6ee',w:[30,40],top:[2,20], op:1},
+  mid:  {n:3,color:'#b3bccb',w:[34,46],top:[0,22], op:1},
+  heavy:{n:4,color:'#6c7891',w:[38,52],top:[-4,22],op:1},
+  snow: {n:3,color:'#dce2ec',w:[34,46],top:[0,20], op:1},
+};
+function buildWeather(){
+  const {rain, wind} = S.w;
+  const key = rain+'|'+wind; if(key===keyW) return; keyW = key;
+  const back = $('fxBack'), front = $('fxFront'), clouds = $('clouds');
+  back.replaceChildren(); front.replaceChildren(); clouds.replaceChildren();
+
+  // 云：风越大漂得越快
+  const speed = [1,.55,.22][wind], C = CLOUDS[rain];
+  for(let i=0;i<C.n;i++){
+    const el = document.createElement('div'); el.className='cloud';
+    const w = rand(...C.w);
+    el.style.cssText = `width:${w}cqw;top:${rand(...C.top)}%;opacity:${C.op};animation-duration:${(rand(36,52)*speed).toFixed(1)}s;animation-delay:${-rand(0,40).toFixed(1)}s`;
+    el.innerHTML = SVG.cloud(C.color); clouds.append(el);
+  }
+
+  const dxWind = WINDDX[wind];
+  const rot = d => -Math.atan(d/110)*180/Math.PI;
+  if(RAIN[rain]){
+    const R = RAIN[rain], dx = R.dx + dxWind;
+    for(let i=0;i<R.n;i++){
+      const el = document.createElement('i'); el.className='drop';
+      el.style.cssText = `left:${rand(-12,112)}%;width:${R.w}px;height:${R.len}px;opacity:${R.op};--dx:${dx};--rot:${rot(dx).toFixed(1)}deg;animation-duration:${rand(...R.dur).toFixed(2)}s;animation-delay:${-rand(0,2).toFixed(2)}s`;
+      back.append(el);
+    }
+    if(rain==='mid'||rain==='heavy'){
+      const rn = rain==='heavy'?7:3;
+      for(let i=0;i<rn;i++){
+        const el = document.createElement('i'); el.className='ripple';
+        el.style.cssText = `left:${rand(8,84)}%;bottom:${rand(1,9)}%;animation-duration:${rain==='heavy'?'.7':'1.1'}s;animation-delay:${-rand(0,1).toFixed(2)}s`;
+        front.append(el);
+      }
+    }
+  }
+  if(rain==='snow'){
+    const dx = 3 + dxWind*.8;
+    for(let i=0;i<46;i++){
+      const s = rand(.8,2).toFixed(2);
+      const el = document.createElement('div'); el.className='snowf';
+      el.style.cssText = `left:${rand(-10,110)}%;--dx:${dx};--rot:0deg;animation-duration:${(rand(4,7)*(wind===2?.55:1)).toFixed(2)}s;animation-delay:${-rand(0,6).toFixed(2)}s`;
+      el.innerHTML = `<span style="width:${s*1.2}cqw;height:${s*1.2}cqw;animation-duration:${wind===2?.6:1.8}s"></span>`;
+      back.append(el);
+    }
+  }
+  if(rain==='heavy'){
+    $('flash').hidden = false;
+    const b = document.createElement('div'); b.className='bolt'; b.innerHTML = SVG.bolt; front.append(b);
+  } else $('flash').hidden = true;
+  scheduleThunder(rain==='heavy');
+
+  // 风：卷线 + 落叶
+  if(wind>0){
+    const gn = wind===2?8:3, dur = wind===2?[.9,1.4]:[3.2,4.4];
+    for(let i=0;i<gn;i++){
+      const d = rand(...dur).toFixed(2);
+      const el = document.createElement('div'); el.className='gust';
+      el.style.cssText = `top:${rand(8,78)}%;width:${wind===2?rand(30,48):rand(22,32)}cqw;animation-duration:${d}s;animation-delay:${-rand(0,d).toFixed(2)}s`;
+      el.innerHTML = SVG.gust; front.append(el);
+    }
+    const ln = wind===2?8:2, cols = ['#7cc65a','#e8a33d','#d9693a','#a5cf4f'];
+    for(let i=0;i<ln;i++){
+      const d = (wind===2?rand(1.4,2.2):rand(4.5,6)).toFixed(2);
+      const el = document.createElement('div'); el.className='leaf';
+      el.style.cssText = `top:${rand(30,85)}%;width:${rand(5,7)}cqw;animation-duration:${d}s;animation-delay:${-rand(0,d).toFixed(2)}s`;
+      el.innerHTML = SVG.leaf(cols[i%cols.length]); front.append(el);
+    }
+  }
+  keyL = ''; buildLevel();    // front 被清空，冷热粒子重建
+}
+
+/* ---------- 冷热粒子 ---------- */
+const LV_FX = {
+  1:[['sweat',3,[56,72],[34,50]],['heat',3,[22,70],[4,22]]],
+  2:[['spark',5,[56,92],[6,38]]],
+  3:[['heart',3,[30,70],[14,40]]],
+  4:[['puff',1,[36,42],[52,58]]],
+  5:[['puff',2,[36,44],[50,58]]],
+  6:[['puff',3,[34,44],[50,58]]],
+};
+function buildLevel(){
+  const lv = S.w.slots[S.slot];
+  if(keyL===String(lv)) return; keyL = String(lv);
+  $('fxFront').querySelectorAll('.lvfx').forEach(e=>e.remove());
+  for(const [cls,count,[l0,l1],[t0,t1]] of LV_FX[lv]){
+    for(let i=0;i<count;i++){
+      const el = document.createElement('i'); el.className = cls+' lvfx';
+      if(cls==='heart'){ el.innerHTML = SVG.heart; }
+      el.style.cssText = `left:${rand(l0,l1)}%;top:${rand(t0,t1)}%;animation-delay:${-rand(0,3).toFixed(2)}s`;
+      $('fxFront').append(el);
+    }
+  }
+}
+
+/* ---------- 渲染 ---------- */
+function tileInner(w,i){
+  const b = badgeRain(w.rain) + badgeWind(w.wind) + (swingBig(w)?badgeSwing():'');
+  const lo = Math.min(...w.t), hi = Math.max(...w.t);
+  return `<img alt="" src="${ICON(w.slots[1])}"><span class="name">${DAYNAMES[i]}</span><span class="rng">${lo===hi?fmtT(lo):fmtT(lo)+'~'+fmtT(hi)}</span><span class="badges">${b}</span>`;
+}
+function btns(el, items, cur, onclick){
+  el.innerHTML = items.map(([v,t])=>`<button data-v="${v}" aria-pressed="${String(v)===String(cur)}">${t}</button>`).join('');
+  el.querySelectorAll('button').forEach(b=>b.onclick=()=>onclick(b.dataset.v));
+}
+const Q = new URLSearchParams(location.search);
+const LAYOUT = {v: ['hud','a','b','ab'].includes(Q.get('v')) ? Q.get('v') : 'a'};
+if(Q.get('c')) document.body.classList.add('compare');
+const tHue = t => Math.round(210 - 200*Math.min(1, Math.max(0,(t+5)/40)));
+const tPos = t => Math.min(.97, Math.max(.03, (t+5)/40));
+
+/* A：温差温度计 */
+function updateThermo(){
+  const w = S.w, ts = w.t, lo = Math.min(...ts), hi = Math.max(...ts);
+  const tube = $('tube');
+  if(!tube.querySelector('.mk')){
+    [0,1,2].forEach(i => {
+      const b = document.createElement('button'); b.className = 'mk'; b.dataset.i = i; b.style.bottom = '50%';
+      b.onclick = () => { S.slot = i; S.auto = false; $('bAuto').setAttribute('aria-pressed', false); render(); replay(); };
+      tube.append(b);
+    });
+  }
+  const r = $('thRng');
+  r.style.bottom = tPos(lo)*100 + '%'; r.style.height = Math.max(1.2, (tPos(hi)-tPos(lo))*100) + '%';
+  r.style.background = `linear-gradient(to top, hsl(${tHue(lo)} 85% 55%), hsl(${tHue(hi)} 85% 55%))`;
+  const icons = [SVG.sunrise, SVG.sun, SVG.moon];
+  tube.querySelectorAll('.mk').forEach((b,i) => {
+    b.style.bottom = tPos(ts[i])*100 + '%'; b.style.setProperty('--mc', `hsl(${tHue(ts[i])} 80% 48%)`);
+    const on = i===S.slot; b.classList.toggle('on', on);
+    b.innerHTML = on ? `<b>${fmtT(ts[i])}</b>` : icons[i];
+    b.setAttribute('aria-label', `${SLOTNAMES[i]} ${SLOT_TIMES[i]}：${fmtT(ts[i])}`);
+  });
+  // 靠得太近的标记向左错开，避免互相盖住
+  const pos = ts.map(tPos), marks = [...tube.querySelectorAll('.mk')]; let shift = 0;
+  marks.forEach((b,i) => {
+    let ox = 0;
+    if(i !== S.slot){
+      const clash = pos.some((q,j) => j!==i && Math.abs(q-pos[i]) < (j===S.slot ? .21 : .15));
+      if(clash){ shift++; ox = -(5.5 + shift*6.5); }
+    }
+    b.style.setProperty('--ox', ox + 'cqw');
+  });
+  $('thTimeT').textContent = SLOT_TIMES[S.slot];
+  $('thHand').style.transform = `rotate(${HUD.angle}deg)`;
+  $('thBulb').style.background = `hsl(${tHue(ts[S.slot])} 85% 55%)`;
+}
+
+/* B：拖动时间轨 */
+const RAIL = {drag:false, stops:[.12,.5,.88]};
+function updateRail(){
+  const knob = $('knob'), icons = [SVG.sunrise, SVG.sun, SVG.moon];
+  knob.innerHTML = icons[S.slot];
+  if(!RAIL.drag) knob.style.left = RAIL.stops[S.slot]*100 + '%';
+  $('rail').setAttribute('aria-valuenow', S.slot);
+  [0,1,2].forEach(i => { $('rs'+i).style.opacity = i===S.slot ? 0 : 1; });
+}
+(function initRail(){
+  const rail = $('rail'), knob = $('knob');
+  const move = e => {
+    const r = rail.getBoundingClientRect(); let x = (e.clientX - r.left)/r.width;
+    x = Math.min(RAIL.stops[2], Math.max(RAIL.stops[0], x));
+    knob.style.left = x*100 + '%'; knob.classList.add('drag');
+    const i = x < .31 ? 0 : x < .69 ? 1 : 2;
+    if(i !== S.slot){ S.slot = i; S.auto = false; $('bAuto').setAttribute('aria-pressed', false); render(); }
+  };
+  rail.addEventListener('pointerdown', e => {
+    RAIL.drag = true; rail.dataset.hint = '0'; S.auto = false; $('bAuto').setAttribute('aria-pressed', false);
+    rail.setPointerCapture(e.pointerId); move(e);
+  });
+  rail.addEventListener('pointermove', e => { if(RAIL.drag) move(e); });
+  const end = () => { if(!RAIL.drag) return; RAIL.drag = false; knob.classList.remove('drag'); updateRail(); replay(); };
+  rail.addEventListener('pointerup', end); rail.addEventListener('pointercancel', end);
+  rail.addEventListener('keydown', e => {
+    if(e.key==='ArrowRight' || e.key==='ArrowLeft'){ S.slot = Math.min(2, Math.max(0, S.slot + (e.key==='ArrowRight'?1:-1))); S.auto = false; render(); replay(); e.preventDefault(); }
+  });
+})();
+
+const HUD = {angle:0, t:null, raf:0};
+function updateHud(){
+  const w = S.w, i = S.slot, tgt = w.t[i];
+  $('hudTime').textContent = SLOT_TIMES[i];
+  const want = (SLOT_HOURS[i]%12)*30;                              // 时针只向前走，不倒转
+  const delta = ((want - HUD.angle)%360 + 360)%360;
+  if(HUD.t===null) HUD.angle = want; else HUD.angle += delta;
+  $('hudHand').style.transform = `rotate(${HUD.angle}deg)`;
+  const f = Math.min(1, Math.max(.12, (tgt+5)/40)), hue = Math.round(210 - 200*Math.min(1, Math.max(0,(tgt+5)/40)));
+  $('hudMerc').style.transform = `scaleY(${f})`;
+  $('hudMerc').style.fill = $('hudBulb').style.fill = `hsl(${hue} 80% 52%)`;
+  $('hudT').parentElement.style.color = `hsl(${hue} 65% 34%)`;
+  cancelAnimationFrame(HUD.raf);
+  const from = HUD.t===null ? tgt : HUD.t, t0 = performance.now();
+  const step = now => {
+    const k = Math.min(1, (now-t0)/700), e = 1-Math.pow(1-k,3);
+    HUD.t = from + (tgt-from)*e;
+    $('hudT').textContent = fmtT(Math.round(HUD.t));
+    if(k<1) HUD.raf = requestAnimationFrame(step); else HUD.t = tgt;
+  };
+  HUD.raf = requestAnimationFrame(step);
+}
+function render(){
+  const w = S.w, lv = w.slots[S.slot], big = swingBig(w), sc = $('scene');
+  document.body.dataset.level = lv;
+  sc.dataset.slot = S.slot; sc.dataset.rain = w.rain; sc.dataset.wind = w.wind; sc.dataset.lv = lv;
+  sc.dataset.umb = (w.rain==='mid'||w.rain==='heavy') ? '1' : '0';
+  sc.classList.toggle('paused', !S.motion);
+  $('title').textContent = DAYNAMES[S.day];
+
+  const img = $('heroImg'), src = ICON(lv);
+  if(src!==lastSrc){ img.src = src; lastSrc = src; img.classList.remove('pop'); void img.offsetWidth; img.classList.add('pop'); }
+  buildWeather(); buildLevel(); updateHud(); updateThermo(); updateRail();
+  document.body.dataset.layout = LAYOUT.v;
+
+  $('label').innerHTML = `${LABELS[lv]}<small>${SLOT_TIMES[S.slot]} · ${fmtT(w.t[S.slot])} · ${RAINNAME[w.rain]} · ${WINDNAME[w.wind]}${big?' · 早晚温差大':''}</small>`;
+
+  // 早/午/晚
+  const slotIcons = [SVG.sunrise, SVG.sun, SVG.moon];
+  $('slots').className = 'slots' + (big?'':' calm');
+  $('slots').innerHTML = w.slots.map((n,i)=>`<button class="slot" aria-pressed="${i===S.slot}" aria-label="${SLOTNAMES[i]} ${SLOT_TIMES[i]}：${fmtT(w.t[i])}，${LABELS[n]}" data-i="${i}"><span class="ti">${slotIcons[i]}</span><span class="tm">${clockSVG(SLOT_HOURS[i])}${SLOT_TIMES[i]}</span><img alt="" src="${ICON(n)}"><span class="tp">${thermoSVG(w.t[i])}${fmtT(w.t[i])}</span>${dotsHTML(n)}</button>`).join('');
+  $('slots').querySelectorAll('.slot').forEach(b=>b.onclick=()=>{S.slot=+b.dataset.i; S.auto=false; $('bAuto').setAttribute('aria-pressed',false); render(); replay();});
+
+  // 日条
+  const strip = $('strip');
+  if(!strip.children.length){
+    WEEK.forEach((d,i)=>{
+      const b = document.createElement('button'); b.className='day'; b.setAttribute('role','listitem');
+      b.innerHTML = tileInner(d,i); b.onclick = ()=>load(i); strip.append(b);
+    });
+  }
+  strip.children[S.day].innerHTML = tileInner(w,S.day);
+  [...strip.children].forEach((b,i)=>b.setAttribute('aria-pressed', i===S.day));
+
+  // 控件
+  btns($('cLayout'), [['hud','现在·信息牌'],['a','A 温差温度计'],['b','B 拖动时间'],['ab','A+B 组合']], LAYOUT.v, v=>{LAYOUT.v=v; render();});
+  btns($('cLv'), [1,2,3,4,5,6].map(n=>[n,'L'+n]), w.slots[1], v=>setNoon(+v));
+  btns($('cSwing'), [[0,'无'],[1,'大温差']], big?1:0, v=>setSwing(v==='1'));
+  btns($('cRain'), Object.entries(RAINNAME), w.rain, v=>{S.w.rain=v; render(); replay();});
+  btns($('cWind'), WINDNAME.map((t,i)=>[i,t]), w.wind, v=>{S.w.wind=+v; render(); replay();});
+  audioSync();
+}
+$('bAuto').onclick = e => { S.auto=!S.auto; e.target.setAttribute('aria-pressed',S.auto); };
+$('bMotion').onclick = e => { S.motion=!S.motion; e.target.setAttribute('aria-pressed',S.motion); e.target.textContent = S.motion?'动画开':'动画关'; render(); };
+
+/* ============ 音效（Web Audio 实时合成，无音频文件） ============ */
+const A = {ctx:null, on:false, n:{}, vol:.7, thunderOn:true, lastSlot:null, lastWind:-1, thunderTimer:null, silent:null,
+           t0:-1e9, dur:7000, env:0, thunderCount:0,                       // 一次“播放段”：满音量 dur 毫秒，再用 2.5 秒淡出
+           nx:{chat:0, chime:0, gust:0, plip:0, bird:0, bee:0, leaf:0, cloudWind:0}};
+function replay(){                                                         // 用户操作（开声音、换天、改天气、点角色）才重新播一段
+  A.t0 = performance.now(); A.dur = S.w.rain==='heavy' ? 11000 : 7000; A.env = 1; A.thunderCount = 0;
+  for(const k in A.nx) A.nx[k] = 0;
+  if(A.ctx) audioSync();
+}
+const SPK_ON = `<svg viewBox="0 0 24 24" fill="none" stroke="#3a2f25" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5v5h3.8l5.2 4.2V5.3L6.8 9.5z" fill="#ffc93c"/><path class="w1" d="M15 9.6a3.4 3.4 0 0 1 0 4.8"/><path class="w2" d="M17.4 7.4a6.6 6.6 0 0 1 0 9.2"/><path class="w3" d="M19.8 5.2a9.8 9.8 0 0 1 0 13.6"/></svg>`;
+const SPK_OFF = `<svg viewBox="0 0 24 24" fill="none" stroke="#6b625a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5v5h3.8l5.2 4.2V5.3L6.8 9.5z" fill="#d3cdc6"/><path d="M15.5 9.5l5 5M20.5 9.5l-5 5" stroke="#e0613b" stroke-width="2.4"/></svg>`;
+
+const bq = (type, f, q=1) => { const b = A.ctx.createBiquadFilter(); b.type = type; b.frequency.value = f; b.Q.value = q; return b; };
+const gn = v => { const g = A.ctx.createGain(); g.gain.value = v; return g; };
+const ramp = (param, v, tc=.35) => param.setTargetAtTime(v, A.ctx.currentTime, tc);
+
+function makeBuffers(ctx){
+  const sr = ctx.sampleRate, len = sr*4;
+  const mk = fill => { const b = ctx.createBuffer(2, len, sr); for(let c=0;c<2;c++) fill(b.getChannelData(c)); return b; };   // 左右声道各自独立 → 有立体宽度
+  return {
+    white: mk(d => { for(let i=0;i<d.length;i++) d[i] = Math.random()*2-1; }),
+    pink:  mk(d => { let b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
+      for(let i=0;i<d.length;i++){ const w = Math.random()*2-1;
+        b0=.99886*b0+w*.0555179; b1=.99332*b1+w*.0750759; b2=.969*b2+w*.153852; b3=.8665*b3+w*.3104856; b4=.55*b4+w*.5329522; b5=-.7616*b5-w*.016898;
+        d[i] = (b0+b1+b2+b3+b4+b5+b6+w*.5362)*.11; b6 = w*.115926; } }),
+    brown: mk(d => { let l=0; for(let i=0;i<d.length;i++){ const w = Math.random()*2-1; l = (l+.02*w)/1.02; d[i] = l*3.5; } }),
+  };
+}
+function loopSrc(buf){ const s = A.ctx.createBufferSource(); s.buffer = buf; s.loop = true; s.start(0, Math.random()*3); return s; }
+function chain(...nodes){ for(let i=0;i<nodes.length-1;i++) nodes[i].connect(nodes[i+1]); }
+
+// 让 iOS 把页面声音当作“播放”类，减少被侧面静音键吞掉的情况（未在真机验证）
+function unlockSilent(){
+  try{
+    if(navigator.audioSession) navigator.audioSession.type = 'playback';
+    const sr = 8000, n = 800, b = new ArrayBuffer(44+n), v = new DataView(b);
+    const w = (o,s) => { for(let i=0;i<s.length;i++) v.setUint8(o+i, s.charCodeAt(i)); };
+    w(0,'RIFF'); v.setUint32(4,36+n,true); w(8,'WAVE'); w(12,'fmt '); v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);
+    v.setUint32(24,sr,true); v.setUint32(28,sr,true); v.setUint16(32,1,true); v.setUint16(34,8,true); w(36,'data'); v.setUint32(40,n,true);
+    for(let i=0;i<n;i++) v.setUint8(44+i,128);
+    A.silent = new Audio(URL.createObjectURL(new Blob([b],{type:'audio/wav'}))); A.silent.loop = true;
+  }catch(e){}
+}
+
+function initAudio(){
+  const ctx = new (window.AudioContext||window.webkitAudioContext)(); A.ctx = ctx; const n = A.n;
+  unlockSilent();
+  n.master = gn(0);
+  const comp = ctx.createDynamicsCompressor();                  // 多层叠加时防止爆音
+  comp.threshold.value = -20; comp.knee.value = 24; comp.ratio.value = 6; comp.attack.value = .01; comp.release.value = .3;
+  chain(n.master, comp, ctx.destination);
+  const B = n.B = makeBuffers(ctx);
+
+  // 雨底噪（粉红噪声，比白噪声柔和）+ 低频轰鸣（大雨）
+  n.rainLP = bq('lowpass', 6000); n.rainG = gn(0);
+  chain(loopSrc(B.pink), bq('highpass', 350), n.rainLP, n.rainG, n.master);
+  n.roarG = gn(0); chain(loopSrc(B.brown), bq('lowpass', 900), n.roarG, n.master);
+  // 风：粉红噪声 → 带通，由“阵风调度”随机抬高/降低；大风再叠一层尖啸
+  n.windBP = bq('bandpass', 450, 1); n.windG = gn(0); chain(loopSrc(B.pink), n.windBP, n.windG, n.master);
+  n.whBP = bq('bandpass', 1100, 14); n.whG = gn(0); chain(loopSrc(B.white), n.whBP, n.whG, n.master);
+  // 雪：被雪吸收的“静”
+  n.hushG = gn(0); chain(loopSrc(B.pink), bq('lowpass', 650), n.hushG, n.master);
+  // 树叶沙沙（晴天）
+  n.leafG = gn(0); chain(loopSrc(B.pink), bq('bandpass', 3200, .6), n.leafG, n.master);
+  // 蝉鸣
+  n.cicOsc = ctx.createOscillator(); n.cicOsc.frequency.value = 4000;
+  n.cicAM = gn(.5); n.cicPulse = gn(.5); n.cicG = gn(0);
+  const f1 = ctx.createOscillator(); f1.frequency.value = 34; const f1g = gn(.5); chain(f1, f1g, n.cicAM.gain);
+  const f2 = ctx.createOscillator(); f2.frequency.value = .7; const f2g = gn(.5); chain(f2, f2g, n.cicPulse.gain);
+  chain(n.cicOsc, n.cicAM, n.cicPulse, n.cicG, n.master);
+  n.cicOsc.start(); f1.start(); f2.start();
+  setInterval(audioTick, 120);
+}
+
+/* ---- 短声 ---- */
+function blip(freq, dur, gain, {type='sine', to=null, at=0}={}){
+  const c = A.ctx, t = c.currentTime+at, o = c.createOscillator(), g = c.createGain();
+  o.type = type; o.frequency.setValueAtTime(freq, t);
+  if(to) o.frequency.exponentialRampToValueAtTime(to, t+dur);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(gain, t+.008); g.gain.exponentialRampToValueAtTime(.0001, t+dur);
+  chain(o, g, A.n.master); o.start(t); o.stop(t+dur+.05);
+}
+function noiseHit(buf, freq, q, gain, dur, at=0, pan=0){          // 一小段滤波噪声：雨滴、咔嗒、伞面
+  const c = A.ctx, t = c.currentTime+at, s = c.createBufferSource(), f = bq('bandpass', freq, q), g = c.createGain();
+  s.buffer = buf; g.gain.setValueAtTime(gain, t); g.gain.exponentialRampToValueAtTime(.0001, t+dur);
+  s.connect(f); f.connect(g);
+  if(pan && c.createStereoPanner){ const p = c.createStereoPanner(); p.pan.value = pan; g.connect(p); p.connect(A.n.master); } else g.connect(A.n.master);
+  s.start(t, Math.random()*3); s.stop(t+dur+.05);
+}
+const rainDrop = gain => noiseHit(A.n.B.white, 2500+Math.random()*5000, 2+Math.random()*2, gain, .018+Math.random()*.02, Math.random()*.12, Math.random()*1.6-.8);
+const umbTap  = gain => noiseHit(A.n.B.white, 480+Math.random()*380, 5, gain, .05, Math.random()*.12, Math.random()*.5-.25);   // 雨点打在伞布上，低沉的“嗒”
+const tick    = (gain, freq, at=0) => noiseHit(A.n.B.white, freq, 3, gain, .025, at);
+
+function whoosh(){                                               // 扇子呼扇
+  const c = A.ctx, t = c.currentTime, s = c.createBufferSource(), f = bq('bandpass', 500, 1.2), g = c.createGain();
+  s.buffer = A.n.B.pink; f.frequency.setValueAtTime(500, t); f.frequency.exponentialRampToValueAtTime(1700, t+.3);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.09, t+.12); g.gain.exponentialRampToValueAtTime(.0001, t+.34);
+  chain(s, f, g, A.n.master); s.start(t, Math.random()*3); s.stop(t+.4);
+}
+function chirp(low=false){                                      // 鸟叫：2–4 个短音；阴天时更低更远
+  const k = 2+Math.floor(Math.random()*3), base = low ? 1100+Math.random()*500 : 2200+Math.random()*1600, g = low ? .02 : .045;
+  for(let i=0;i<k;i++){ const f = base*(1+Math.random()*.25); blip(f, .07+Math.random()*.04, g, {to:f*(Math.random()<.5?1.35:.8), at:i*.11}); }
+}
+function cricketPulse(){ for(let i=0;i<3;i++) blip(4300,.03,.03,{at:i*.07}); }
+function bee(){                                                  // 蜜蜂嗡嗡地飞过（左→右）
+  const c = A.ctx, t = c.currentTime, o = c.createOscillator(), lp = bq('lowpass', 900), g = c.createGain();
+  const vib = c.createOscillator(); vib.frequency.value = 7; const vg = gn(10); chain(vib, vg, o.frequency);
+  o.type = 'sawtooth'; o.frequency.value = 185;
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.022, t+.5); g.gain.linearRampToValueAtTime(0, t+1.4);
+  chain(o, lp, g);
+  if(c.createStereoPanner){ const p = c.createStereoPanner(); p.pan.setValueAtTime(-.8, t); p.pan.linearRampToValueAtTime(.8, t+1.4); g.connect(p); p.connect(A.n.master); } else g.connect(A.n.master);
+  o.start(t); vib.start(t); o.stop(t+1.5); vib.stop(t+1.5);
+}
+function boing(){ blip(240, .13, .07, {to:150}); blip(1400, .1, .02, {at:.02}); }   // 落地“噗”
+function brr(){                                                  // 冷得“呜～”
+  const c = A.ctx, t = c.currentTime, o = c.createOscillator(), lp = bq('lowpass', 750), am = gn(.5), env = c.createGain();
+  o.type = 'sawtooth'; o.frequency.setValueAtTime(150, t); o.frequency.linearRampToValueAtTime(175, t+.7);
+  const l = c.createOscillator(); l.frequency.value = 17; const lg = gn(.5); chain(l, lg, am.gain);
+  env.gain.setValueAtTime(0, t); env.gain.linearRampToValueAtTime(.05, t+.08); env.gain.setValueAtTime(.05, t+.55); env.gain.exponentialRampToValueAtTime(.0001, t+.75);
+  chain(o, lp, am, env, A.n.master); o.start(t); l.start(t); o.stop(t+.8); l.stop(t+.8);
+}
+function thunder(){                                              // 柔和的滚雷：先“咔”，再分几段轰隆，尾部渐隐
+  if(!A.thunderOn) return;
+  const c = A.ctx, t = c.currentTime, B = A.n.B;
+  noiseHit(B.white, 1800, .8, .22, .2);
+  const s = c.createBufferSource(), lp = bq('lowpass', 380), g = c.createGain();
+  s.buffer = B.brown; lp.frequency.setValueAtTime(380, t); lp.frequency.exponentialRampToValueAtTime(60, t+3.2);
+  g.gain.setValueAtTime(0, t+.05); g.gain.linearRampToValueAtTime(.5, t+.25); g.gain.exponentialRampToValueAtTime(.16, t+.75);
+  g.gain.linearRampToValueAtTime(.38, t+1.05); g.gain.exponentialRampToValueAtTime(.11, t+1.7);
+  g.gain.linearRampToValueAtTime(.22, t+2.0); g.gain.exponentialRampToValueAtTime(.0001, t+3.5);
+  chain(s, lp, g, A.n.master); s.start(t, Math.random()*3); s.stop(t+3.6);
+  blip(62, 2.2, .22, {to:36});
+}
+function scheduleThunder(heavy){
+  clearTimeout(A.thunderTimer); A.thunderTimer = null;
+  if(!heavy) return;
+  const loop = () => { if(A.on && A.ctx && A.env>.3 && A.thunderCount<2){ A.thunderCount++; thunder(); } A.thunderTimer = setTimeout(loop, 4500); };
+  A.thunderTimer = setTimeout(loop, 4500);                       // 与画面闪电周期（4.5 秒）对齐，雷声在闪后约 0.6 秒
+}
+function cue(slot){
+  if(slot===0){ blip(2300,.11,.06,{to:3400}); blip(2500,.11,.06,{to:3600,at:.16}); blip(2300,.1,.05,{to:3300,at:.34}); }   // 早：鸟叫
+  else if(slot===1){ blip(880,.5,.07); blip(1320,.5,.04,{at:.05}); }                                                     // 午：叮
+  else { for(let i=0;i<3;i++){ blip(4300,.03,.035,{at:i*.2}); blip(4300,.03,.035,{at:i*.2+.06}); } }                       // 晚：蟋蟀
+}
+
+/* ---- 随天气变化的持续声 ---- */
+function audioSync(){
+  if(!A.ctx) return;
+  const n = A.n, w = S.w, lv = w.slots[S.slot];
+  ramp(n.master.gain, A.on ? A.vol*A.env : 0, .1);
+  const R = {none:[0,0,6000], cloudy:[0,.02,6000], light:[.05,0,5000], mid:[.11,.03,6500], heavy:[.2,.12,8000], snow:[0,0,6000]}[w.rain];
+  ramp(n.rainG.gain, R[0]); ramp(n.roarG.gain, R[1]); ramp(n.rainLP.frequency, R[2]);
+  ramp(n.hushG.gain, w.rain==='snow' ? .03 : w.rain==='cloudy' ? .02 : 0, .6);   // 雪/阴天：被云雪吸住的闷
+  ramp(n.leafG.gain, w.rain==='none' ? .012 : 0, .6);                           // 晴天：树叶沙沙
+  if(w.wind===0){ ramp(n.windG.gain, 0); ramp(n.whG.gain, 0); }
+  else if(A.lastWind!==w.wind) A.nx.gust = 0;                    // 风力变了，马上重新“起风”
+  A.lastWind = w.wind;
+  ramp(n.cicG.gain, (lv===1 && w.rain==='none') ? .016 : 0, .6);
+  if(A.on && A.env>.05 && A.lastSlot!==null && A.lastSlot!==S.slot) cue(S.slot);
+  A.lastSlot = S.slot;
+}
+function audioTick(){                                            // 每 120ms：随机/颗粒类的声音
+  if(!A.on || !A.ctx) return;
+  const now = performance.now(), w = S.w, lv = w.slots[S.slot], dt = .12, n = A.n, el = now-A.t0;
+  A.env = el < A.dur ? 1 : Math.max(0, 1-(el-A.dur)/2500);                  // 播完后 2.5 秒淡出
+  ramp(n.master.gain, A.vol*A.env, .12);
+  if(A.env < .02) return;
+  const rnd = Math.random;
+  if(w.rain==='none'){                                                       // 晴天：早晨鸟多、中午少加蜜蜂、晚上蟋蟀
+    if(S.slot===0 && now>A.nx.bird){ chirp(); A.nx.bird = now+700+rnd()*900; }
+    if(S.slot===1){ if(now>A.nx.bird){ chirp(); A.nx.bird = now+2200+rnd()*2000; } if(now>A.nx.bee){ bee(); A.nx.bee = now+4500+rnd()*3000; } }
+    if(S.slot===2 && now>A.nx.bird){ cricketPulse(); A.nx.bird = now+450+rnd()*500; }
+    if(now>A.nx.leaf){ ramp(n.leafG.gain, .006+rnd()*.016, .5); A.nx.leaf = now+1500+rnd()*1500; }
+  }
+  if(w.rain==='cloudy'){                                                     // 阴天：少而闷——远处偶尔一声低鸟叫、一阵低沉的风
+    if(S.slot<2 && now>A.nx.bird){ chirp(true); A.nx.bird = now+4000+rnd()*3500; }
+    if(w.wind===0 && now>A.nx.cloudWind){
+      ramp(n.windBP.frequency, 260, .3); ramp(n.windG.gain, .03+rnd()*.02, .5);
+      setTimeout(() => { if(A.ctx && S.w.wind===0) ramp(n.windG.gain, 0, .6); }, 1600);
+      A.nx.cloudWind = now+3500+rnd()*3000;
+    }
+  }
+  const RD = {light:{drop:7,tap:0,dg:.03}, mid:{drop:30,tap:9,dg:.035,tg:.05}, heavy:{drop:55,tap:24,dg:.04,tg:.075}}[w.rain];
+  if(RD){
+    let k = Math.floor(RD.drop*dt+Math.random()); while(k-- > 0) rainDrop(RD.dg);          // 雨点：每秒几颗到几十颗
+    k = Math.floor((RD.tap||0)*dt+Math.random()); while(k-- > 0) umbTap(RD.tg);           // 打在伞上的“嗒”
+  }
+  if(w.rain==='light' && now>A.nx.plip){ blip(1700+Math.random()*900,.07,.02,{to:900}); A.nx.plip = now+300+Math.random()*600; }
+  if(w.wind>0 && now>A.nx.gust){                                 // 阵风：随机的强弱和音调起伏
+    const big = w.wind===2;
+    ramp(n.windG.gain,  big ? 0.09+Math.random()*.13 : .025+Math.random()*.045, .3);
+    ramp(n.windBP.frequency, big ? 450+Math.random()*650 : 280+Math.random()*280, .3);
+    n.windBP.Q.value = big ? .7 : 1.2;
+    ramp(n.whG.gain, big ? .015+Math.random()*.03 : 0, .3);
+    ramp(n.whBP.frequency, 900+Math.random()*800, .3);
+    A.nx.gust = now + (big ? 700+Math.random()*1100 : 1500+Math.random()*2000);
+  }
+  if((lv===5||lv===6) && now>A.nx.chat){                         // 冷：牙齿打颤 + 偶尔“呜～”
+    const cnt = lv===6?7:5, gap = lv===6?.04:.055;
+    if(Math.random() < (lv===6?.6:.25)) brr();
+    for(let i=0;i<cnt;i++) tick(lv===6?.1:.07, 2200+Math.random()*600, .1+i*gap);
+    A.nx.chat = now + (lv===6?1500:2500) + Math.random()*800;
+  }
+  if(w.rain==='snow' && now>A.nx.chime){                         // 雪：很轻的风铃
+    const f = [784,880,1047,1175,1319][Math.floor(Math.random()*5)];
+    blip(f,1.3,.03); blip(f*2,.8,.012,{at:.01});
+    A.nx.chime = now + 1400+Math.random()*1800;
+  }
+  if(lv===1 && now>A.nx.plip){ blip(1300,.09,.03,{to:700}); A.nx.plip = now+1500+Math.random()*2000; }   // 热：汗滴“啪嗒”
+}
+// 与画面同步：小动物的摇扇、弹跳每循环一次，响一次
+document.querySelector('.hero').addEventListener('animationiteration', () => {
+  if(!A.on || !A.ctx || !S.motion || A.env<.2) return;
+  const lv = S.w.slots[S.slot];
+  if(lv===2) boing(); else if(lv===1) whoosh();
+});
+document.addEventListener('visibilitychange', () => {            // 切到别的页面/锁屏时自动停声
+  if(!A.ctx) return;
+  if(document.hidden) A.ctx.suspend(); else if(A.on) A.ctx.resume();
+});
+function popSound(){ if(A.on && A.ctx) blip(520, .08, .05, {to:900}); }   // 换天时角色“噗”地换一下
+
+$('bSound').innerHTML = SPK_OFF;
+$('bSound').onclick = async () => {
+  if(!A.ctx) initAudio();
+  await A.ctx.resume();
+  A.on = !A.on;
+  const b = $('bSound');
+  b.setAttribute('aria-pressed', A.on); b.setAttribute('aria-label', A.on ? '关闭声音' : '打开声音'); b.title = b.getAttribute('aria-label');
+  b.innerHTML = A.on ? SPK_ON : SPK_OFF;
+  b.classList.remove('burst'); if(A.on){ void b.offsetWidth; b.classList.add('burst'); }
+  if(A.silent){ A.on ? A.silent.play().catch(()=>{}) : A.silent.pause(); }
+  A.lastSlot = S.slot;
+  if(A.on){ replay(); blip(660,.18,.08); } else audioSync();       // 开启：确认音 + 播一段当前天气；点角色可再听一遍
+};
+$('heroImg').parentElement.style.cursor = 'pointer';
+$('heroImg').parentElement.addEventListener('click', () => {      // 点小动物：重听一遍；声音关着时，喇叭晃一下提醒
+  if(A.on){ replay(); return; }
+  const b = $('bSound'); b.classList.remove('nudge'); void b.offsetWidth; b.classList.add('nudge');
+});
+$('vol').oninput = e => { A.vol = e.target.value/100; audioSync(); };
+$('bThunder').onclick = e => { A.thunderOn = !A.thunderOn; e.target.setAttribute('aria-pressed', A.thunderOn); };
+
+// 一次性素材
+$('sun').innerHTML = SVG.sun; $('moon').innerHTML = SVG.moon;
+$('umb').innerHTML = SVG.umb;
+for(let i=0;i<16;i++){
+  const s = document.createElement('i');
+  s.style.cssText = `left:${rand(3,94)}%;top:${rand(3,90)}%;animation-delay:${-rand(0,2.4).toFixed(2)}s`;
+  $('stars').append(s);
+}
+window.addEventListener('message', e => {          // 对比页同步操作
+  if(e.origin !== location.origin || !e.data || !e.data.pal) return;
+  if('day' in e.data) load(e.data.day);
+  if('slot' in e.data){ S.slot = e.data.slot; S.auto = false; render(); }
+});
+load(Math.min(6, Math.max(0, +(Q.get('d')||0))));
+</script>
+</body>
+</html>
