@@ -83,6 +83,28 @@ class Cache:
         except (ValueError, KeyError, TypeError, OverflowError, Unavailable):
             return None
 
+    def read_snapshot(self, city, day):
+        """Read-only: validate the snapshot filed under `day` against that day, not today.
+
+        Same checks as `read` (identity, source, checksum, acquired on that day, not
+        in the future, hour coverage anchored at `day`), but without requiring
+        `day` to be the current Berlin date. Never downloads or writes.
+        """
+        raw = self.store.get(key(city, day))
+        if raw is None:
+            return None
+        try:
+            body = unpack(raw)
+            acquired = datetime.fromisoformat(body['weather_fetched_at'])
+            now = self.clock().astimezone(BERLIN)
+            if (body['identity'] != identity(city, day) or body['source'] != FORECAST or
+                    acquired.tzinfo is None or acquired.astimezone(BERLIN).date() != day or acquired > now):
+                raise ValueError()
+            parse_hours(body['response'], datetime.combine(day, time(), BERLIN))
+            return body['response'], acquired, digest(body)
+        except (ValueError, KeyError, TypeError, OverflowError, Unavailable):
+            return None
+
     def reserve(self, day):
         """Charge before IO, including failed attempts. Lock held by caller."""
         now = self.current(day)

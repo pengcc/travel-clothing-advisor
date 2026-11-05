@@ -116,3 +116,28 @@ def featured(scenario='default', now=None):
     w = window(now)
     return dict(**w, fixture=True, weather_fetched_at=None, data_version='ui-fixtures-v1',
                 cities=[advice(dict(view='city', city_id=c['id']), scenario, now) for c in CITIES[:10]])
+
+
+def pal(now=None):
+    """Deterministic 穿衣小伙伴 fixture: same code path as real data, synthetic hourly temperatures."""
+    from datetime import time
+    from web.live import FORECAST, parse_hours  # noqa: F401  (validates the synthetic series shape)
+    from web.pal import build
+    now = (now or now_berlin()).astimezone(BERLIN)
+    start = datetime.combine(now.date(), time(), BERLIN)
+    end = datetime.combine(now.date() + timedelta(days=14), time(), BERLIN)
+    # Per-day (night, afternoon) temperatures; morning/evening differ from the afternoon on some days.
+    shape = [(5, 20), (11, 15), (4, 8), (1, 6), (14, 21), (22, 31), (2, 5)] + [(10, 16)] * 7
+    times = list(range(int(start.timestamp()), int(end.timestamp()), 3600))
+    temps = []
+    for t in times:
+        local = datetime.fromtimestamp(t, BERLIN)
+        low, high = shape[(local.date() - now.date()).days]
+        warmth = max(0, 1 - abs(local.hour - 14) / 6)
+        temps.append(round(low + (high - low) * warmth, 1))
+    data = dict(timezone='Europe/Berlin', hourly_units=dict(temperature_2m='°C'),
+                hourly=dict(time=times, temperature_2m=temps))
+    city = next(dict(id=c['id'], zh=c['zh'], name=c['name'], state=c['state']) for c in CITIES if c['id'] == 'berlin')
+    result = build(city, (data, now, 'ui-fixtures-v1'), now, now)
+    result.update(fixture=True, data_version='ui-fixtures-v1')
+    return result

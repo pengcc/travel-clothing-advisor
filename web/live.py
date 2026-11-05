@@ -235,6 +235,43 @@ class Service:
             raise ValueError('查询参数无效。')
         return self.city_references(p.get('city_id')) if self.independent_cities else self.forecasts.featured(self, p.get('city_id'))
 
+    def _city_record(self, city_id, now):
+        """Validated city metadata without downloads (shared by city_references and pal)."""
+        # Offline metadata is validated at dataset loading. Local workers
+        # can also leave validated city metadata in the daily manifest.
+        city = (self.offline_cities or self.featured_cities).get(city_id)
+        if city is None and self.offline_cities is None:
+            from web.forecasts import manifest_key, unpack
+            body = unpack(self.forecasts.store.get(manifest_key(now.date())))
+            city = next(e['city'] for e in body['entries'] if e['city']['id'] == city_id)
+        if city is None:
+            raise Unavailable('城市资料暂缺。')
+        return city
+
+    def pal(self):
+        """穿衣小伙伴: latest usable snapshot, read-only; never downloads."""
+        if not self.independent_cities:
+            raise Unavailable('此部署模式暂不提供穿衣小伙伴。')
+        from web.pal import build
+        try:
+            now = self.clock().astimezone(BERLIN)
+            city = self._city_record('berlin', now)
+            cached = None
+            for back in range(3):
+                cached = self.forecasts.read_snapshot(city, now.date() - timedelta(days=back))
+                if cached is not None:
+                    break
+            if cached is None or now - cached[1] > timedelta(hours=48):
+                raise Unavailable('穿衣小伙伴暂时没有可用的预报数据。')
+            generated = self.clock().astimezone(BERLIN)
+            if generated.date() != now.date() or generated < cached[1]:
+                raise Unavailable('数据日期已变化，请重新查询。')
+            return build(city, cached, now, generated)
+        except Unavailable:
+            raise
+        except (OSError, ValueError, KeyError, TypeError, StopIteration, OverflowError) as exc:
+            raise Unavailable('穿衣小伙伴暂时没有可用的预报数据。') from exc
+
     def city_references(self, city_id=None):
         """Independent read-only city results; never download on the homepage."""
         from web.forecasts import FEATURED
@@ -249,15 +286,7 @@ class Service:
             p = dict(view='city', start=w['today'], end=w['forecast_end'], preference='normal')
             result = None
             try:
-                # Offline metadata is validated at dataset loading. Local workers
-                # can also leave validated city metadata in the daily manifest.
-                city = (self.offline_cities or self.featured_cities).get(catalog['id'])
-                if city is None and self.offline_cities is None:
-                    from web.forecasts import manifest_key, unpack
-                    body = unpack(self.forecasts.store.get(manifest_key(now.date())))
-                    city = next(e['city'] for e in body['entries'] if e['city']['id'] == catalog['id'])
-                if city is None:
-                    raise Unavailable('城市资料暂缺。')
+                city = self._city_record(catalog['id'], now)
                 try:
                     result = self.forecasts.render(self, city, now, self.forecasts.read(city, now.date()))
                 except (Unavailable, OSError, ValueError, KeyError, TypeError):

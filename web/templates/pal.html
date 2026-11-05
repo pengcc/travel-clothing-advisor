@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>穿衣小伙伴 · 柏林</title>
+<meta name="theme-color" content="#E3F6F1">
+<link rel="manifest" href="/static/pal/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/static/pal/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="穿衣小伙伴">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="stylesheet" href="/static/pal/pal.css">
+</head>
+<body data-state="loading" data-level="3">
+<h1 id="title">穿衣小伙伴</h1>
+
+<div class="state-card" id="loading" role="status">正在读取柏林的冷热…</div>
+
+<div class="state-card" id="unavailable" role="status">
+  <img alt="" src="/static/icons/warmth/2x/warmth-l3.png">
+  数据暂时不可用，请稍后再看
+  <small id="unavailableNote"></small>
+</div>
+
+<div class="scene ready-only" id="scene" data-slot="1" data-lv="3">
+  <div class="sky s0"></div><div class="sky s1"></div><div class="sky s2"></div>
+  <div class="ground"></div>
+  <div class="shadow"></div>
+  <button class="hero" id="hero" type="button" aria-label="小伙伴，点一下再听一遍"><img id="heroImg" alt=""></button>
+  <div class="fx-front" id="fxFront"></div>
+  <div class="vig"></div>
+  <div class="thermo" id="thermo" aria-hidden="true">
+    <div class="th-time" id="thTime"><svg viewBox="0 0 24 24" fill="none" stroke="#3a2f25" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10.5" fill="#fff"/><path d="M12 12V4.6"/><g id="thHand" style="transform-origin:12px 12px;transition:transform 1s cubic-bezier(.4,0,.2,1)"><path d="M12 12V7" stroke-width="3"/></g></svg><span id="thTimeT"></span></div>
+    <div class="tube" id="tube"><div class="trk"></div><div class="rng" id="thRng"></div>
+      <i class="tk" style="bottom:12.5%"></i><i class="tk" style="bottom:37.5%"></i><i class="tk" style="bottom:62.5%"></i><i class="tk" style="bottom:87.5%"></i></div>
+    <div class="bulb" id="thBulb"></div>
+  </div>
+  <button class="snd" id="bSound" type="button" aria-pressed="false" aria-label="打开声音" title="打开声音"></button>
+</div>
+<div class="label ready-only" id="label" aria-live="polite"></div>
+<div class="slots ready-only" id="slots"></div>
+<div class="strip ready-only" id="strip" role="list"></div>
+
+<div class="banner ready-only" id="fixtureBanner" hidden>模拟数据，不是真实预报</div>
+<div class="banner ready-only" id="staleBanner" hidden></div>
+
+<div class="fineprint ready-only" id="fineprint">
+  <p id="dataTime"></p>
+  <p id="caveat" data-allow-words="1"></p>
+  <p id="d9note" data-allow-words="1">小动物身上的太阳、雪花等只是冷热档位的形象，不代表实际天气。</p>
+</div>
+
+<div class="toast" id="toast" role="status" hidden>已更新</div>
+
+<script src="/static/pal/pal-audio.js"></script>
+<script src="/static/pal/pal.js"></script>
+</body>
+</html>

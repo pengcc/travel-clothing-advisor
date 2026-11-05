@@ -5,7 +5,7 @@ from urllib.parse import urlsplit
 
 from web.live import Unavailable
 from web.readonly import prepared_service, service, ReadOnlyDirectoryStore
-from web.server import Handler
+from web.server import Handler, PAL_PAGES
 
 DATASET = Path(__file__).resolve().parents[1] / 'weather-data'
 
@@ -23,7 +23,7 @@ class handler(Handler):
         # Serve the UI/context even before operator data is available, so the
         # existing error panel can explain unavailable advice.
         path = urlsplit(self.path).path
-        if path == '/' or path.startswith('/static/') or path == '/api/context':
+        if path == '/' or path.startswith('/static/') or path == '/api/context' or path in PAL_PAGES:
             return super().do_GET()
         try:
             if os.environ.get('VERCEL_ENV') == 'production':
