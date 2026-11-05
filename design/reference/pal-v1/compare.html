@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>时间与温度 · 四种布局对比</title>
+<style>
+  *{box-sizing:border-box;margin:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif;background:#eef1f5;color:#3a2f25;padding:16px}
+  h1{font-size:18px;text-align:center}
+  .sync{position:sticky;top:0;z-index:5;background:rgba(238,241,245,.95);backdrop-filter:blur(6px);padding:10px 0;margin-bottom:8px;text-align:center;font-size:13px;line-height:2.2}
+  .sync b{margin:0 4px 0 10px}
+  .sync button{font:inherit;border:1px solid rgba(58,47,37,.3);background:#fff;border-radius:10px;padding:3px 10px;margin:1px;cursor:pointer}
+  .sync button:active{background:#ffe9c2}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(360px,1fr));gap:14px}
+  .card{background:#fff;border-radius:18px;box-shadow:0 4px 16px rgba(40,30,60,.12);overflow:hidden}
+  .card h2{font-size:15px;padding:10px 14px 2px}
+  .card p{font-size:12px;padding:0 14px 6px;opacity:.75;line-height:1.5}
+  iframe{display:block;width:100%;height:900px;border:0}
+</style>
+</head>
+<body>
+<h1>时间与温度 · 四种布局对比</h1>
+<div class="sync">
+  上面的按钮会同步操作下面四个页面
+  <b>日子</b><span id="days"></span>
+  <b>时段</b><button data-slot="0">早</button><button data-slot="1">午</button><button data-slot="2">晚</button>
+</div>
+<div class="grid" id="grid"></div>
+<script>
+const V = [
+  ['hud','现在 · 左上角信息牌','时间和温度放在一块标签里，贴在画面左上角。'],
+  ['a','A · 右侧温差温度计','三个标记（早/午/晚）按温度高低排在温度计上，亮起的一段就是温差。'],
+  ['b','B · 底部拖动时间','拖动底部的太阳/月亮换早、午、晚；左上角信息牌显示时间和温度。'],
+  ['ab','A+B · 组合','温差温度计 + 拖动时间，信息牌只留时间，下面的卡片缩小。'],
+];
+const grid = document.getElementById('grid');
+V.forEach(([v,t,d]) => {
+  const c = document.createElement('div'); c.className = 'card';
+  c.innerHTML = `<h2>${t}</h2><p>${d}</p><iframe src="index.html?v=${v}&c=1&d=0" title="${t}"></iframe>`;
+  grid.append(c);
+});
+const send = m => document.querySelectorAll('iframe').forEach(f => f.contentWindow.postMessage({pal:1, ...m}, location.origin));
+const names = ['今天','明天','周三','周四','周五','周六','周日'];
+document.getElementById('days').innerHTML = names.map((n,i) => `<button data-day="${i}">${n}</button>`).join('');
+document.querySelectorAll('.sync button').forEach(b => b.onclick = () => {
+  if(b.dataset.day !== undefined) send({day:+b.dataset.day});
+  if(b.dataset.slot !== undefined) send({slot:+b.dataset.slot});
+});
+</script>
+</body>
+</html>

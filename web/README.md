@@ -1092,3 +1092,55 @@ Shared forecasts/history/readonly/live validation and Git reader tests are retai
 Deleting compatibility paths, dependencies, secrets, variables, PostgreSQL/Blob
 resources or remote data requires a separate task with consumer/backup/rollback
 review. Issue #42 and #74 historical records are not rewritten or closed here.
+
+## 穿衣小伙伴 (`/pal/berlin`, Issue #101)
+
+A separate, Berlin-only page that shows each day's morning / midday / evening
+warmth as the existing six levels (animated figure, right-hand temperature
+thermometer, optional sound). It is a secondary entry for local residents
+including children; it does not change the homepage or the product blueprint.
+The first stage uses **only the existing hourly temperature**: no rain, wind or
+sky conditions (Issue #103).
+
+- **Routes**: `GET /pal/berlin` and `/pal/berlin/` (HTML), `GET /api/pal`
+  (JSON; **no query parameters**, any parameter is 400), static files under
+  `/static/pal/` (each registered in `STATIC`; unregistered paths are 404).
+  `api/index.py` serves the two page paths before data selection, like `/`.
+- **Data (`Service.pal()`, `web/pal.py`)**: read-only. It reads the **latest
+  usable snapshot** (today, else the previous Berlin day, else the day before)
+  through the new `Cache.read_snapshot`, which applies the same validation as
+  `Cache.read` against the snapshot's own day. A snapshot older than 48 hours,
+  or none, is 503. It never calls `obtain`/`fetch` and never falls back to
+  historical advice. Windows are the existing 6–8 / 9–18 / 19–22 hours, only
+  hours at or after the request time; the shown temperature is the median
+  rounded so `level(temperature_c)` always equals the level.
+- **Stale data**: the first snapshot of a Berlin day is published around noon,
+  so before that the page uses the previous day's forecast (`stale: true`, the
+  page shows its date and time). It can differ from the new snapshot by a level
+  or more, and from the homepage (which uses historical advice in that window).
+  The page re-reads `/api/pal` every 30 minutes while visible and on return to
+  the foreground; only a network error or timeout keeps the screen, and only while
+  the data is under 48 hours old; a 503, any other bad response or invalid body
+  shows the unavailable state.
+- **Read modes**: only `independent_cities=True` services (Production
+  `prepared_service`, local default) answer. Legacy modes (P1 reader, Blob
+  Preview, `readonly.service()` default) return 503. Local worker mode (no
+  offline city list) reads only today's snapshot, so a previous-day snapshot
+  alone also gives 503 there; Production is unaffected.
+- **No offline use**: responses are `Cache-Control: no-store` like the rest of
+  the app, so the home-screen shortcut needs a network connection. No cookies,
+  local storage or analytics.
+- **PWA**: `manifest.webmanifest` (`standalone`, `start_url=/pal/berlin`,
+  `scope=/pal/`) plus iOS meta tags. Icons (180 and 192 px, opaque) were
+  generated once from `static/icons/warmth/2x/warmth-l3.png` (the only level
+  image without weather symbols) composited onto `#E3F6F1` with Pillow; the
+  PNGs are committed, no build step. iOS home-screen behaviour and the mute
+  switch's effect on web audio are **not verified** without a device.
+- **Tests**: `make test` (`tests/web/test_pal.py`, plus the `/pal` and
+  `/api/pal` cases in `tests/web/test_production_bundle.py`). Manual browser
+  checks, synthetic data only, no provider calls, not part of CI:
+
+```sh
+python3 tests/web/serve_pal.py   # http://127.0.0.1:8008/pal/berlin
+node tests/web/pal-browser.cjs   # PAL_SHOT_DIR=<dir> also saves a screenshot
+```

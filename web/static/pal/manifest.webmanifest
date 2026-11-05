@@ -1,0 +1,14 @@
+{
+  "name": "穿衣小伙伴 · 柏林",
+  "short_name": "穿衣小伙伴",
+  "description": "用小动物看懂柏林每天早、午、晚的冷热。",
+  "lang": "zh-CN",
+  "start_url": "/pal/berlin",
+  "scope": "/pal/",
+  "display": "standalone",
+  "background_color": "#E3F6F1",
+  "theme_color": "#E3F6F1",
+  "icons": [
+    {"src": "/static/pal/icon-192.png", "sizes": "192x192", "type": "image/png"}
+  ]
+}

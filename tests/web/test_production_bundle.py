@@ -135,3 +135,73 @@ class ProductionBundleTests(unittest.TestCase):
             if path.is_file() and 'history' in path.relative_to(self.root).parts:
                 path.unlink()
         self.assertEqual(self.get('/api/advice?view=city&city_id=berlin')[0], 503)
+
+    # ---- 穿衣小伙伴 (Issue #101) through the actual Production handler ----
+    def test_pal_pages_and_api_actual_handler(self):
+        for path in ('/pal/berlin', '/pal/berlin/'):
+            status, page = self.get(path)
+            self.assertEqual(status, 200)
+            self.assertIn('穿衣小伙伴'.encode(), page)
+        status, data = self.get('/api/pal')
+        self.assertEqual(status, 200)
+        self.assertEqual(data['city']['id'], 'berlin')
+        self.assertEqual(len(data['days']), 7)
+        self.assertFalse(data['fixture'])
+        self.assertFalse(data['stale'])
+        for day in data['days']:
+            for slot in day['slots']:
+                self.assertEqual(slot['level'] is None, slot['past'])
+        self.assertEqual(self.get('/api/pal?city_id=berlin')[0], 400)
+        self.assertEqual(self.get('/api/pal?fixture=default')[0], 400)
+        self.assertEqual(self.get('/pal/hamburg')[0], 404)
+        self.assertEqual(self.get('/pal')[0], 404)
+        self.assertEqual(self.get('/static/pal/missing.js')[0], 404)
+
+    def test_pal_uses_previous_days_snapshot_then_gives_up(self):
+        self.now += timedelta(days=1)              # tomorrow 10:30; today's snapshot is 24 h old
+        status, data = self.get('/api/pal')
+        self.assertEqual((status, data['stale']), (200, True))
+        self.assertEqual(data['days'][0]['date'], self.now.date().isoformat())
+        self.now += timedelta(days=1, hours=1)     # snapshot is now 49 h old: too old
+        status, data = self.get('/api/pal')
+        self.assertEqual(status, 503)
+        self.assertEqual(data['code'], 'temporarily_unavailable')
+        # The homepage reference still behaves as before (history only); pal never falls back to it.
+        self.assertEqual(self.get('/api/advice?view=city&city_id=berlin')[1]['mode'], 'historical_reference')
+
+    def test_pal_missing_and_corrupt_data_is_503_not_400(self):
+        (self.root / forecast_key(location(RECORDS[0]), NOW.date())).write_bytes(b'corrupt')
+        status, data = self.get('/api/pal')
+        self.assertEqual(status, 503)
+        self.assertEqual(data['code'], 'temporarily_unavailable')
+        for route in ('/pal/berlin', '/api/context'):
+            self.assertEqual(self.get(route)[0], 200)
+
+    def test_pal_legacy_mode_is_503_and_never_downloads(self):
+        from web.readonly import service as legacy_service
+        from web.history import MemoryStore as Memory
+        legacy = legacy_service(Memory(), RECORDS, self.clock)      # independent_cities=False
+        with patch('api.index.prepared_service', side_effect=lambda root: legacy):
+            status, data = self.get('/api/pal')
+        self.assertEqual(status, 503)
+        self.assertIn('暂不提供', data['error'])
+
+    def test_pal_static_files_are_exactly_registered_and_icons_opaque(self):
+        import struct
+        from web.server import STATIC, ROOT
+        registered = {path for path in STATIC if path.startswith('/static/pal/')}
+        on_disk = {'/static/pal/' + p.name for p in (ROOT / 'static/pal').iterdir() if p.is_file()}
+        self.assertEqual(registered, on_disk)
+        self.assertEqual(STATIC['/static/pal/manifest.webmanifest'][1], 'application/manifest+json')
+        for path in sorted(registered):
+            status, body = self.get(path)
+            self.assertEqual(status, 200, path)
+        manifest = json.loads(self.get('/static/pal/manifest.webmanifest')[1])
+        self.assertEqual((manifest['display'], manifest['start_url'], manifest['scope']), ('standalone', '/pal/berlin', '/pal/'))
+        for name, size in (('apple-touch-icon.png', 180), ('icon-192.png', 192)):
+            raw = self.get('/static/pal/' + name)[1]
+            self.assertEqual(raw[:8], b'\x89PNG\r\n\x1a\n')
+            width, height, depth, color = struct.unpack('>IIBB', raw[16:26])
+            self.assertEqual((width, height, depth), (size, size, 8), name)
+            self.assertIn(color, (0, 2), name)                    # grayscale or RGB: no alpha channel
+            self.assertNotIn(b'tRNS', raw, name)

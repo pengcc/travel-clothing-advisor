@@ -5,7 +5,7 @@ import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
-from web.fixtures import CITIES, advice, featured, window
+from web.fixtures import CITIES, advice, featured, pal, window
 from web.live import Service, public_city, Unavailable
 
 LIVE = Service()
@@ -14,6 +14,11 @@ ROOT = Path(__file__).parent
 STATIC = {'/static/style.css': ('style.css', 'text/css'),
           '/static/app.js': ('app.js', 'text/javascript'),
           '/static/components.js': ('components.js', 'text/javascript')}
+PAL_PAGES = ('/pal/berlin', '/pal/berlin/')
+for _name, _mime in (('pal.js', 'text/javascript'), ('pal-audio.js', 'text/javascript'),
+                     ('pal.css', 'text/css'), ('manifest.webmanifest', 'application/manifest+json'),
+                     ('apple-touch-icon.png', 'image/png'), ('icon-192.png', 'image/png')):
+    STATIC[f'/static/pal/{_name}'] = (f'pal/{_name}', _mime)
 
 
 def local_store(root):
@@ -49,6 +54,8 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if url.path == '/':
                 return self.send_bytes(200, (ROOT / 'templates/index.html').read_bytes(), 'text/html')
+            if url.path in PAL_PAGES:
+                return self.send_bytes(200, (ROOT / 'templates/pal.html').read_bytes(), 'text/html')
             query = parse_qs(url.query, keep_blank_values=True)
             if any(len(v) != 1 for v in query.values()):
                 raise ValueError('查询参数不能重复。')
@@ -80,6 +87,10 @@ class Handler(BaseHTTPRequestHandler):
                 if set(p) - {'fixture'}:
                     raise ValueError('查询参数无效。')
                 return self.send_json(200, featured(p.get('fixture', 'default'), self.service.clock()) if self.fixtures_only or 'fixture' in p else self.service.featured())
+            if url.path == '/api/pal':
+                if p:
+                    raise ValueError('查询参数无效。')
+                return self.send_json(200, pal(self.service.clock()) if self.fixtures_only else self.service.pal())
             if url.path == '/api/advice':
                 if set(p) - {'view','city_id','start','end','preference','fixture'}:
                     raise ValueError('查询参数无效。')
