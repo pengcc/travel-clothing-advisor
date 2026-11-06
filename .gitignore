@@ -2,6 +2,12 @@ __pycache__/
 *.py[cod]
 .local-tools/
 
+# Task scratch (logs, PR drafts, screenshots); see "Local directories" in web/README.md.
+.local-scratch/
+
+# Pulled credential files must never be committed.
+*.env
+
 # Local history library; raw provider data and quota ledger never belong in Git.
 .history-local/
 

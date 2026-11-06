@@ -3,7 +3,7 @@
   "git": {"deploymentEnabled": {"main": true, "**": false}},
   "functions": {
     "api/index.py": {
-      "excludeFiles": "{.git/**,.local-tools/**,.history-local/**,.forecast-local/**,tests/**,docs/**}"
+      "excludeFiles": "{.git/**,.local-tools/**,.local-scratch/**,.history-local/**,.forecast-local/**,tests/**,docs/**}"
     }
   },
   "rewrites": [{"source": "/(.*)", "destination": "/api/index"}]
