@@ -134,7 +134,7 @@ excludes `tests/**` from the Python function bundle.
 
 ## Local directories
 
-Everything below is git-ignored. Anything worth keeping (decisions, verification
+Repository-local paths below are git-ignored; the worktree and `mktemp` rows live outside the repository. Anything worth keeping (decisions, verification
 evidence, PR text) belongs in Git or on GitHub, never only in an ignored directory.
 Ignored content does not exist in a fresh clone or a new git worktree.
 
@@ -573,7 +573,7 @@ vercel link --project travel-clothing-advisor --scope YOUR_EXISTING_TEAM
 vercel project inspect --non-interactive
 umask 077
 ENV_FILE="$(mktemp -t s2-preview.XXXXXX)"   # outside the repository
-trap 'rm -f "$ENV_FILE"' EXIT              # removed even if a later step fails
+trap 'rm -f "$ENV_FILE"' EXIT              # backstop: runs when this shell exits
 vercel env pull "$ENV_FILE" --yes --environment=preview
 # Import only the short-lived token, not other pulled credentials/runtime flags.
 export VERCEL_OIDC_TOKEN="$(sed -n 's/^VERCEL_OIDC_TOKEN="\(.*\)"$/\1/p' "$ENV_FILE")"
