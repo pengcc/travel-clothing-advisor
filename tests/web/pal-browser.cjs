@@ -15,6 +15,17 @@ const FORBIDDEN = /[雨风云晴阴雪]|太阳/;
       window.AudioContext = class extends Original {
         constructor(...args) { super(...args); window.__ac.count++; window.__ac.instances.push(this); }
       };
+      // Tap whatever reaches the speakers: a running peak (0..1) of the real output, not just the switch state.
+      window.__tap = {max: 0};
+      const connect = AudioNode.prototype.connect;
+      AudioNode.prototype.connect = function (target, ...rest) {
+        if (target instanceof AudioDestinationNode && !window.__tap.analyser) {
+          const an = this.context.createAnalyser(); an.fftSize = 2048; connect.call(this, an); window.__tap.analyser = an;
+          const buf = new Float32Array(2048);
+          setInterval(() => { an.getFloatTimeDomainData(buf); for (const x of buf) window.__tap.max = Math.max(window.__tap.max, Math.abs(x)); }, 10);
+        }
+        return connect.call(this, target, ...rest);
+      };
     });
     const page = await context.newPage();
     const errors = [];
@@ -58,6 +69,9 @@ const FORBIDDEN = /[雨风云晴阴雪]|太阳/;
     assert.match(await page.locator('#d9note').textContent(), /不代表实际天气/);
     assert.match(await page.locator('#fixtureBanner').textContent(), /模拟数据/);
     assert.equal(await page.locator('#staleBanner').isVisible(), false);
+    // back link to the homepage is visible (also checked in the unavailable state below)
+    assert.equal(await page.locator('#homeLink').isVisible(), true);
+    assert.equal(await page.locator('#homeLink').getAttribute('href'), '/');
     for (const width of [320, 390, 1280]) {
       await page.setViewportSize({width, height: 844});
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'no horizontal scroll at ' + width);
@@ -70,11 +84,35 @@ const FORBIDDEN = /[雨风云晴阴雪]|太阳/;
     assert.equal(await page.locator('#bSound').getAttribute('aria-pressed'), 'false');
     await page.locator('#hero').dispatchEvent('click');                            // nudge only, still silent
     assert.equal(await page.evaluate(() => window.__ac.count), 0);
+    await page.evaluate(() => { window.__tap.max = 0; });
     await page.locator('#bSound').click();
     await page.waitForFunction(() => window.PalAudio.on);
     assert.equal(await page.evaluate(() => window.__ac.count), 1);
     assert.equal(await page.evaluate(() => window.__ac.instances[0].state), 'running');
     assert.equal(await page.locator('#bSound').getAttribute('aria-pressed'), 'true');
+    // The confirmation blip must be clearly audible (measured output peak, full scale = 1.0).
+    await page.waitForTimeout(450);
+    const blipPeak = await page.evaluate(() => window.__tap.max);
+    assert.ok(blipPeak > 0.1 && blipPeak < 0.95, 'power-on blip peak ' + blipPeak);
+    // Each warmth cue: peak between -20 dBFS (0.1) and clipping (0.95). Levels 3 and 4 are silent by design.
+    await page.evaluate(() => { window.PalAudio.heroLoop = () => {}; });          // the hero animation loop must not leak into a measurement
+    const peakOf = async level => {
+      await page.evaluate(l => { window.__tap.max = 0; window.PalAudio.replay(l); }, level);
+      await page.waitForTimeout(2800);
+      return page.evaluate(() => window.__tap.max);
+    };
+    const peaks = {};
+    for (const level of [1, 2, 5, 6]) {
+      peaks[level] = await peakOf(level);
+      assert.ok(peaks[level] > 0.1 && peaks[level] < 0.95, `level ${level} output peak ${peaks[level]}`);
+    }
+    for (const level of [3, 4]) {
+      await page.evaluate(l => window.PalAudio.replay(l), level);              // stop scheduling new cold/heat cues, let already scheduled ones finish
+      await page.waitForTimeout(1800);
+      peaks[level] = await peakOf(level);
+      assert.ok(peaks[level] < 0.005, `level ${level} should be silent, peak ${peaks[level]}`);
+    }
+    console.log('measured output peaks', JSON.stringify({blip: +blipPeak.toFixed(3), ...Object.fromEntries(Object.entries(peaks).map(([k, v]) => [k, +v.toFixed(3)]))}));
     await page.locator('#bSound').click();
     assert.equal(await page.evaluate(() => window.PalAudio.on), false);
     assert.equal(await page.locator('#bSound').getAttribute('aria-pressed'), 'false');
@@ -145,6 +183,8 @@ const FORBIDDEN = /[雨风云晴阴雪]|太阳/;
     assert.equal(await fresh.locator('.hero').isVisible(), false);
     assert.equal(await fresh.locator('#fxFront > *').count(), 0);
     assert.doesNotMatch(await fresh.locator('body').innerText(), /示例|模拟/);
+    assert.equal(await fresh.locator('#homeLink').isVisible(), true);
+    assert.equal(await fresh.locator('#homeLink').getAttribute('href'), '/');
 
     assert.deepEqual(errors, []);
     console.log('pal browser checks passed: page, 7 days, no weather words/scene, time+temperature in scene, small prints, sound off by default and resume-failure reset, stale label, refresh rules, 503 state, widths');
