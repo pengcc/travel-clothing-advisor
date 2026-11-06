@@ -13,3 +13,6 @@ __pycache__/
 
 # Local S2 publisher coordination, no machine/global lock.
 .preview-publisher.lock
+
+# Browser-test dependencies (see tests/web/package.json).
+node_modules/

@@ -1,5 +1,5 @@
 /* Synthetic S2; child process owns data, controls are stdin only. */
-const {chromium}=require('../../.local-tools/node_modules/playwright');
+const {chromium}=require('playwright');
 const {spawn}=require('node:child_process');
 const readline=require('node:readline');
 const assert=require('node:assert/strict');

@@ -1,5 +1,5 @@
 /* Review #5545508096: render full Service JSON generated with an offline provider. */
-const {chromium} = require('../../.local-tools/node_modules/playwright');
+const {chromium} = require('playwright');
 const {execFileSync} = require('node:child_process');
 const path = require('node:path');
 const assert = require('node:assert/strict');

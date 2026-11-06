@@ -1,4 +1,4 @@
-const {chromium}=require('../../../.local-tools/node_modules/playwright');
+const {chromium}=require('../../../tests/web/node_modules/playwright');
 const {execFileSync}=require('node:child_process');
 (async()=>{
  const b=await chromium.launch({channel:'chrome',headless:true});

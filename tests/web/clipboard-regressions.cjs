@@ -1,5 +1,5 @@
 /* Full traveler-facing exports from the current Python backend, never live weather. */
-const {chromium}=require('../../.local-tools/node_modules/playwright');
+const {chromium}=require('playwright');
 const {execFileSync}=require('node:child_process');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');

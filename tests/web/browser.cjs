@@ -1,5 +1,5 @@
-/* Dev only: npm install --prefix .local-tools --no-save --package-lock=false playwright */
-const { chromium } = require('../../.local-tools/node_modules/playwright');
+/* Dev only. Install once with: (cd tests/web && npm ci); see "Browser test setup" in web/README.md. */
+const { chromium } = require('playwright');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const output = 'docs/verification/phase1';

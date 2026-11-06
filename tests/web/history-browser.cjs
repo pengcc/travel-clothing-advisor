@@ -1,5 +1,5 @@
 /* Render Python-derived historical advice with synthetic ERA5; never fetch live data. */
-const {chromium}=require('../../.local-tools/node_modules/playwright');
+const {chromium}=require('playwright');
 const {execFileSync}=require('node:child_process');
 const assert=require('node:assert/strict');
 const path=require('node:path');

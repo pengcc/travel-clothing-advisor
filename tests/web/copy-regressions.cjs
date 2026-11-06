@@ -1,5 +1,5 @@
 /* Issue #27: presentation contracts, with synthetic Python-derived advice only. */
-const {chromium} = require('../../.local-tools/node_modules/playwright');
+const {chromium} = require('playwright');
 const {execFileSync} = require('node:child_process');
 const assert = require('node:assert/strict');
 const base = process.env.UI_BASE_URL || 'http://127.0.0.1:8002';
