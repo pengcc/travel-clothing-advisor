@@ -12,7 +12,7 @@ from test_readonly import forbidden, GetOnly
 from web.fixtures import BERLIN, pal as fixture_pal
 from web.forecasts import Cache, FORMAT, key, pack, identity
 from web.history import MemoryStore
-from web.live import FORECAST, Service, Unavailable, level, parse_hours
+from web.live import FORECAST, Service, Unavailable, level, location, parse_hours
 from web.pal import build, display_temperature
 from web.readonly import service
 
@@ -250,6 +250,65 @@ class ModeTests(PalCase):
             self.service.pal()
 
 
+class MultiCityTests(PalCase):
+    """Issue #111: every featured city reads its own snapshot with the same rules as Berlin."""
+    def cities(self):
+        return [location(record) for record in RECORDS[:10]]
+
+    def test_all_ten_cities_build_from_their_own_same_day_snapshot(self):
+        self.make(at(0, 10))
+        cities = self.cities()
+        self.assertEqual(len(cities), 10)
+        for i, city in enumerate(cities):
+            put_snapshot(self.store, self.now.date(), at(0, 9), fn=lambda local, i=i: diurnal(local) + i, city=city)
+        seen = set()
+        for i, city in enumerate(cities):
+            result = self.service.pal(city['id'])
+            self.assertEqual(result['city']['id'], city['id'])
+            self.assertEqual(result['city']['zh'], city['zh'])
+            self.assertFalse(result['stale'])
+            self.assertEqual(len(result['days']), 7)
+            seen.add(result['days'][1]['slots'][1]['temperature_c'])
+        self.assertGreater(len(seen), 1)                              # each city used its own data
+
+    def test_featured_ids_match_the_fixture_catalog(self):
+        from web.forecasts import FEATURED
+        from web.server import PAL_CITIES
+        self.assertEqual(tuple(PAL_CITIES), FEATURED)
+        self.assertEqual(tuple(city['id'] for city in self.cities()), FEATURED)
+
+    def test_unknown_or_non_featured_city_is_a_value_error(self):
+        self.make(at(0, 10))
+        for bad in ('freiburg', 'frankfurt-oder', '', 'Berlin', 'nowhere', None):
+            with self.subTest(city=bad), self.assertRaises(ValueError):
+                self.service.pal(bad)
+
+    def test_other_cities_follow_the_same_snapshot_rules(self):
+        self.make(at(1, 9))                                           # tomorrow morning
+        munich = location(RECORDS[1])
+        put_snapshot(self.store, self.now.date() - timedelta(days=1), at(0, 22, 22), city=munich)
+        result = self.service.pal('munich')
+        self.assertTrue(result['stale'])
+        self.assertEqual(result['city']['id'], 'munich')
+        with self.assertRaises(Unavailable):                           # berlin has no snapshot of its own
+            self.service.pal('berlin')
+        self.now = at(3, 10)                                           # snapshot is more than 48 h old
+        with self.assertRaises(Unavailable):
+            self.service.pal('munich')
+
+    def test_legacy_modes_and_local_worker_rule_apply_to_every_city(self):
+        now = at(0, 8)
+        munich = location(RECORDS[1])
+        legacy = service(MemoryStore(), RECORDS, lambda: now)          # independent_cities=False
+        with self.assertRaises(Unavailable):
+            legacy.pal('munich')
+        store = MemoryStore()
+        put_snapshot(store, now.date() - timedelta(days=1), at(-1, 22, 22), city=munich)
+        local = Service(forbidden, lambda: now, forecast_cache=Cache(store, lambda: now), featured_records=RECORDS)
+        with self.assertRaises(Unavailable):
+            local.pal('munich')
+
+
 class FixtureTests(unittest.TestCase):
     def test_fixture_is_deterministic_and_marked(self):
         now = datetime(2026, 10, 16, 7, 0, tzinfo=BERLIN)
@@ -263,6 +322,22 @@ class FixtureTests(unittest.TestCase):
         # Intraday variation: morning and midday differ on at least one day.
         self.assertTrue(any(d['slots'][0]['temperature_c'] != d['slots'][1]['temperature_c'] for d in a['days']))
         json.dumps(a)
+
+    def test_every_featured_city_has_a_deterministic_fixture(self):
+        from web.server import PAL_CITIES
+        now = datetime(2026, 10, 16, 7, 0, tzinfo=BERLIN)
+        temperatures = set()
+        for city_id, city in PAL_CITIES.items():
+            result = fixture_pal(now, city_id)
+            self.assertEqual(result, fixture_pal(now, city_id))
+            self.assertTrue(result['fixture'])
+            self.assertEqual((result['city']['id'], result['city']['zh']), (city_id, city['zh']))
+            temperatures.add(tuple(s['temperature_c'] for s in result['days'][1]['slots']))
+        self.assertGreater(len(temperatures), 1)
+        self.assertEqual(fixture_pal(now), fixture_pal(now, 'berlin'))
+        for bad in ('freiburg', 'nowhere'):
+            with self.assertRaises(ValueError):
+                fixture_pal(now, bad)
 
 
 class PageAssetTests(unittest.TestCase):
@@ -278,6 +353,48 @@ class PageAssetTests(unittest.TestCase):
         self.assertIn('href="/"', link.group(1))
         self.assertNotIn('ready-only', link.group(0))              # visible while loading and when unavailable
         self.assertNotRegex(link.group(0), '[雨风云晴阴雪]|太阳')    # no weather words (V5)
+
+    def test_city_pages_carry_their_own_title_manifest_and_id(self):
+        from web.server import PAL_CITIES, pal_city_page, pal_manifest
+        for city_id, city in PAL_CITIES.items():
+            html = pal_city_page(city).decode()
+            self.assertNotIn('{{', html)
+            self.assertIn(f'<title>穿衣小伙伴 · {city["zh"]}</title>', html)
+            self.assertIn(f'<link rel="manifest" href="/pal/{city_id}/manifest.webmanifest">', html)
+            self.assertIn(f'data-city="{city_id}"', html)
+            self.assertIn(f'content="穿衣·{city["zh"]}"', html)
+            self.assertIn('href="/pal" aria-label="换城市"', html)      # switch city, inside the manifest scope
+            manifest = json.loads(pal_manifest(city))
+            self.assertEqual((manifest['start_url'], manifest['scope'], manifest['display']), (f'/pal/{city_id}', '/pal/', 'standalone'))
+            self.assertEqual(manifest['name'], f'穿衣小伙伴 · {city["zh"]}')
+            self.assertLessEqual(len(manifest['short_name']), 10)
+            self.assertEqual(manifest['icons'][0]['src'], '/static/pal/icon-192.png')
+        self.assertIn('/api/pal?city=', self.read('static/pal/pal.js'))
+        self.assertIn('document.body.dataset.city', self.read('static/pal/pal.js'))
+
+    def test_chooser_lists_the_ten_cities_without_weather_words(self):
+        from web.server import PAL_CITIES, pal_chooser_page
+        html = pal_chooser_page().decode()
+        self.assertNotIn('{{', html)
+        self.assertEqual(re.findall(r'href="/pal/([a-z-]+)"', html), list(PAL_CITIES))
+        for city in PAL_CITIES.values():
+            self.assertIn(city['zh'], html)
+            self.assertIn(city['name'], html)
+        self.assertNotRegex(re.sub(r'<[^>]+>', ' ', html) + ' '.join(re.findall(r'(?:alt|aria-label|title)="([^"]*)"', html)), '[雨风云晴阴雪]|太阳')
+        self.assertNotIn('/api/', html)                               # no weather request on the chooser
+        self.assertIn('id="homeLink"', html)
+        self.assertIn('html.standalone #homeLink{display:none}', self.read('static/pal/pal-cities.css'))
+
+    def test_standalone_hides_the_home_link_but_keeps_switch_city(self):
+        css = self.read('static/pal/pal.css')
+        self.assertIn('html.standalone #homeLink{display:none}', css)
+        self.assertIn('@media (display-mode: standalone){#homeLink{display:none}}', css)
+        self.assertNotIn('#switchLink{display:none}', css)
+        self.assertIn('navigator.standalone', self.read('templates/pal.html'))
+
+    def test_homepage_has_the_entry_link_next_to_the_pill(self):
+        html = self.read('templates/index.html')
+        self.assertRegex(html, r'<a class="pal-link" href="/pal">穿衣小伙伴</a><span class="tiny-pill">气温备衣参考</span>')
 
     def test_homepage_brand_links_to_the_home_view(self):
         html = self.read('templates/index.html')

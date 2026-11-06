@@ -3,21 +3,22 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>穿衣小伙伴 · 柏林</title>
+<title>穿衣小伙伴 · {{CITY_ZH}}</title>
 <meta name="theme-color" content="#E3F6F1">
-<link rel="manifest" href="/static/pal/manifest.webmanifest">
+<link rel="manifest" href="/pal/{{CITY_ID}}/manifest.webmanifest">
 <link rel="apple-touch-icon" href="/static/pal/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="穿衣小伙伴">
+<meta name="apple-mobile-web-app-title" content="穿衣·{{CITY_ZH}}">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="stylesheet" href="/static/pal/pal.css">
+<script>if (navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches)) document.documentElement.classList.add('standalone')</script>
 </head>
-<body data-state="loading" data-level="3">
-<nav class="top"><a class="home" id="homeLink" href="/" aria-label="回到主页">← 旅途穿衣</a></nav>
+<body data-state="loading" data-level="3" data-city="{{CITY_ID}}">
+<nav class="top"><a class="home" id="homeLink" href="/" aria-label="回到主页">← 旅途穿衣</a><a class="home switch" id="switchLink" href="/pal" aria-label="换城市">换城市</a><span class="where" id="where">{{CITY_ZH}}</span></nav>
 <h1 id="title">穿衣小伙伴</h1>
 
-<div class="state-card" id="loading" role="status">正在读取柏林的冷热…</div>
+<div class="state-card" id="loading" role="status">正在读取{{CITY_ZH}}的冷热…</div>
 
 <div class="state-card" id="unavailable" role="status">
   <img alt="" src="/static/pal/sprites/warmth-l3.png">

@@ -6,6 +6,7 @@
   const SLOT_NAMES = ['早', '午', '晚'], SLOT_KEYS = ['morning', 'midday', 'evening'], SLOT_HOURS = [7, 13, 20];
   const POLL_MS = 30 * 60 * 1000, MAX_AGE_MS = 48 * 3600 * 1000, REQUEST_MS = 10000;
   const $ = id => document.getElementById(id);
+  const CITY = document.body.dataset.city || 'berlin';          // 每个城市页的 HTML 自带城市 id
   const rand = (a, b) => a + Math.random() * (b - a);
   const reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -228,7 +229,7 @@
     const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), REQUEST_MS);
     try {
       let res;
-      try { res = await fetch('/api/pal', {cache: 'no-store', signal: ctl.signal}); }
+      try { res = await fetch('/api/pal?city=' + encodeURIComponent(CITY), {cache: 'no-store', signal: ctl.signal}); }
       catch (e) { return transportFailed(); }
       if (res.status === 503) return showUnavailable('这个时间还没有可用的数据');
       // Only a rejected fetch (network error, abort/timeout) keeps the screen; any other bad response is not usable data.

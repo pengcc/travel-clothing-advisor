@@ -17,6 +17,12 @@ h1{font-size:20px;margin-bottom:8px}
 .top{width:min(88vw,430px);display:flex;margin-bottom:4px}
 .home{display:inline-flex;align-items:center;min-height:40px;padding:6px 14px 6px 10px;border-radius:999px;background:rgba(255,255,255,.65);color:var(--ink);font-size:14px;font-weight:700;text-decoration:none}
 .home:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+.top{align-items:center;gap:8px}
+.home.switch{padding:6px 14px}
+.where{margin-left:auto;font-size:16px;font-weight:800;color:var(--ink)}
+/* 从桌面图标打开(独立窗口)时，「回到主页」指向范围 /pal/ 之外，隐藏；「换城市」保留 */
+html.standalone #homeLink{display:none}
+@media (display-mode: standalone){#homeLink{display:none}}
 [hidden]{display:none!important}
 body[data-state="loading"] .ready-only,body[data-state="unavailable"] .ready-only{display:none!important}
 body[data-state="ready"] #unavailable,body[data-state="loading"] #unavailable{display:none}

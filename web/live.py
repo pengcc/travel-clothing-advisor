@@ -248,14 +248,17 @@ class Service:
             raise Unavailable('城市资料暂缺。')
         return city
 
-    def pal(self):
-        """穿衣小伙伴: latest usable snapshot, read-only; never downloads."""
+    def pal(self, city_id='berlin'):
+        """穿衣小伙伴: latest usable snapshot of one featured city, read-only; never downloads."""
+        from web.forecasts import FEATURED
+        if city_id not in FEATURED:
+            raise ValueError('请选择列表中的精选城市。')
         if not self.independent_cities:
             raise Unavailable('此部署模式暂不提供穿衣小伙伴。')
         from web.pal import build
         try:
             now = self.clock().astimezone(BERLIN)
-            city = self._city_record('berlin', now)
+            city = self._city_record(city_id, now)
             cached = None
             # Local worker mode (no offline_cities) only supports today's snapshot.
             for back in range(3 if self.offline_cities is not None else 1):

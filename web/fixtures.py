@@ -118,8 +118,8 @@ def featured(scenario='default', now=None):
                 cities=[advice(dict(view='city', city_id=c['id']), scenario, now) for c in CITIES[:10]])
 
 
-def pal(now=None):
-    """Deterministic 穿衣小伙伴 fixture: same code path as real data, synthetic hourly temperatures."""
+def pal(now=None, city_id='berlin'):
+    """Deterministic 穿衣小伙伴 fixture per featured city: same code path as real data, synthetic hourly temperatures."""
     from datetime import time
     from web.live import FORECAST, parse_hours  # noqa: F401  (validates the synthetic series shape)
     from web.pal import build
@@ -128,16 +128,20 @@ def pal(now=None):
     end = datetime.combine(now.date() + timedelta(days=14), time(), BERLIN)
     # Per-day (night, afternoon) temperatures; morning/evening differ from the afternoon on some days.
     shape = [(5, 20), (11, 15), (4, 8), (1, 6), (14, 21), (22, 31), (2, 5)] + [(10, 16)] * 7
+    index = next((i for i, c in enumerate(CITIES[:10]) if c['id'] == city_id), None)
+    if index is None:
+        raise ValueError('请选择列表中的精选城市。')
+    offset = (0, 2, -2, 3, -3, 1, -1, 4, -4, 2)[index]          # a few degrees between cities; berlin keeps the original series
     times = list(range(int(start.timestamp()), int(end.timestamp()), 3600))
     temps = []
     for t in times:
         local = datetime.fromtimestamp(t, BERLIN)
         low, high = shape[(local.date() - now.date()).days]
         warmth = max(0, 1 - abs(local.hour - 14) / 6)
-        temps.append(round(low + (high - low) * warmth, 1))
+        temps.append(round(low + (high - low) * warmth + offset, 1))
     data = dict(timezone='Europe/Berlin', hourly_units=dict(temperature_2m='°C'),
                 hourly=dict(time=times, temperature_2m=temps))
-    city = next(dict(id=c['id'], zh=c['zh'], name=c['name'], state=c['state']) for c in CITIES if c['id'] == 'berlin')
+    city = dict(id=CITIES[index]['id'], zh=CITIES[index]['zh'], name=CITIES[index]['name'], state=CITIES[index]['state'])
     result = build(city, (data, now, 'ui-fixtures-v1'), now, now)
     result.update(fixture=True, data_version='ui-fixtures-v1')
     return result

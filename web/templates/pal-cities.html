@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>穿衣小伙伴 · 选城市</title>
+<meta name="theme-color" content="#E3F6F1">
+<link rel="apple-touch-icon" href="/static/pal/apple-touch-icon.png">
+<link rel="stylesheet" href="/static/pal/pal-cities.css">
+<script>if (navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches)) document.documentElement.classList.add('standalone')</script>
+</head>
+<body>
+<nav class="top"><a class="home" id="homeLink" href="/" aria-label="回到主页">← 旅途穿衣</a></nav>
+<h1>穿衣小伙伴</h1>
+<p class="lead">选一个城市，打开后可以保存到桌面。</p>
+<ul class="cities" id="cities">
+{{CITY_LINKS}}
+</ul>
+</body>
+</html>

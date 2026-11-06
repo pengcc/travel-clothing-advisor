@@ -1093,19 +1093,35 @@ Deleting compatibility paths, dependencies, secrets, variables, PostgreSQL/Blob
 resources or remote data requires a separate task with consumer/backup/rollback
 review. Issue #42 and #74 historical records are not rewritten or closed here.
 
-## 穿衣小伙伴 (`/pal/berlin`, Issue #101)
+## 穿衣小伙伴 (`/pal`, `/pal/<city>`, Issues #101, #111)
 
-A separate, Berlin-only page that shows each day's morning / midday / evening
+A separate page per featured city (the ten cities of `FEATURED`, not any other
+city) that shows each day's morning / midday / evening
 warmth as the existing six levels (animated figure, right-hand temperature
 thermometer, optional sound). It is a secondary entry for local residents
-including children; it does not change the homepage or the product blueprint.
+including children; it does not change the product blueprint. The homepage top bar has one link, "穿衣小伙伴" → `/pal`.
 The first stage uses **only the existing hourly temperature**: no rain, wind or
 sky conditions (Issue #103).
 
-- **Routes**: `GET /pal/berlin` and `/pal/berlin/` (HTML), `GET /api/pal`
-  (JSON; **no query parameters**, any parameter is 400), static files under
-  `/static/pal/` (each registered in `STATIC`; unregistered paths are 404).
-  `api/index.py` serves the two page paths before data selection, like `/`.
+- **Routes**: `GET /pal` and `/pal/` (static city chooser, ten buttons, no weather
+  request), `GET /pal/<city>` and `/pal/<city>/` (HTML, one page per featured
+  city; `/pal/berlin` keeps working), `GET /pal/<city>/manifest.webmanifest`,
+  `GET /api/pal?city=<id>` (JSON; `city` is the only parameter, default `berlin`;
+  any other parameter, a blank/duplicate/unknown or non-featured city is 400),
+  static files under `/static/pal/` (each registered in `STATIC`; unregistered
+  paths are 404, so is `/pal/<not-a-featured-city>`). The city pages are the
+  template `templates/pal.html` filled in on the server (title, manifest link,
+  `data-city`), so each page's HTML already carries its city; `pal.js` reads
+  `document.body.dataset.city`. `api/index.py` serves these exact paths before
+  data selection, like `/`.
+- **One icon per city**: each city has its own address, title
+  (`穿衣小伙伴 · <city>`), iOS home-screen title (`穿衣·<city>`) and manifest
+  (`start_url=/pal/<city>`, `scope=/pal/`), so a child can save Berlin, another
+  Munich, and anyone can save several cities as separate icons. Nothing is
+  remembered by the app (no local storage, no cookies). In a standalone window
+  (opened from the home-screen icon) the "← 旅途穿衣" link to `/` is outside the
+  manifest scope and is hidden (`navigator.standalone` for iOS, the
+  `display-mode: standalone` media query elsewhere); "换城市" (→ `/pal`) stays.
 - **Data (`Service.pal()`, `web/pal.py`)**: read-only. It reads the **latest
   usable snapshot** (today, else the previous Berlin day, else the day before)
   through the new `Cache.read_snapshot`, which applies the same validation as
@@ -1118,7 +1134,7 @@ sky conditions (Issue #103).
   so before that the page uses the previous day's forecast (`stale: true`, the
   page shows its date and time). It can differ from the new snapshot by a level
   or more, and from the homepage (which uses historical advice in that window).
-  The page re-reads `/api/pal` every 30 minutes while visible and on return to
+  The page re-reads `/api/pal?city=<id>` every 30 minutes while visible and on return to
   the foreground; only a network error or timeout keeps the screen, and only while
   the data is under 48 hours old; a 503, any other bad response or invalid body
   shows the unavailable state.
@@ -1142,8 +1158,9 @@ sky conditions (Issue #103).
 - **No offline use**: responses are `Cache-Control: no-store` like the rest of
   the app, so the home-screen shortcut needs a network connection. No cookies,
   local storage or analytics.
-- **PWA**: `manifest.webmanifest` (`standalone`, `start_url=/pal/berlin`,
-  `scope=/pal/`) plus iOS meta tags. Icons (180 and 192 px, opaque) were
+- **PWA**: the per-city manifests above (the old static
+  `/static/pal/manifest.webmanifest` keeps serving Berlin for icons saved
+  earlier) plus iOS meta tags. Icons (180 and 192 px, opaque) were
   generated once from `static/icons/warmth/2x/warmth-l3.png` (the only level
   image without weather symbols) composited onto `#E3F6F1` with Pillow; the
   PNGs are committed, no build step. iOS home-screen behaviour and the mute
@@ -1153,6 +1170,6 @@ sky conditions (Issue #103).
   checks, synthetic data only, no provider calls, not part of CI:
 
 ```sh
-python3 tests/web/serve_pal.py   # http://127.0.0.1:8008/pal/berlin
-node tests/web/pal-browser.cjs   # PAL_SHOT_DIR=<dir> also saves a screenshot
+python3 tests/web/serve_pal.py   # http://127.0.0.1:8008/pal  (every featured city has synthetic data)
+node tests/web/pal-browser.cjs   # PAL_SHOT_DIR=<dir> also saves screenshots; also checks the chooser, a second city and standalone navigation
 ```
