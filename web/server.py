@@ -1,5 +1,6 @@
 """Local-only travel UI server. Run: python3 -m web.server"""
 import argparse
+import html
 import json
 import os
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -14,13 +15,47 @@ ROOT = Path(__file__).parent
 STATIC = {'/static/style.css': ('style.css', 'text/css'),
           '/static/app.js': ('app.js', 'text/javascript'),
           '/static/components.js': ('components.js', 'text/javascript')}
-PAL_PAGES = ('/pal/berlin', '/pal/berlin/')
+PAL_CITIES = {c['id']: c for c in CITIES[:10]}          # the featured cities (same list as web.forecasts.FEATURED)
+PAL_CHOOSER = ('/pal', '/pal/')
+PAL_CITY_PAGES = {f'/pal/{i}{s}': i for i in PAL_CITIES for s in ('', '/')}
+PAL_MANIFESTS = {f'/pal/{i}/manifest.webmanifest': i for i in PAL_CITIES}
+# Exact registered paths served outside /static (api/index.py lets these through before data setup).
+PAL_PAGES = (*PAL_CHOOSER, *PAL_CITY_PAGES, *PAL_MANIFESTS)
 for _name, _mime in (('pal.js', 'text/javascript'), ('pal-audio.js', 'text/javascript'),
-                     ('pal.css', 'text/css'), ('manifest.webmanifest', 'application/manifest+json'),
+                     ('pal.css', 'text/css'), ('pal-cities.css', 'text/css'), ('manifest.webmanifest', 'application/manifest+json'),
                      ('apple-touch-icon.png', 'image/png'), ('icon-192.png', 'image/png')):
     STATIC[f'/static/pal/{_name}'] = (f'pal/{_name}', _mime)
 for _n in range(1, 7):          # neutral (weather-free) sprites for /pal/berlin; the homepage keeps icons/warmth
     STATIC[f'/static/pal/sprites/warmth-l{_n}.png'] = (f'pal/sprites/warmth-l{_n}.png', 'image/png')
+
+
+def _pal_fill(text, **values):
+    for key, value in values.items():
+        text = text.replace('{{' + key + '}}', html.escape(value, quote=True))
+    return text
+
+
+def pal_city_page(city):
+    page = (ROOT / 'templates/pal.html').read_text(encoding='utf-8')
+    return _pal_fill(page, CITY_ID=city['id'], CITY_ZH=city['zh']).encode()
+
+
+def pal_chooser_page():
+    links = '\n'.join(
+        f'<li><a class="city" href="/pal/{html.escape(c["id"], quote=True)}"><b>{html.escape(c["zh"])}</b><small>{html.escape(c["name"])}</small></a></li>'
+        for c in PAL_CITIES.values())
+    page = (ROOT / 'templates/pal-cities.html').read_text(encoding='utf-8')
+    return page.replace('{{CITY_LINKS}}', links).encode()
+
+
+def pal_manifest(city):
+    return json.dumps(dict(
+        name=f"穿衣小伙伴 · {city['zh']}", short_name=f"穿衣·{city['zh']}",
+        description=f"用小动物看懂{city['zh']}每天早、午、晚的冷热。", lang='zh-CN',
+        start_url=f"/pal/{city['id']}", scope='/pal/', display='standalone',
+        background_color='#E3F6F1', theme_color='#E3F6F1',
+        icons=[dict(src='/static/pal/icon-192.png', sizes='192x192', type='image/png')]),
+        ensure_ascii=False, indent=2).encode()
 
 
 def local_store(root):
@@ -56,8 +91,12 @@ class Handler(BaseHTTPRequestHandler):
         try:
             if url.path == '/':
                 return self.send_bytes(200, (ROOT / 'templates/index.html').read_bytes(), 'text/html')
-            if url.path in PAL_PAGES:
-                return self.send_bytes(200, (ROOT / 'templates/pal.html').read_bytes(), 'text/html')
+            if url.path in PAL_CHOOSER:
+                return self.send_bytes(200, pal_chooser_page(), 'text/html')
+            if url.path in PAL_CITY_PAGES:
+                return self.send_bytes(200, pal_city_page(PAL_CITIES[PAL_CITY_PAGES[url.path]]), 'text/html')
+            if url.path in PAL_MANIFESTS:
+                return self.send_bytes(200, pal_manifest(PAL_CITIES[PAL_MANIFESTS[url.path]]), 'application/manifest+json')
             query = parse_qs(url.query, keep_blank_values=True)
             if any(len(v) != 1 for v in query.values()):
                 raise ValueError('查询参数不能重复。')
@@ -90,9 +129,10 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError('查询参数无效。')
                 return self.send_json(200, featured(p.get('fixture', 'default'), self.service.clock()) if self.fixtures_only or 'fixture' in p else self.service.featured())
             if url.path == '/api/pal':
-                if p:
+                if set(p) - {'city'} or p.get('city', 'berlin') not in PAL_CITIES:
                     raise ValueError('查询参数无效。')
-                return self.send_json(200, pal(self.service.clock()) if self.fixtures_only else self.service.pal())
+                city_id = p.get('city', 'berlin')
+                return self.send_json(200, pal(self.service.clock(), city_id) if self.fixtures_only else self.service.pal(city_id))
             if url.path == '/api/advice':
                 if set(p) - {'view','city_id','start','end','preference','fixture'}:
                     raise ValueError('查询参数无效。')
