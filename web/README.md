@@ -852,6 +852,13 @@ is answered from complete five-year history (also within 14 days, where no forec
 and is unavailable until all required months are in Git. `make data-export` keeps the
 manifest and these cities' valid history.
 
+Unlike `cities.json`, the manifest does not keep the full `/v1/get` payload: each record has only
+the seven fields `location()` reads (`id`, `name`, `admin1`, `country_code`, `feature_code`,
+`latitude`, `longitude`), as written by `resolve_manifest`. The trust hash pins those bytes.
+Create records with `python3 -m web.prefetch_history --resolve-cities --city-id <id> ...
+--cities-file <new file>` (live `/v1/get`, refuses to overwrite; never hand-written), then update
+the constant in the same reviewed code PR.
+
 ### Fixed five-year local history inventory and backfill (#74)
 
 `make history-status` validates every city-month target (60 per city, 2021–2025) for the
@@ -934,8 +941,9 @@ make history-pr ARGS='--no-download'              # export only what is already 
 make history-pr ARGS='--max-blocks 20'            # small trial batch first
 ```
 
-`history-pr` limits are runaway guards, not the provider limit: one run may attempt the whole
-600-block inventory (3600 units, about 1800 real calls, under 20% of Open-Meteo's daily limit),
+`history-pr` limits are runaway guards, not the provider limit: one run may attempt up to 600 blocks
+(10 cities × 60 months = 3600 units, about 1800 real calls, under 20% of Open-Meteo's daily limit;
+more history-only cities mean proportionally more blocks, so a larger inventory needs several runs),
 at most 3600 units per day and 7200 per month, within 900 seconds. Serial calls make the 900 s
 timeout likely to end a large run early; it then publishes what it validated, so filling the whole
 inventory may take several runs. Requests stay serial with a
