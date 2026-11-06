@@ -14,12 +14,13 @@
 <link rel="stylesheet" href="/static/pal/pal.css">
 </head>
 <body data-state="loading" data-level="3">
+<nav class="top"><a class="home" id="homeLink" href="/" aria-label="回到主页">← 旅途穿衣</a></nav>
 <h1 id="title">穿衣小伙伴</h1>
 
 <div class="state-card" id="loading" role="status">正在读取柏林的冷热…</div>
 
 <div class="state-card" id="unavailable" role="status">
-  <img alt="" src="/static/icons/warmth/2x/warmth-l3.png">
+  <img alt="" src="/static/pal/sprites/warmth-l3.png">
   数据暂时不可用，请稍后再看
   <small id="unavailableNote"></small>
 </div>
@@ -49,7 +50,7 @@
 <div class="fineprint ready-only" id="fineprint">
   <p id="dataTime"></p>
   <p id="caveat" data-allow-words="1"></p>
-  <p id="d9note" data-allow-words="1">小动物身上的太阳、雪花等只是冷热档位的形象，不代表实际天气。</p>
+  <p id="d9note" data-allow-words="1">小动物只是冷热档位的形象，不代表实际天气。</p>
 </div>
 
 <div class="toast" id="toast" role="status" hidden>已更新</div>

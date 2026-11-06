@@ -4,8 +4,9 @@
 (function () {
   'use strict';
   const A = {ctx: null, on: false, n: {}, vol: .7, env: 0, t0: -1e9, dur: 7000, silent: null, timer: null,
-             nx: {chat: 0, plip: 0}, level: 3, onChange: null};
+             nx: {chat: 0, plip: 0}, level: 3, onChange: null, first: false};
 
+  const MAKEUP = 3;                          // 整体补偿增益（约 +9.5 dB）
   const bq = (type, f, q = 1) => { const b = A.ctx.createBiquadFilter(); b.type = type; b.frequency.value = f; b.Q.value = q; return b; };
   const gn = v => { const g = A.ctx.createGain(); g.gain.value = v; return g; };
   const ramp = (param, v, tc = .35) => param.setTargetAtTime(v, A.ctx.currentTime, tc);
@@ -45,7 +46,11 @@
     n.master = gn(0);
     const comp = A.ctx.createDynamicsCompressor();
     comp.threshold.value = -20; comp.knee.value = 24; comp.ratio.value = 6; comp.attack.value = .01; comp.release.value = .3;
-    chain(n.master, comp, A.ctx.destination);
+    // 听感响度：压缩后补偿增益，再接一个限幅器，保证不削波（实测峰值见 tests/web/pal-browser.cjs）
+    n.out = gn(MAKEUP);
+    const lim = A.ctx.createDynamicsCompressor();
+    lim.threshold.value = -3; lim.knee.value = 0; lim.ratio.value = 20; lim.attack.value = .002; lim.release.value = .1;
+    chain(n.master, comp, n.out, lim, A.ctx.destination);
     n.B = makeBuffers(A.ctx);
     // 蝉鸣（只在最热一档）
     n.cicOsc = A.ctx.createOscillator(); n.cicOsc.frequency.value = 4000;
@@ -69,20 +74,20 @@
     s.buffer = buf; g.gain.setValueAtTime(gain, t); g.gain.exponentialRampToValueAtTime(.0001, t + dur);
     chain(s, f, g, A.n.master); s.start(t, Math.random() * 3); s.stop(t + dur + .05);
   }
-  const chatter = (gain, freq, at) => noiseHit(A.n.B.white, freq, 3, gain, .025, at);
+  const chatter = (gain, freq, at) => noiseHit(A.n.B.white, freq, 1.2, gain, .03, at);
 
   function whoosh() {                       // 扇子呼扇（L1）
     const c = A.ctx, t = c.currentTime, s = c.createBufferSource(), f = bq('bandpass', 500, 1.2), g = c.createGain();
     s.buffer = A.n.B.pink; f.frequency.setValueAtTime(500, t); f.frequency.exponentialRampToValueAtTime(1700, t + .3);
-    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.09, t + .12); g.gain.exponentialRampToValueAtTime(.0001, t + .34);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.14, t + .12); g.gain.exponentialRampToValueAtTime(.0001, t + .34);
     chain(s, f, g, A.n.master); s.start(t, Math.random() * 3); s.stop(t + .4);
   }
-  function boing() { blip(240, .13, .07, {to: 150}); blip(1400, .1, .02, {at: .02}); }   // 落地“噗”（L2）
+  function boing() { blip(240, .16, .12, {to: 150}); blip(1400, .1, .04, {at: .02}); }   // 落地“噗”（L2）
   function brr() {                          // 冷得“呜～”
     const c = A.ctx, t = c.currentTime, o = c.createOscillator(), lp = bq('lowpass', 750), am = gn(.5), env = c.createGain();
     o.type = 'sawtooth'; o.frequency.setValueAtTime(150, t); o.frequency.linearRampToValueAtTime(175, t + .7);
     const l = c.createOscillator(); l.frequency.value = 17; const lg = gn(.5); chain(l, lg, am.gain);
-    env.gain.setValueAtTime(0, t); env.gain.linearRampToValueAtTime(.05, t + .08); env.gain.setValueAtTime(.05, t + .55); env.gain.exponentialRampToValueAtTime(.0001, t + .75);
+    env.gain.setValueAtTime(0, t); env.gain.linearRampToValueAtTime(.08, t + .08); env.gain.setValueAtTime(.08, t + .55); env.gain.exponentialRampToValueAtTime(.0001, t + .75);
     chain(o, lp, am, env, A.n.master); o.start(t); l.start(t); o.stop(t + .8); l.stop(t + .8);
   }
   function cue(slot) {                      // 早/午/晚切换提示
@@ -96,13 +101,14 @@
     A.level = level;
     if (!A.ctx) return;
     ramp(A.n.master.gain, A.on ? A.vol * A.env : 0, .1);
-    ramp(A.n.cicG.gain, level === 1 ? .016 : 0, .6);
+    ramp(A.n.cicG.gain, level === 1 ? .03 : 0, .6);
   }
   function replay(level) {                   // 用户操作才重新播一段
     A.level = level == null ? A.level : level;
-    A.t0 = performance.now(); A.env = 1;
+    A.t0 = performance.now(); A.env = 1; A.first = true;
     for (const k in A.nx) A.nx[k] = 0;
     if (A.ctx) sync(A.level);
+    if (A.ctx && A.on) { if (A.level === 2) boing(); else if (A.level === 1) whoosh(); }   // 操作后立刻有一声
   }
   function tick() {                          // 每 120ms：随机类的声音，并计算淡出
     if (!A.on || !A.ctx) return;
@@ -112,11 +118,12 @@
     if (A.env < .02) return;
     if ((lv === 5 || lv === 6) && now > A.nx.chat) {   // 冷：牙齿打颤 + 偶尔“呜～”
       const cnt = lv === 6 ? 7 : 5, gap = lv === 6 ? .04 : .055;
-      if (Math.random() < (lv === 6 ? .6 : .25)) brr();
-      for (let i = 0; i < cnt; i++) chatter(lv === 6 ? .1 : .07, 2200 + Math.random() * 600, .1 + i * gap);
+      if (A.first || Math.random() < (lv === 6 ? .6 : .35)) brr();
+      A.first = false;
+      for (let i = 0; i < cnt; i++) chatter(lv === 6 ? .22 : .16, 2200 + Math.random() * 600, .1 + i * gap);
       A.nx.chat = now + (lv === 6 ? 1500 : 2500) + Math.random() * 800;
     }
-    if (lv === 1 && now > A.nx.plip) { blip(1300, .09, .03, {to: 700}); A.nx.plip = now + 1500 + Math.random() * 2000; }   // 热：汗滴“啪嗒”
+    if (lv === 1 && now > A.nx.plip) { blip(1300, .09, .08, {to: 700}); A.nx.plip = now + 1500 + Math.random() * 2000; }   // 热：汗滴“啪嗒”
   }
   function heroLoop(level) {                 // 与画面同步：小动物每循环一次响一次
     if (!A.on || !A.ctx || A.env < .2) return;
@@ -130,7 +137,10 @@
       try { await A.ctx.resume(); } catch (e) { A.on = false; return false; }
       A.on = true;
       if (A.silent) A.silent.play().catch(() => {});
-      replay(level); blip(660, .18, .08);
+      replay(level);
+      const g = A.n.master.gain, now = A.ctx.currentTime;          // 开机提示音要立刻听得见，不等增益缓升
+      g.cancelScheduledValues(now); g.setValueAtTime(A.vol * A.env, now);
+      blip(660, .18, .3);
     } else {
       A.on = false;
       if (A.silent) A.silent.pause();

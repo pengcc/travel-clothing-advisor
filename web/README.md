@@ -1127,6 +1127,18 @@ sky conditions (Issue #103).
   Preview, `readonly.service()` default) return 503. Local worker mode (no
   offline city list) reads only today's snapshot, so a previous-day snapshot
   alone also gives 503 there; Production is unaffected.
+- **Sprites and links**: the page uses its own weather-free copies of the level
+  figures in `static/pal/sprites/` (sun, wind and leaf, snowflakes removed from
+  L1, L2, L4, L5 and L6 by editing the existing PNGs; L3 is unchanged; the snow
+  mound under L6 stays). The homepage keeps `static/icons/warmth`. Weather
+  symbols are meant to come back as data-driven overlays in Issue #103. The page
+  has a "← 旅途穿衣" link back to `/`, also in the loading and unavailable states,
+  and the homepage's top-bar "旅途穿衣" is a link that returns to the home view.
+- **Sound level**: the browser harness measures the real output peak through an
+  `AnalyserNode` on the destination (not just the switch): the power-on blip and
+  the L1, L2, L5, L6 cues must peak between 0.1 (-20 dBFS) and 0.95 (clipping);
+  L3 and L4 are silent by design. Listening quality and the iOS mute switch still
+  need a person and a device.
 - **No offline use**: responses are `Cache-Control: no-store` like the rest of
   the app, so the home-screen shortcut needs a network connection. No cookies,
   local storage or analytics.

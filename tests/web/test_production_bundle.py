@@ -190,7 +190,7 @@ class ProductionBundleTests(unittest.TestCase):
         import struct
         from web.server import STATIC, ROOT
         registered = {path for path in STATIC if path.startswith('/static/pal/')}
-        on_disk = {'/static/pal/' + p.name for p in (ROOT / 'static/pal').iterdir() if p.is_file()}
+        on_disk = {'/static/pal/' + p.relative_to(ROOT / 'static/pal').as_posix() for p in (ROOT / 'static/pal').rglob('*') if p.is_file()}
         self.assertEqual(registered, on_disk)
         self.assertEqual(STATIC['/static/pal/manifest.webmanifest'][1], 'application/manifest+json')
         for path in sorted(registered):
@@ -198,6 +198,11 @@ class ProductionBundleTests(unittest.TestCase):
             self.assertEqual(status, 200, path)
         manifest = json.loads(self.get('/static/pal/manifest.webmanifest')[1])
         self.assertEqual((manifest['display'], manifest['start_url'], manifest['scope']), ('standalone', '/pal/berlin', '/pal/'))
+        for n in range(1, 7):                                         # neutral sprites: transparent PNG, 256x256, no weather pieces to check here
+            raw = self.get(f'/static/pal/sprites/warmth-l{n}.png')[1]
+            self.assertEqual(raw[:8], b'\x89PNG\r\n\x1a\n')
+            width, height, depth, color = struct.unpack('>IIBB', raw[16:26])
+            self.assertEqual((width, height, depth, color), (256, 256, 8, 6), n)   # RGBA
         for name, size in (('apple-touch-icon.png', 180), ('icon-192.png', 192)):
             raw = self.get('/static/pal/' + name)[1]
             self.assertEqual(raw[:8], b'\x89PNG\r\n\x1a\n')

@@ -1,6 +1,8 @@
 """穿衣小伙伴 (Issue #101): pure build, Service.pal() snapshot rules, fixtures. No provider network."""
 from datetime import date, datetime, time, timedelta
 import json
+from pathlib import Path
+import re
 import unittest
 from unittest.mock import patch
 
@@ -261,6 +263,40 @@ class FixtureTests(unittest.TestCase):
         # Intraday variation: morning and midday differ on at least one day.
         self.assertTrue(any(d['slots'][0]['temperature_c'] != d['slots'][1]['temperature_c'] for d in a['days']))
         json.dumps(a)
+
+
+class PageAssetTests(unittest.TestCase):
+    ROOT = Path(__file__).resolve().parents[2] / 'web'
+
+    def read(self, relative):
+        return (self.ROOT / relative).read_text(encoding='utf-8')
+
+    def test_pal_page_links_back_to_the_homepage_in_every_state(self):
+        html = self.read('templates/pal.html')
+        link = re.search(r'<nav class="top">(.*?)</nav>', html, re.S)
+        self.assertIsNotNone(link)
+        self.assertIn('href="/"', link.group(1))
+        self.assertNotIn('ready-only', link.group(0))              # visible while loading and when unavailable
+        self.assertNotRegex(link.group(0), '[雨风云晴阴雪]|太阳')    # no weather words (V5)
+
+    def test_homepage_brand_links_to_the_home_view(self):
+        html = self.read('templates/index.html')
+        self.assertRegex(html, r'<a class="identity" id="brand" href="/"')
+        self.assertIn("$('brand')", self.read('static/app.js'))
+
+    def test_pal_uses_its_own_weather_free_sprites_and_homepage_icons_stay(self):
+        for relative in ('templates/pal.html', 'static/pal/pal.js'):
+            text = self.read(relative)
+            self.assertIn('/static/pal/sprites/', text)
+            self.assertNotIn('/static/icons/warmth', text)
+        originals = self.ROOT / 'static/icons/warmth/2x'
+        for n in range(1, 7):
+            sprite = (self.ROOT / f'static/pal/sprites/warmth-l{n}.png').read_bytes()
+            original = (originals / f'warmth-l{n}.png').read_bytes()
+            if n == 3:
+                self.assertEqual(sprite, original)                  # L3 has no weather pieces and is unchanged
+            else:
+                self.assertNotEqual(sprite, original)
 
 
 if __name__ == '__main__':
