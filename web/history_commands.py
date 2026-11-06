@@ -6,7 +6,7 @@ import math
 from pathlib import Path
 import sys
 
-from web.data_commands import records_at
+from web.data_commands import history_cities_at
 from web.fixtures import BERLIN
 from web.history import (Library, DirectoryStore, Downloader, BackfillPaused,
                          key, plan, transport, LEDGER)
@@ -56,8 +56,9 @@ def inventory(cities, local, bundle, clock):
                if b['state'] in ('missing', 'invalid')]
     known_calls = sum(Downloader.cost(m) for _, m in missing)
     unknown_blocks = counts['unreadable']
-    return dict(status='unreadable' if unreadable else 'complete' if counts['valid'] == 600 else 'partial',
-                total=600, remaining=600-counts['valid'],
+    total = len(cities) * len(MONTHS)
+    return dict(status='unreadable' if unreadable else 'complete' if counts['valid'] == total else 'partial',
+                total=total, remaining=total-counts['valid'],
                 equivalent_calls=None if unknown_blocks else known_calls,
                 known_missing_equivalent_calls=known_calls, unknown_blocks=unknown_blocks,
                 http_requests=0, cities=rows, **counts)
@@ -146,7 +147,7 @@ def export(cities, local, bundle, clock):
     git_valid = sum(b['git'] == 'valid' for r in after['cities'] for b in r['months'].values())
     return dict(added=sum(s == 'missing' for _, _, s in planned),
                 repaired=sum(s == 'invalid' for _, _, s in planned),
-                git_valid=git_valid, total=600, http_requests=0)
+                git_valid=git_valid, total=after['total'], http_requests=0)
 
 
 def main(argv=None):
@@ -165,13 +166,13 @@ def main(argv=None):
     if args.command != 'backfill' and (args.seed or args.download):
         parser.error(f'{args.command} accepts neither --seed nor --download')
     try:
-        _, cities = records_at(args.bundle_dir)
+        cities = history_cities_at(args.bundle_dir)
         clock = lambda: datetime.now(BERLIN)
         if args.command == 'export':
             result = export(cities, args.history_dir, args.bundle_dir, clock)
             print(json.dumps(result, sort_keys=True))
             print(f"{result['added']} added, {result['repaired']} repaired; "
-                  f"{result['git_valid']}/600 valid in Git", file=sys.stderr)
+                  f"{result['git_valid']}/{result['total']} valid in Git", file=sys.stderr)
             return 0
         if args.command == 'status':
             report = inventory(cities, args.history_dir, args.bundle_dir, clock)
@@ -185,7 +186,7 @@ def main(argv=None):
                     f"known missing weighted units; {report['unknown_blocks']} unknown blocks"
                     if report['equivalent_calls'] is None else
                     f"{report['equivalent_calls']} estimated weighted units")
-        print(f"{report['valid']}/600 valid; {report['remaining']} remaining; "
+        print(f"{report['valid']}/{report['total']} valid; {report['remaining']} remaining; "
               f"{estimate}; "
               f"{report.get('stop_reason', report['status'])}", file=sys.stderr)
         return 1 if report['status'] == 'unreadable' or report.get('stop_reason') in (

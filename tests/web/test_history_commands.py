@@ -11,7 +11,7 @@ from urllib.error import HTTPError
 
 from test_forecasts import RECORDS
 from test_history import month_data
-from web.data_commands import records_at, tree
+from web.data_commands import history_cities_at, records_at, tree
 from web.fixtures import BERLIN
 from web.history import DirectoryStore, Library, LEDGER, key
 from web.history_commands import MONTHS, inventory, backfill, main
@@ -37,6 +37,19 @@ class HistoryCommandTests(unittest.TestCase):
         self.assertLessEqual(timeout, 4)
         month = (datetime.fromisoformat(params['start_date']) + timedelta(days=1)).strftime('%Y-%m')
         return month_data(month)
+
+    def test_totals_follow_featured_plus_history_only_cities(self):
+        manifest = Path(__file__).parents[2] / 'weather-data' / 'history-cities.json'
+        (self.bundle / 'history-cities.json').write_bytes(manifest.read_bytes())
+        cities = history_cities_at(self.bundle)
+        extra = len(json.loads(manifest.read_text()))
+        self.assertEqual(len(cities), 10 + extra)
+        with patch('urllib.request.urlopen', side_effect=AssertionError('network')):
+            result = inventory(cities, self.local, self.bundle, self.clock)
+        self.assertEqual(result['total'], 60 * (10 + extra))
+        self.assertEqual(result['missing'], result['total'])
+        self.assertEqual(result['equivalent_calls'], 6 * result['total'])
+        self.assertEqual(result['status'], 'partial')
 
     def test_readonly_600_and_invalid_unreadable(self):
         before = tree(self.root)

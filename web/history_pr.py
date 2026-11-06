@@ -10,7 +10,7 @@ import subprocess
 import sys
 
 from web import history_commands as hc
-from web.data_commands import records_at
+from web.data_commands import history_cities_at
 from web.fixtures import BERLIN
 
 SCOPE = 'weather-data/history/'
@@ -42,7 +42,7 @@ def body(before, exported, backfill):
     lines = [
         'Manual ERA5 history data update (`make history-pr`). Data-only: changes are limited to `weather-data/history/`.',
         '',
-        f"- Git coverage: {before}/600 -> {exported['git_valid']}/600 valid city-months",
+        f"- Git coverage: {before}/{exported['total']} -> {exported['git_valid']}/{exported['total']} valid city-months",
         f"- Added {exported['added']}, repaired {exported['repaired']} month objects",
     ]
     if backfill:
@@ -74,7 +74,7 @@ def run(args, clock=lambda: datetime.now(BERLIN), backfill=hc.backfill, export=h
     sh('git', 'switch', '-c', name, f'origin/{args.base}')
     pushed = False
     try:
-        _, cities = records_at(args.bundle_dir)
+        cities = history_cities_at(args.bundle_dir)
         before = hc.inventory(cities, args.history_dir, args.bundle_dir, clock)
         git_before = sum(b['git'] == 'valid' for r in before['cities'] for b in r['months'].values())
         result = None
@@ -92,14 +92,14 @@ def run(args, clock=lambda: datetime.now(BERLIN), backfill=hc.backfill, export=h
         status = sh('git', 'status', '--porcelain', '-z', '--untracked-files=all', strip=False)
         paths = [entry[3:] for entry in status.split('\0') if entry]
         if not paths:
-            print(f"Nothing new for Git ({git_before}/600 valid; stop reason: "
+            print(f"Nothing new for Git ({git_before}/{before['total']} valid; stop reason: "
                   f"{result.get('stop_reason') if result else 'n/a'}). No branch or PR created.")
             return 0
         outside = [p for p in paths if not p.startswith(SCOPE)]
         if outside:
             raise Stop(f'Unexpected changes outside {SCOPE}: {outside[:5]}')
         day = clock().strftime('%Y-%m-%d')
-        title = f"data: update history data {day} ({git_before} -> {exported['git_valid']}/600)"
+        title = f"data: update history data {day} ({git_before} -> {exported['git_valid']}/{exported['total']})"
         sh('git', 'add', '--', SCOPE)
         sh('git', 'commit', '-m', title)
         sh('git', 'push', '-u', 'origin', name)

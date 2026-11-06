@@ -13,7 +13,19 @@ from web.forecasts import Cache, key as forecast_key
 from web.history import (bounds, Library, DirectoryStore, Downloader, BackfillPaused,
                          key as history_key, plan, encode)
 from web.live import location, Unavailable
-from web.readonly import ReadOnlyDirectoryStore
+from web.readonly import ReadOnlyDirectoryStore, HISTORY_CITIES, history_city_records
+
+
+def history_records_at(root):
+    """History-only cities beside the featured ten; trust-anchored, empty when the manifest is absent."""
+    path = Path(root) / HISTORY_CITIES
+    records = history_city_records(path.read_bytes() if path.exists() else None)
+    return records, [location(r) for r in records]
+
+
+def history_cities_at(root):
+    """Featured ten plus history-only cities, for history inventory, backfill and export."""
+    return records_at(root)[1] + history_records_at(root)[1]
 
 
 def records_at(root):
@@ -133,13 +145,17 @@ def _export(records, cities, forecasts, history, bundle, clock):
     objects = {'cities.json': encode(records)}
     if 'README.md' in before:
         objects['README.md'] = before['README.md']
+    # The history-only manifest is owned by reviewed code; keep it and its cities' valid history.
+    extra_records, extra = history_records_at(bundle)
+    if extra_records:
+        objects[HISTORY_CITIES] = before[HISTORY_CITIES]
     f = valid_objects([forecasts, bundle], cities, clock)
     if len(f) != 10:
         raise ValueError('Export requires ten valid same-day forecasts')
     objects.update(f)
     # Routine exports retain accepted Git history bytes; local data only adds
     # missing months or repairs invalid Git objects. Forecast priority is unchanged.
-    objects.update(valid_objects([bundle, history], cities, clock, history=True))
+    objects.update(valid_objects([bundle, history], cities + extra, clock, history=True))
     with tempfile.TemporaryDirectory(prefix='.data-export-', dir=bundle.parent) as temporary:
         stage = Path(temporary) / 'next'
         stage.mkdir()
@@ -148,7 +164,7 @@ def _export(records, cities, forecasts, history, bundle, clock):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(raw)
         if (len(valid_objects([stage], cities, clock)) != 10 or
-                valid_objects([stage], cities, clock, history=True) != {
+                valid_objects([stage], cities + extra, clock, history=True) != {
                     n: b for n, b in objects.items() if n.startswith('history/')}):
             raise ValueError('Staged validation failed')
         if clock().astimezone(BERLIN).date() != day or tree(bundle) != before:

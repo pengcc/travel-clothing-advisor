@@ -54,7 +54,7 @@ async function search() {
       const button = text('button', `${city.zh} · ${city.name}`); button.type = 'button';
       button.append(text('small', city.state)); button.addEventListener('click', () => chooseCity(city)); box.append(button);
     }
-    if (!data.cities.length) box.append(text('div', context?.data_delivery === 'manual_git_bundle' ? '首版仅支持精选十城，此城市不在支持范围内。' : '没找到这个德国城市，请尝试德文名称或加上联邦州。', 'empty'));
+    if (!data.cities.length) box.append(text('div', context?.data_delivery === 'manual_git_bundle' ? '首版仅支持已准备数据的城市，此城市不在支持范围内。' : '没找到这个德国城市，请尝试德文名称或加上联邦州。', 'empty'));
     box.classList.remove('hidden'); $('city').setAttribute('aria-expanded', 'true');
   } catch (error) { $('cityError').textContent = error.message; }
 }

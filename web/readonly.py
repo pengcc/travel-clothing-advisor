@@ -1,5 +1,6 @@
 """Prepared immutable dataset adapter. No provider calls or writable store API."""
 from datetime import datetime
+import hashlib
 from pathlib import Path
 import json
 
@@ -7,6 +8,27 @@ from web.fixtures import BERLIN, CITIES
 from web.forecasts import Cache
 from web.history import Library
 from web.live import Service, Unavailable, location
+
+HISTORY_CITIES = 'history-cities.json'
+# Reviewed bytes of weather-data/history-cities.json: history-only cities, never featured and never
+# forecast-prepared. Like the cities.json anchor in data_commands, changing the manifest needs this
+# constant changed in the same reviewed code PR; data PRs only touch weather-data/history/.
+TRUSTED_HISTORY_CITIES_SHA256 = '7f5067ccf6f59729646702226def076fb7fa481d7b7d1e7cff42dfcf68a221e4'
+
+
+def history_city_records(raw):
+    """Additional history-only city records; an absent manifest means none."""
+    if raw is None:
+        return []
+    if len(raw) > 200_000 or hashlib.sha256(raw).hexdigest() != TRUSTED_HISTORY_CITIES_SHA256:
+        raise ValueError('History city trust anchor changed; separate review required')
+    records = json.loads(raw)
+    if not isinstance(records, list):
+        raise ValueError('Invalid history city manifest')
+    ids = [location(record)['id'] for record in records]
+    if len(set(ids)) != len(ids) or set(ids) & {c['id'] for c in CITIES[:10]}:
+        raise ValueError('Invalid history city manifest')
+    return records
 
 
 class ReadOnlyDirectoryStore:
@@ -52,6 +74,8 @@ def prepared_service(root, clock=lambda: datetime.now(BERLIN)):
             raise ValueError()
         if {location(record)['id'] for record in records} != {c['id'] for c in CITIES[:10]}:
             raise ValueError()
-        return service(store, records, clock, independent_cities=True)
+        # Featured ten stay exact above; history-only cities only add selectable cities.
+        return service(store, records + history_city_records(store.get(HISTORY_CITIES)), clock,
+                       independent_cities=True)
     except (OSError, ValueError, TypeError, KeyError, LookupError) as exc:
         raise Unavailable('只读数据集或可信城市资料尚未准备好。') from exc

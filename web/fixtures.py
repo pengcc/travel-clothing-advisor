@@ -20,6 +20,16 @@ CITIES = [
         ('leipzig', '莱比锡', 'Leipzig', 'Sachsen', []),
         ('freiburg', '弗赖堡', 'Freiburg im Breisgau', 'Baden-Württemberg', ['freiburg']),
         ('frankfurt-oder', '法兰克福（奥得河畔）', 'Frankfurt (Oder)', 'Brandenburg', ['frankfurt']),
+        # History-only cities (weather-data/history-cities.json). Featured stays CITIES[:10].
+        ('stuttgart', '斯图加特', 'Stuttgart', 'Baden-Württemberg', []),
+        ('hannover', '汉诺威', 'Hannover', 'Niedersachsen', ['hanover']),
+        ('bremen', '不来梅', 'Bremen', 'Bremen', []),
+        ('bonn', '波恩', 'Bonn', 'Nordrhein-Westfalen', []),
+        ('potsdam', '波茨坦', 'Potsdam', 'Brandenburg', []),
+        ('wurzburg', '维尔茨堡', 'Würzburg', 'Bayern', ['wurzburg', 'wuerzburg']),
+        ('regensburg', '雷根斯堡', 'Regensburg', 'Bayern', []),
+        ('lubeck', '吕贝克', 'Lübeck', 'Schleswig-Holstein', ['lubeck', 'luebeck']),
+        ('garmisch-partenkirchen', '加尔米施-帕滕基兴', 'Garmisch-Partenkirchen', 'Bayern', ['garmisch']),
     ]
 ]
 SCENARIOS = {

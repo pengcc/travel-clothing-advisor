@@ -14,8 +14,9 @@ from test_live import NOW, forecast
 from test_history import month_data
 from web.forecasts import Cache, key, manifest_key, unpack, pack
 from web.history import Library, MemoryStore, months, windows, key as history_key
-from web.live import Unavailable
-from web.readonly import service, ReadOnlyDirectoryStore, prepared_service
+from web.live import Unavailable, location
+from web.readonly import (service, ReadOnlyDirectoryStore, prepared_service,
+                          history_city_records, HISTORY_CITIES)
 from web.server import ThreadingHTTPServer
 from api.index import handler
 
@@ -198,6 +199,59 @@ class ReadOnlyTests(unittest.TestCase):
                 server.shutdown()
                 server.server_close()
                 thread.join()
+
+
+class HistoryOnlyCityTests(unittest.TestCase):
+    """History-only cities add selectable cities; featured and forecasts stay the featured ten."""
+    def setUp(self):
+        self.now = NOW
+        self.dataset = Path(__file__).parents[2] / 'weather-data'
+        self.extra = history_city_records((self.dataset / HISTORY_CITIES).read_bytes())
+        self.cities = {location(r)['id']: location(r) for r in self.extra}
+        store = MemoryStore()
+        Cache(store, lambda: self.now).prefetch(RECORDS, lambda *a: forecast(NOW))
+        library = Library(store, lambda: self.now)
+        self.trip = (date(2026, 11, 2), date(2026, 11, 5))
+        self.near = (NOW.date(), NOW.date() + timedelta(days=3))
+        for window in (self.trip, self.near):
+            for month in months(windows(*window)):
+                library.publish(self.cities['stuttgart'], month, month_data(month, value=14))
+        self.service = service(GetOnly(store.objects), RECORDS + self.extra, lambda: self.now,
+                               independent_cities=True)
+        self.service.fetch = forbidden
+
+    def trip_params(self, city_id, window):
+        return dict(view='trip', city_id=city_id, preference='normal',
+                    start=str(window[0]), end=str(window[1]))
+
+    def test_selectable_but_not_featured(self):
+        self.assertEqual(len(self.service.featured()['cities']), 10)
+        listed = {c['id'] for c in self.service.cities('')['cities']}
+        self.assertEqual(len(listed), 10 + len(self.extra))
+        self.assertIn('stuttgart', listed)
+        self.assertEqual(self.service.cities('斯图加特')['cities'][0]['id'], 'stuttgart')
+        with self.assertRaises(ValueError):
+            self.service.city_advice(dict(view='city', city_id='stuttgart'))
+
+    def test_trips_use_complete_history_when_no_forecast_exists(self):
+        for window in (self.near, self.trip):
+            result = self.service.advice(self.trip_params('stuttgart', window))
+            self.assertEqual(result['mode'], 'historical_reference')
+            self.assertFalse(result['fixture'])
+        self.assertEqual(self.service.advice(self.trip_params('berlin', self.near))['mode'], 'forecast')
+
+    def test_missing_history_is_unavailable_never_invented(self):
+        with self.assertRaises(Unavailable):
+            self.service.advice(self.trip_params('bonn', self.trip))
+
+    def test_prepared_dataset_loads_history_cities_and_rejects_a_changed_manifest(self):
+        self.assertEqual(len(prepared_service(self.dataset).cities('')['cities']), 10 + len(self.extra))
+        with tempfile.TemporaryDirectory() as root:
+            (Path(root) / 'cities.json').write_bytes((self.dataset / 'cities.json').read_bytes())
+            raw = (self.dataset / HISTORY_CITIES).read_bytes()
+            (Path(root) / HISTORY_CITIES).write_bytes(raw.replace(b'Stuttgart', b'Stuttgard'))
+            with self.assertRaises(Unavailable):
+                prepared_service(root)
 
 
 if __name__ == '__main__':

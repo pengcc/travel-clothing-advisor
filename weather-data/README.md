@@ -18,6 +18,12 @@ never a prediction of specific future weather. Cities without a current forecast
 or complete historical coverage show
 “数据暂缺” until manually prepared.
 
+`history-cities.json` lists additional history-only cities (ERA5 months only, no
+forecasts, never featured). It is separate from `cities.json`, has its own trust
+hash in `web/readonly.py`, and is changed only by a reviewed code PR; `history/`
+objects for these cities arrive in data PRs. See
+[web/README.md](../web/README.md#history-only-cities-116).
+
 Manual update commands are in [web/README.md](../web/README.md#git-weather-bundle).
 Once Git auto-deployment is active, a separately authorized merge to `main` triggers a Production build automatically; Preview remains manual. A running deployment never
 refreshes or writes data. Roll back by deploying the prior reviewed Git revision

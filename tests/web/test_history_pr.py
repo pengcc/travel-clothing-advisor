@@ -138,7 +138,7 @@ class HistoryPrTests(unittest.TestCase):
         self.assertIn('data/history-20261024-2', self.branches())
 
     def test_pr_body_reports_last_error_without_provider_message(self):
-        text = history_pr.body(220, dict(added=1, repaired=0, git_valid=221), dict(
+        text = history_pr.body(220, dict(added=1, repaired=0, git_valid=221, total=600), dict(
             stop_reason='provider_or_storage_failure',
             run=dict(published=1, failed=1, http_requests=2, equivalent_calls=12,
                      last_error=dict(stage='request', type='HTTPError', job='berlin/2022-09',
@@ -192,7 +192,7 @@ class HistoryPrTests(unittest.TestCase):
             (Path(bundle) / 'forecast' / 'x.json').write_text('x')
             return dict(stop_reason='max_blocks', run={})
         with self.assertRaises(history_pr.Stop):
-            history_pr.run(self.args, self.clock, backfill=sneaky, export=lambda *a: dict(added=0, repaired=0, git_valid=0))
+            history_pr.run(self.args, self.clock, backfill=sneaky, export=lambda *a: dict(added=0, repaired=0, git_valid=0, total=600))
         # Nothing was committed or published; the unexpected file is left for the operator, not deleted.
         self.assertEqual(self.branches(), ['main'])
         self.assertEqual(real_sh('git', 'ls-remote', '--heads', 'origin').count('data/history'), 0)
