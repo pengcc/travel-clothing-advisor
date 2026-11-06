@@ -1,6 +1,10 @@
 /* Offline fixture server: python3 -m web.server --fixtures --port 8001 */
 const {chromium} = require('playwright');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+// Screenshots are task scratch: git-ignored, safe to delete.
+const shotDir = '.local-scratch';
+fs.mkdirSync(shotDir, {recursive:true});
 const base = process.env.UI_BASE_URL || 'http://127.0.0.1:8001';
 (async () => {
   const browser = await chromium.launch({channel:'chrome', headless:true});
@@ -27,7 +31,7 @@ const base = process.env.UI_BASE_URL || 'http://127.0.0.1:8001';
       assert.match(await page.locator('#iconTest .city-card').textContent(),/暂无白天参考/);
       assert.ok(icons.every(url=>url.endsWith('.webp')),'no duplicate PNG download');
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
-      if(width===390 && density===2) await page.screenshot({path:'.local-tools/issue40-home.png',fullPage:true});
+      if(width===390 && density===2) await page.screenshot({path:shotDir+'/issue40-home.png',fullPage:true});
       assert.deepEqual(errors,[]);
       await page.close();
     }
@@ -60,7 +64,7 @@ const base = process.env.UI_BASE_URL || 'http://127.0.0.1:8001';
         }
       }
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
-      if(width===390 && scenario==='colder') await page.screenshot({path:'.local-tools/issue40-card-variation.png',fullPage:true});
+      if(width===390 && scenario==='colder') await page.screenshot({path:shotDir+'/issue40-card-variation.png',fullPage:true});
       await page.close();
     }
     for(const mode of ['png','none']) {
@@ -86,7 +90,7 @@ const base = process.env.UI_BASE_URL || 'http://127.0.0.1:8001';
     assert.match(await page.locator('#resultWarmthMark').textContent(),/冷热变化大/);
     assert.ok((await page.locator('#spanText').textContent()).length>0);
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
-    await page.screenshot({path:'.local-tools/issue40-result.png',fullPage:true});
+    await page.screenshot({path:shotDir+'/issue40-result.png',fullPage:true});
     await page.route('**/static/icons/**',route=>route.abort());
     await page.reload(); await page.waitForSelector('#resultContent:not(.hidden)');
     await page.waitForFunction(()=>document.querySelector('#spanRemind picture')?.hidden);

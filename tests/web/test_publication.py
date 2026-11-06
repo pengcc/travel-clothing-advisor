@@ -356,7 +356,7 @@ class SDKContractTests(unittest.TestCase):
             from vercel.blob import sync as sdk
             from vercel.api import session
         except ImportError:
-            self.skipTest('Optional SDK; run with .local-tools/s2-venv/bin/python')
+            self.skipTest('Optional SDK; run with .local-tools/py312/bin/python (see web/README.md, Local directories)')
         # Fabricated SDK credentials, not a real account or token; never sent.
         credentials = lambda: sdk.BlobCredentials(token='synthetic', store_id='trial', kind=sdk.CredentialKind.OIDC)
         calls = []

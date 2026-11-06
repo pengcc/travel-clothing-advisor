@@ -132,6 +132,32 @@ Node.js >= 20, Google Chrome installed on the machine (scripts launch it with
 `tests/web/`, so the repository root has no `package.json`; `vercel.json` already
 excludes `tests/**` from the Python function bundle.
 
+## Local directories
+
+Everything below is git-ignored. Anything worth keeping (decisions, verification
+evidence, PR text) belongs in Git or on GitHub, never only in an ignored directory.
+Ignored content does not exist in a fresh clone or a new git worktree.
+
+| Location | Purpose | Rule |
+|---|---|---|
+| `.local-tools/` | Reproducible tool environments only (for example `py312`) | Must be recreatable from a documented command; safe to delete |
+| `.local-scratch/` | Task scratch: test logs, PR/issue drafts, screenshots, one-off scripts | Delete once the PR is merged; browser tests write screenshots here |
+| `.history-local/`, `.forecast-local/`, `.preview-data/` | Local weather data stores | Expensive to recreate (provider quota); not scratch, do not clean casually |
+| `../travel-clothing-advisor-worktrees/<branch>` | git worktrees (outside the repository) | Create with `git worktree add`, remove only with `git worktree remove` |
+| `mktemp` paths | Short-lived credentials | Never under the repository; delete after use |
+
+Optional Python 3.12 environment (`.python-version` pins 3.12) with the optional
+Blob SDK and PostgreSQL driver, used for the SDK contract tests:
+
+```sh
+uv venv --python 3.12 .local-tools/py312
+uv pip install --python .local-tools/py312/bin/python -r requirements.txt
+make test PYTHON=.local-tools/py312/bin/python
+```
+
+Older verification records mention `.local-tools/s2-venv` and `.local-tools/p1-py312`;
+those were earlier names for this environment and are kept unchanged as history.
+
 ## Verification
 
 ```sh
@@ -545,11 +571,13 @@ and project/team IDs against the intended Preview trial before using the link as
 ```sh
 vercel link --project travel-clothing-advisor --scope YOUR_EXISTING_TEAM
 vercel project inspect --non-interactive
-mkdir -p .local-tools
 umask 077
-vercel env pull .local-tools/s2-preview.env --environment=preview
+ENV_FILE="$(mktemp -t s2-preview.XXXXXX)"   # outside the repository
+trap 'rm -f "$ENV_FILE"' EXIT              # removed even if a later step fails
+vercel env pull "$ENV_FILE" --yes --environment=preview
 # Import only the short-lived token, not other pulled credentials/runtime flags.
-export VERCEL_OIDC_TOKEN="$(sed -n 's/^VERCEL_OIDC_TOKEN="\(.*\)"$/\1/p' .local-tools/s2-preview.env)"
+export VERCEL_OIDC_TOKEN="$(sed -n 's/^VERCEL_OIDC_TOKEN="\(.*\)"$/\1/p' "$ENV_FILE")"
+rm -f "$ENV_FILE"                          # no longer needed once the token is exported
 export BLOB_STORE_ID='store_YOUR_CONNECTED_PREVIEW_STORE'
 export TRAVEL_PREVIEW_BLOB_STORE_ID='store_YOUR_VERIFIED_PRIVATE_TRIAL_STORE'
 
@@ -578,7 +606,8 @@ Use the Python >=3.10 environment where `requirements.txt` is installed. Confirm
 identify the same store. Dry-run requires no credentials and performs no remote
 IO. The Preview env pull obtains a short-lived Preview OIDC token; repeat it when
 the token expires. Keep shell tracing off; never print/source the pulled file or
-commit it. `.local-tools/` is ignored; remove the local credential file after use.
+commit it. The pulled file lives only in a `mktemp` path and is deleted right after
+the token is exported (and by the `trap` on exit); `*.env` is also git-ignored as a backstop.
 See [Vercel CLI env pull](https://vercel.com/docs/cli/env#exporting-development-environment-variables),
 [Vercel OIDC claims](https://vercel.com/docs/oidc/reference)
 and [official OIDC authentication](https://vercel.com/docs/vercel-blob/python-sdk-reference#authentication).
@@ -614,7 +643,7 @@ Offline checks (synthetic inputs never presented as real data):
 ```sh
 make test
 # Include actual SDK contract tests after installing requirements in an isolated environment:
-make test PYTHON=.local-tools/s2-venv/bin/python
+make test PYTHON=.local-tools/py312/bin/python   # see "Local directories"
 node tests/web/publication-browser.cjs
 ```
 
