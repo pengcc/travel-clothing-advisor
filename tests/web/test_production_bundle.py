@@ -153,9 +153,46 @@ class ProductionBundleTests(unittest.TestCase):
                 self.assertEqual(slot['level'] is None, slot['past'])
         self.assertEqual(self.get('/api/pal?city_id=berlin')[0], 400)
         self.assertEqual(self.get('/api/pal?fixture=default')[0], 400)
-        self.assertEqual(self.get('/pal/hamburg')[0], 404)
-        self.assertEqual(self.get('/pal')[0], 404)
+        self.assertEqual(self.get('/pal/nowhere')[0], 404)
+        self.assertEqual(self.get('/pal/freiburg')[0], 404)        # only the ten featured cities have pages
+        self.assertEqual(self.get('/pal/berlin/extra')[0], 404)
         self.assertEqual(self.get('/static/pal/missing.js')[0], 404)
+
+    def test_pal_all_ten_cities_pages_manifests_and_api(self):
+        from web.server import PAL_CITIES
+        for city_id, city in PAL_CITIES.items():
+            for path in (f'/pal/{city_id}', f'/pal/{city_id}/'):
+                status, page = self.get(path)
+                self.assertEqual(status, 200, path)
+                self.assertIn(f'穿衣小伙伴 · {city["zh"]}'.encode(), page)
+                self.assertIn(f'data-city="{city_id}"'.encode(), page)
+            status, manifest = self.get(f'/pal/{city_id}/manifest.webmanifest')
+            self.assertEqual(status, 200)
+            manifest = json.loads(manifest)
+            self.assertEqual((manifest['start_url'], manifest['scope']), (f'/pal/{city_id}', '/pal/'))
+            status, data = self.get(f'/api/pal?city={city_id}')
+            self.assertEqual(status, 200, city_id)
+            self.assertEqual((data['city']['id'], data['stale'], len(data['days'])), (city_id, False, 7))
+        for path in ('/pal', '/pal/'):
+            status, page = self.get(path)
+            self.assertEqual(status, 200)
+            self.assertEqual(page.count(b'class="city"'), 10)
+        self.assertEqual(self.get('/api/pal')[1]['city']['id'], 'berlin')          # no parameter still means berlin
+
+    def test_pal_city_parameter_is_strict(self):
+        for query in ('?city=', '?city=nowhere', '?city=freiburg', '?city=Berlin', '?city=berlin&city=munich',
+                      '?city=berlin&x=1', '?city_id=munich', '?x=1', '?city=berlin%00'):
+            status, data = self.get('/api/pal' + query)
+            self.assertEqual(status, 400, query)
+            self.assertEqual(data['code'], 'invalid_request')
+
+    def test_pal_other_city_is_503_when_its_data_is_missing_or_old(self):
+        (self.root / forecast_key(location(RECORDS[1]), NOW.date())).write_bytes(b'corrupt')
+        status, data = self.get('/api/pal?city=munich')
+        self.assertEqual((status, data['code']), (503, 'temporarily_unavailable'))
+        self.assertEqual(self.get('/api/pal?city=berlin')[0], 200)               # other cities unaffected
+        self.now += timedelta(days=1)                                              # berlin: previous-day snapshot
+        self.assertEqual(self.get('/api/pal?city=berlin')[1]['stale'], True)
 
     def test_pal_uses_previous_days_snapshot_then_gives_up(self):
         self.now += timedelta(days=1)              # tomorrow 10:30; today's snapshot is 24 h old

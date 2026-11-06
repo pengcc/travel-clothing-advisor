@@ -4,6 +4,7 @@ const {chromium} = require('../../.local-tools/node_modules/playwright');
 const assert = require('node:assert/strict');
 const base = 'http://127.0.0.1:8008';
 const FORBIDDEN = /[雨风云晴阴雪]|太阳/;
+const PAL_API = /\/api\/pal(\?|$)/;                   // the page now calls /api/pal?city=<id>
 
 (async () => {
   const browser = await chromium.launch({channel: 'chrome', headless: true});
@@ -46,7 +47,7 @@ const FORBIDDEN = /[雨风云晴阴雪]|太阳/;
     assert.equal((await page.goto(base + '/pal/berlin/')).status(), 200);
     await ready();
     assert.deepEqual(await page.evaluate(() => [...document.querySelectorAll('link[rel=manifest],link[rel=apple-touch-icon]')].map(l => l.getAttribute('href'))),
-      ['/static/pal/manifest.webmanifest', '/static/pal/apple-touch-icon.png']);
+      ['/pal/berlin/manifest.webmanifest', '/static/pal/apple-touch-icon.png']);
 
     // ---- V5: only cold/heat content; no weather words or scene elements outside the two small prints
     const words = await page.evaluate(() => {
@@ -134,8 +135,8 @@ const FORBIDDEN = /[雨风云晴阴雪]|太阳/;
     // ---- stale label (data from an earlier day), D18 refresh and failure rules
     const stale = async patch => {
       const body = Object.assign(await real(), patch);
-      await page.unroute('**/api/pal');
-      await page.route('**/api/pal', route => route.fulfill({status: 200, json: body}));
+      await page.unroute(PAL_API);
+      await page.route(PAL_API, route => route.fulfill({status: 200, json: body}));
     };
     const iso = ms => new Date(ms).toISOString().replace(/\.\d+Z$/, '+00:00');
     await stale({stale: true, weather_fetched_at: iso(Date.now() - 14 * 3600e3)});
@@ -145,38 +146,38 @@ const FORBIDDEN = /[雨风云晴阴雪]|太阳/;
     await poke(); await page.waitForSelector('#toast:not([hidden])');
     assert.equal(await page.locator('#staleBanner').isVisible(), false);
 
-    await page.unroute('**/api/pal');
-    await page.route('**/api/pal', route => route.abort());                // network error, data well under 48 h: keep the screen
+    await page.unroute(PAL_API);
+    await page.route(PAL_API, route => route.abort());                // network error, data well under 48 h: keep the screen
     await poke(); await page.waitForTimeout(400);
     assert.equal(await state(), 'ready');
 
-    await page.unroute('**/api/pal');
-    await page.route('**/api/pal', route => route.fulfill({status: 503, json: {code: 'temporarily_unavailable', error: 'x'}}));
+    await page.unroute(PAL_API);
+    await page.route(PAL_API, route => route.fulfill({status: 503, json: {code: 'temporarily_unavailable', error: 'x'}}));
     await poke(); await settled('unavailable');                            // explicit 503: unavailable at once
     assert.equal(await page.locator('#scene').isVisible(), false);
     assert.equal(await page.locator('#heroImg').isVisible(), false);
     assert.equal(await page.locator('#unavailable').isVisible(), true);
     assert.equal(await page.evaluate(() => window.PalAudio.on), false);
 
-    await page.unroute('**/api/pal');
-    await page.route('**/api/pal', route => route.continue());
+    await page.unroute(PAL_API);
+    await page.route(PAL_API, route => route.continue());
     await poke(); await settled('ready');                                  // recovers when data is back
     for (const bad of [{status: 500, body: 'oops'}, {status: 200, body: 'not json'}, {status: 200, body: '{"days":[]}'}]) {
-      await page.unroute('**/api/pal');                                    // not a network error: never keep the screen
-      await page.route('**/api/pal', route => route.fulfill({status: bad.status, body: bad.body}));
+      await page.unroute(PAL_API);                                    // not a network error: never keep the screen
+      await page.route(PAL_API, route => route.fulfill({status: bad.status, body: bad.body}));
       await poke(); await settled('unavailable');
-      await page.unroute('**/api/pal');
-      await page.route('**/api/pal', route => route.continue());
+      await page.unroute(PAL_API);
+      await page.route(PAL_API, route => route.continue());
       await poke(); await settled('ready');
     }
     await stale({weather_fetched_at: iso(Date.now() - 60 * 3600e3)});
     await poke(); await settled('unavailable');                            // older than 48 h: never shown
-    await page.unroute('**/api/pal');
+    await page.unroute(PAL_API);
 
     // ---- V2 on first load: 503 shows the unavailable state without any cold/heat animation
     const fresh = await context.newPage();
     await fresh.route('**/*', route => new URL(route.request().url()).origin === base ? route.continue() : route.abort());
-    await fresh.route('**/api/pal', route => route.fulfill({status: 503, json: {code: 'temporarily_unavailable', error: 'x'}}));
+    await fresh.route(PAL_API, route => route.fulfill({status: 503, json: {code: 'temporarily_unavailable', error: 'x'}}));
     await fresh.goto(base + '/pal/berlin');
     await fresh.waitForSelector('body[data-state="unavailable"]');
     assert.equal(await fresh.locator('#scene').isVisible(), false);
@@ -186,7 +187,81 @@ const FORBIDDEN = /[雨风云晴阴雪]|太阳/;
     assert.equal(await fresh.locator('#homeLink').isVisible(), true);
     assert.equal(await fresh.locator('#homeLink').getAttribute('href'), '/');
 
+    // ---- Issue #111: chooser, per-city pages, per-city API calls, standalone navigation
+    const cityPage = await context.newPage();
+    const cityErrors = [];
+    cityPage.on('pageerror', e => cityErrors.push(e.message));
+    const apiCalls = [];
+    cityPage.on('request', r => { if (PAL_API.test(r.url())) apiCalls.push(new URL(r.url()).search); });
+    await cityPage.route('**/*', route => new URL(route.request().url()).origin === base ? route.continue() : route.abort());
+    await cityPage.goto(base + '/pal');
+    assert.equal(await cityPage.locator('a.city').count(), 10);
+    const chooserWords = await cityPage.evaluate(() => document.body.textContent + ' ' + [...document.querySelectorAll('[alt],[aria-label],[title]')].map(e => [e.alt, e.getAttribute('aria-label'), e.title].join(' ')).join(' '));
+    assert.doesNotMatch(chooserWords, FORBIDDEN);
+    assert.equal(await cityPage.locator('#homeLink').isVisible(), true);          // normal browser tab: the way back to the homepage is there
+    assert.deepEqual(apiCalls, []);                                              // the chooser asks for no weather data
+    if (process.env.PAL_SHOT_DIR) await cityPage.screenshot({path: process.env.PAL_SHOT_DIR + '/pal-chooser-390.png', fullPage: true});
+    await cityPage.locator('a.city', {hasText: '慕尼黑'}).click();
+    await cityPage.waitForURL(base + '/pal/munich');
+    await cityPage.waitForSelector('body[data-state="ready"]');
+    assert.match(await cityPage.title(), /慕尼黑/);
+    assert.equal(await cityPage.locator('#where').textContent(), '慕尼黑');
+    assert.equal(await cityPage.locator('body').getAttribute('data-city'), 'munich');
+    assert.equal(await cityPage.locator('link[rel=manifest]').getAttribute('href'), '/pal/munich/manifest.webmanifest');
+    assert.deepEqual(apiCalls, ['?city=munich']);
+    assert.equal(await cityPage.locator('#switchLink').isVisible(), true);
+    assert.equal(await cityPage.locator('#switchLink').getAttribute('href'), '/pal');
+    assert.equal(await cityPage.locator('#homeLink').isVisible(), true);
+    const munichWords = await cityPage.evaluate(() => {
+      const copy = document.body.cloneNode(true);
+      copy.querySelectorAll('[data-allow-words],script').forEach(e => e.remove());
+      return copy.textContent + ' ' + [...document.querySelectorAll('[alt],[aria-label],[title]')].filter(e => !e.closest('[data-allow-words]')).map(e => [e.alt, e.getAttribute('aria-label'), e.title].join(' ')).join(' ');
+    });
+    assert.doesNotMatch(munichWords, FORBIDDEN);
+    if (process.env.PAL_SHOT_DIR) await cityPage.screenshot({path: process.env.PAL_SHOT_DIR + '/pal-munich-390.png', fullPage: true});
+    await cityPage.locator('#switchLink').click();                                // 换城市 returns to the chooser
+    await cityPage.waitForURL(base + '/pal');
+    await cityPage.goto(base + '/pal/freiburg');                                  // not a featured city: no page
+    assert.match(await cityPage.locator('body').innerText(), /页面不存在/);
+    assert.deepEqual(cityErrors, []);
+
+    // Standalone (opened from the home-screen icon): the link to '/' is outside the manifest scope, so it is hidden;
+    // 换城市 stays. Two paths are checked: iOS (navigator.standalone) and the display-mode media query.
+    const iosContext = await browser.newContext({viewport: {width: 390, height: 844}});
+    await iosContext.addInitScript(() => Object.defineProperty(navigator, 'standalone', {get: () => true}));
+    const ios = await iosContext.newPage();
+    await ios.route('**/*', route => new URL(route.request().url()).origin === base ? route.continue() : route.abort());
+    await ios.goto(base + '/pal/munich');
+    await ios.waitForSelector('body[data-state="ready"]');
+    assert.equal(await ios.locator('#homeLink').isVisible(), false);
+    assert.equal(await ios.locator('#switchLink').isVisible(), true);
+    await ios.goto(base + '/pal');
+    assert.equal(await ios.locator('#homeLink').isVisible(), false);
+    assert.equal(await ios.locator('a.city').count(), 10);
+    await iosContext.close();
+    // Headless Chrome cannot emulate display-mode, so the media-query path is checked in the CSSOM instead:
+    // the loaded stylesheets must contain a (display-mode: standalone) rule that hides #homeLink and not #switchLink.
+    const hides = async path => {
+      const probe = await context.newPage();
+      await probe.route('**/*', route => new URL(route.request().url()).origin === base ? route.continue() : route.abort());
+      await probe.goto(base + path);
+      const found = await probe.evaluate(() => {
+        const out = [];
+        for (const sheet of document.styleSheets) for (const rule of sheet.cssRules)
+          if (rule instanceof CSSMediaRule && /display-mode:\s*standalone/.test(rule.conditionText))
+            for (const inner of rule.cssRules) out.push([inner.selectorText, inner.style.display]);
+        return out;
+      });
+      await probe.close();
+      return found;
+    };
+    for (const path of ['/pal/hamburg', '/pal']) {
+      const rules = await hides(path);
+      assert.ok(rules.some(([selector, display]) => selector === '#homeLink' && display === 'none'), path + ' hides #homeLink in display-mode: standalone');
+      assert.ok(!rules.some(([selector]) => /switchLink/.test(selector)), path + ' keeps 换城市');
+    }
+
     assert.deepEqual(errors, []);
-    console.log('pal browser checks passed: page, 7 days, no weather words/scene, time+temperature in scene, small prints, sound off by default and resume-failure reset, stale label, refresh rules, 503 state, widths');
+    console.log('pal browser checks passed: chooser, per-city pages and API calls, standalone navigation, page, 7 days, no weather words/scene, time+temperature in scene, small prints, sound off by default and resume-failure reset, stale label, refresh rules, 503 state, widths');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exit(1); });
