@@ -1,7 +1,7 @@
 /* 穿衣小伙伴：只表达冷热。数据来自 /api/pal；没有可用数据时显示不可用状态，不显示示例或历史数据。 */
 (function () {
   'use strict';
-  const ICON = n => `/static/icons/warmth/2x/warmth-l${n}.png`;
+  const ICON = n => `/static/pal/sprites/warmth-l${n}.png`;
   const LABELS = {1: '清爽透气', 2: '轻薄衣物', 3: '薄外套', 4: '中等厚度', 5: '保暖外套', 6: '厚实保暖'};
   const SLOT_NAMES = ['早', '午', '晚'], SLOT_KEYS = ['morning', 'midday', 'evening'], SLOT_HOURS = [7, 13, 20];
   const POLL_MS = 30 * 60 * 1000, MAX_AGE_MS = 48 * 3600 * 1000, REQUEST_MS = 10000;

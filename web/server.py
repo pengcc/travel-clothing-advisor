@@ -19,6 +19,8 @@ for _name, _mime in (('pal.js', 'text/javascript'), ('pal-audio.js', 'text/javas
                      ('pal.css', 'text/css'), ('manifest.webmanifest', 'application/manifest+json'),
                      ('apple-touch-icon.png', 'image/png'), ('icon-192.png', 'image/png')):
     STATIC[f'/static/pal/{_name}'] = (f'pal/{_name}', _mime)
+for _n in range(1, 7):          # neutral (weather-free) sprites for /pal/berlin; the homepage keeps icons/warmth
+    STATIC[f'/static/pal/sprites/warmth-l{_n}.png'] = (f'pal/sprites/warmth-l{_n}.png', 'image/png')
 
 
 def local_store(root):

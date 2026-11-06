@@ -293,6 +293,11 @@ $('tripForm').addEventListener('submit', async e => {
   finally { submit.disabled = false; }
 });
 $('back').onclick = () => { const city = new URLSearchParams(location.search).get('view') === 'city'; navigate(null); requestAnimationFrame(() => { focusHeading(city ? 'featuredTitle' : 'city'); $(city ? 'featuredTitle' : 'city').scrollIntoView({ block: 'start' }); }); };
+$('brand').addEventListener('click', e => {      // 顶栏「旅途穿衣」：从任何视图回到首页（带修饰键时保留浏览器默认行为）
+  if (e.defaultPrevented || e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+  e.preventDefault();
+  if (location.search) { navigate(null); requestAnimationFrame(() => window.scrollTo(0, 0)); } else window.scrollTo(0, 0);
+});
 window.addEventListener('popstate', () => { restoreForm(history.state?.form); route(); });
 $('fixture').onchange = () => { $('demo').checked = true; refreshContext(); if (location.search) route(); else loadFeatured(); };
 $('demo').onchange = () => { refreshContext(); if (location.search) route(); else loadFeatured(); };
