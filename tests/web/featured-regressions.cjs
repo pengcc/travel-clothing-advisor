@@ -1,4 +1,4 @@
-/* Run against python3 -m web.server; uses the existing optional Playwright install. */
+/* Run against python3 -m web.server; needs the Playwright install from "Browser test setup" in web/README.md. */
 const { chromium } = require('playwright');
 const assert = require('node:assert/strict');
 const base = process.env.UI_BASE_URL || 'http://127.0.0.1:8000';

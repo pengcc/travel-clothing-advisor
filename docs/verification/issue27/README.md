@@ -12,7 +12,7 @@ python3 -m web.server --fixtures --port 8001
 python3 tests/web/serve_forecasts.py --port 8002
 ```
 
-With the existing optional `.local-tools` Playwright installation and local Chrome:
+With the Playwright install from "Browser test setup" in `web/README.md` (`(cd tests/web && npm ci)`, shared with `capture.cjs`) and local Chrome:
 
 ```sh
 UI_BASE_URL=http://127.0.0.1:8001 node tests/web/browser.cjs --check-only
