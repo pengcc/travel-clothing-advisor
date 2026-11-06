@@ -1,6 +1,6 @@
 /* Synthetic 穿衣小伙伴 harness only: python3 tests/web/serve_pal.py, then node tests/web/pal-browser.cjs
    Set PAL_SHOT_DIR=<dir> to also save screenshots. */
-const {chromium} = require('../../.local-tools/node_modules/playwright');
+const {chromium} = require('playwright');
 const assert = require('node:assert/strict');
 const base = 'http://127.0.0.1:8008';
 const FORBIDDEN = /[雨风云晴阴雪]|太阳/;

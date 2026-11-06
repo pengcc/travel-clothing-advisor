@@ -1,5 +1,5 @@
 /* Offline fixture server: python3 -m web.server --fixtures --port 8001 */
-const {chromium} = require('../../.local-tools/node_modules/playwright');
+const {chromium} = require('playwright');
 const assert = require('node:assert/strict');
 const base = process.env.UI_BASE_URL || 'http://127.0.0.1:8001';
 (async () => {

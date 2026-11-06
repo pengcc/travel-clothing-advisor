@@ -1,5 +1,5 @@
 /* Run against python3 -m web.server; uses the existing optional Playwright install. */
-const { chromium } = require('../../.local-tools/node_modules/playwright');
+const { chromium } = require('playwright');
 const assert = require('node:assert/strict');
 const base = process.env.UI_BASE_URL || 'http://127.0.0.1:8000';
 const clone = data => JSON.parse(JSON.stringify(data));

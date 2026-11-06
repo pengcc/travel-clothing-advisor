@@ -1,5 +1,5 @@
 // Offline presentation matrix; synthetic states are explicit, never temperature-derived.
-const {chromium}=require('../../.local-tools/node_modules/playwright');
+const {chromium}=require('playwright');
 const assert=require('node:assert/strict');
 (async()=>{
  const browser=await chromium.launch({channel:'chrome',headless:true});

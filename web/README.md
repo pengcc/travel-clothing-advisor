@@ -117,12 +117,27 @@ Examples with injected complete hourly data:
 
 Result JSON keeps `city,start,end,preference,mode,headline,layers,notices,reference_temperature_c,daytime_temperature_range_c,warmth_indicator_level,packing_variation_notice,packing_variation_summary,packing_variation_kind,weather_fetched_at,advice_generated_at,source,data_status,data_version,caveat`. Nulls are explicit. `daytime_temperature_range_c` is `[min,max]` of the per-day daytime representative temperatures (rounded °C), or `null` with no daytime days; it lets a split result show real observed temperatures without inventing a single median. Both variation text fields come from the same service decision. `packing_variation_kind` is `cold`, `warm`, `mixed`, or `null` and is derived from those existing server-side packing events: it is `null` with no cross-day variation, and `mixed` for historical reference notices which explicitly cover both colder and warmer sample conditions. The client never parses Chinese text or treats this direction as a new warmth level. The UI never computes temperatures or levels; `WarmthIndicator` remains replaceable. Featured cards use the same backend rules; explicitly selected fixture cards keep their authored contract.
 
+## Browser test setup
+
+The `tests/web/*.cjs` browser scripts are **not** run by `make test` or CI. They need
+Node.js >= 20, Google Chrome installed on the machine (scripts launch it with
+`channel: 'chrome'`, not Playwright's bundled Chromium), and Playwright pinned in
+`tests/web/package.json` / `package-lock.json`:
+
+```sh
+(cd tests/web && npm ci)   # creates tests/web/node_modules (git-ignored)
+```
+
+`npm ci` works the same in a fresh clone or a git worktree. The package lives in
+`tests/web/`, so the repository root has no `package.json`; `vercel.json` already
+excludes `tests/**` from the Python function bundle.
+
 ## Verification
 
 ```sh
 python3 -m unittest discover -s tests/web -v
 python3 -m unittest discover -s experiments/clothing-rules -q
-# Start --fixtures --port 8001 separately, then use existing optional Playwright/Chrome:
+# Start --fixtures --port 8001 separately, then (after the one-time install in "Browser test setup") run:
 UI_BASE_URL=http://127.0.0.1:8001 node tests/web/browser.cjs --check-only
 UI_BASE_URL=http://127.0.0.1:8001 node tests/web/featured-regressions.cjs
 # Review #5545508096: full service JSON with offline provider, rendered in browser:
@@ -136,7 +151,7 @@ python3 tests/web/serve_forecasts.py
 node tests/web/live-browser.cjs
 ```
 
-The test writes three images under `docs/verification/phase2c/`. The screenshot's live-path labels are exercised with **injected synthetic weather**, not a captured real forecast. Test dependencies remain optional and ignored in `.local-tools/`; see the original [Phase 1 record](../docs/verification/phase1/README.md).
+The test writes three images under `docs/verification/phase2c/`. The screenshot's live-path labels are exercised with **injected synthetic weather**, not a captured real forecast. Browser test dependencies are declared in `tests/web/package.json` (see "Browser test setup"); see the original [Phase 1 record](../docs/verification/phase1/README.md).
 
 Optional public Berlin provider smoke test (requires network; no personal data needed):
 
@@ -262,7 +277,7 @@ when L6 coverage is required. Trouser/footwear copy keeps rain, snow and ice con
 on separately checked forecasts. Featured cards retain their short outerwear summaries.
 Older/fixture responses keep their existing export fallback without invented guidance.
 
-Offline regression commands (Chrome and local Playwright required for browser checks):
+Offline regression commands (Google Chrome and the Playwright install from "Browser test setup" required for browser checks):
 
 ```sh
 python3 tests/web/serve_forecasts.py --port 8002
@@ -446,7 +461,7 @@ python3 tests/web/serve_readonly.py
 node tests/web/readonly-browser.cjs
 ```
 
-The browser runner uses the existing optional local Playwright installation and
+The browser runner uses the Playwright install from "Browser test setup" and
 Chrome; it blocks requests outside its loopback origin. The strict test Store
 raises on access to `put`/`exclusive`; fake providers raise on any call.
 
@@ -697,7 +712,7 @@ Validation:
 ```sh
 make test
 python3 tests/web/serve_city_bundle.py --synthetic
-# In another terminal; optional existing local Playwright/Chrome installation:
+# In another terminal (after the "Browser test setup" install; needs Chrome):
 node tests/web/city-bundle-browser.cjs
 ```
 

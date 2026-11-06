@@ -1,5 +1,5 @@
 /* Synthetic S1 harness only: python3 tests/web/serve_readonly.py */
-const {chromium} = require('../../.local-tools/node_modules/playwright');
+const {chromium} = require('playwright');
 const assert = require('node:assert/strict');
 const base = 'http://127.0.0.1:8003';
 (async () => {

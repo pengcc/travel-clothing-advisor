@@ -1,5 +1,5 @@
 /* P1 synthetic-only browser: no cloud, metadata or weather downloads. */
-const {chromium}=require('../../.local-tools/node_modules/playwright');
+const {chromium}=require('playwright');
 const {spawn}=require('node:child_process');
 const readline=require('node:readline');
 const assert=require('node:assert/strict');

@@ -1,5 +1,5 @@
 /* Offline synthetic API/DOM flow using a temporary Git-format dataset and the Vercel handler locally. */
-const {chromium} = require('../../.local-tools/node_modules/playwright');
+const {chromium} = require('playwright');
 const assert = require('node:assert/strict');
 (async () => {
   const browser = await chromium.launch({channel:'chrome', headless:true});
