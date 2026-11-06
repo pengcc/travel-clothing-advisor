@@ -22,6 +22,9 @@ IDS = {
     'frankfurt': 2925533, 'cologne': 2886242, 'dresden': 2935022,
     'heidelberg': 2907911, 'nuremberg': 2861650, 'dusseldorf': 2934246,
     'leipzig': 2879139, 'freiburg': 2925177, 'frankfurt-oder': 2925535,
+    'stuttgart': 2825297, 'hannover': 2910831, 'bremen': 2944388, 'bonn': 2946447,
+    'potsdam': 2852458, 'wurzburg': 2805615, 'regensburg': 2849483, 'lubeck': 2875601,
+    'garmisch-partenkirchen': 2922530,
 }
 OUTER = {1:'穿轻薄透气衣物，无需厚外套', 2:'轻薄即可，不必带厚外套', 3:'建议带一件方便脱下的薄外套', 4:'建议带适中外套，里面可叠穿薄毛衣', 5:'建议带保暖夹克或轻羽绒，可叠穿抓绒', 6:'建议带冬季保暖外套和保暖内搭'}
 

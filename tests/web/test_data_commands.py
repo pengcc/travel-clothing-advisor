@@ -1,5 +1,6 @@
 """Offline daily maintenance regressions; all data is synthetic."""
 from datetime import timedelta
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -12,7 +13,9 @@ from unittest.mock import patch
 from test_forecasts import RECORDS
 from test_live import NOW, forecast
 from test_history import month_data
-from web.data_commands import records_at, status, update, export, tree
+from web import readonly
+from web.data_commands import (history_cities_at, history_records_at,
+                               records_at, status, update, export, tree)
 from web.forecasts import Cache
 from web.history import Library, DirectoryStore, key, plan
 
@@ -33,6 +36,41 @@ class DataCommandTests(unittest.TestCase):
 
     def prepare(self):
         Cache(DirectoryStore(self.f), self.clock).prefetch(RECORDS, lambda *a: forecast(NOW))
+
+    def add_history_cities(self):
+        raw = (Path(__file__).parents[2] / 'weather-data' / 'history-cities.json').read_bytes()
+        (self.bundle / 'history-cities.json').write_bytes(raw)
+        return raw
+
+    def test_history_only_manifest_is_optional_and_trust_anchored(self):
+        self.assertEqual(history_records_at(self.bundle), ([], []))
+        self.assertEqual(len(history_cities_at(self.bundle)), 10)
+        raw = self.add_history_cities()
+        records, extra = history_records_at(self.bundle)
+        self.assertEqual(len(history_cities_at(self.bundle)), 10 + len(records))
+        self.assertTrue({c['id'] for c in extra}.isdisjoint(c['id'] for c in self.cities))
+        # Any byte change needs the reviewed constant changed too.
+        (self.bundle / 'history-cities.json').write_bytes(raw.replace(b'Stuttgart', b'Stuttgard'))
+        with self.assertRaises(ValueError):
+            history_records_at(self.bundle)
+
+    def test_history_only_manifest_cannot_repeat_a_featured_city(self):
+        raw = json.dumps(RECORDS[:1]).encode()
+        (self.bundle / 'history-cities.json').write_bytes(raw)
+        with patch.object(readonly, 'TRUSTED_HISTORY_CITIES_SHA256', hashlib.sha256(raw).hexdigest()):
+            with self.assertRaises(ValueError):
+                history_records_at(self.bundle)
+
+    def test_export_keeps_history_only_manifest_and_its_valid_history(self):
+        raw = self.add_history_cities()
+        _, extra = history_records_at(self.bundle)
+        city, month = plan(extra, NOW.date())[0]
+        Library(DirectoryStore(self.bundle), self.clock).publish(city, month, month_data(month))
+        self.prepare()
+        result = export(self.records, *self.params)
+        self.assertEqual(result['removed'], 0)
+        self.assertEqual((self.bundle / 'history-cities.json').read_bytes(), raw)
+        self.assertTrue((self.bundle / key(city, month)).exists())
 
     def test_status_readonly_and_git_reuse_without_provider(self):
         city, month = plan(self.cities, NOW.date())[0]
